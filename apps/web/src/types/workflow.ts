@@ -1,12 +1,15 @@
+import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
+
 export type WorkflowStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 export interface Workflow {
-  id: string;
-  name: string;
-  description: string | null;
-  status: WorkflowStatus;
-  createdAt: string;
-  updatedAt: string;
+    id: string;
+    name: string;
+    description: string | null;
+    status: WorkflowStatus;
+    canvas: WorkflowCanvas | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface WorkflowListResponse {

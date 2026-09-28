@@ -4,6 +4,7 @@ import type {
     Workflow,
     WorkflowListResponse,
   } from '../types/workflow';
+  import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
   
   const API_BASE_URL = 'http://localhost:3000';
   
@@ -64,5 +65,13 @@ import type {
   export function deleteWorkflow(id: string): Promise<Workflow> {
     return request<Workflow>(`/workflows/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  export function updateWorkflowCanvas(id: string, canvas: WorkflowCanvas): Promise<Workflow> {
+    return request<Workflow>(`/workflows/${id}/canvas`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(canvas),
     });
   }

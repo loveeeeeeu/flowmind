@@ -4,6 +4,7 @@ import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
+import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 
 @Injectable()
 export class WorkflowService {
@@ -81,6 +82,17 @@ export class WorkflowService {
 
     return this.prisma.workflow.delete({
       where: { id },
+    });
+  }
+  
+  async updateCanvas(id: string, dto: UpdateWorkflowCanvasDto) {
+    await this.findOne(id);
+  
+    return this.prisma.workflow.update({
+      where: { id },
+      data: {
+        canvas: { nodes: dto.nodes, edges: dto.edges } as Prisma.InputJsonValue,
+      },
     });
   }
 }

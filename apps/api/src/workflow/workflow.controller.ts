@@ -4,6 +4,7 @@ import { WorkflowService } from './workflow.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
+import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 
 @ApiTags('Workflows')
 @Controller('workflows')
@@ -38,5 +39,11 @@ export class WorkflowController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.workflowService.remove(id);
+  }
+
+  @ApiOperation({ summary: '保存工作流画布' })
+  @Patch(':id/canvas')
+  updateCanvas(@Param('id') id: string, @Body() dto: UpdateWorkflowCanvasDto) {
+    return this.workflowService.updateCanvas(id, dto);
   }
 }

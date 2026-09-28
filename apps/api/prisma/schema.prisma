@@ -19,6 +19,8 @@ model Workflow {
   description String?
   status      WorkflowStatus @default(DRAFT)
 
+  canvas Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
