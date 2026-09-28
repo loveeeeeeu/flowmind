@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: flowmind-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowmind
+      POSTGRES_PASSWORD: flowmind
+      POSTGRES_DB: flowmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
