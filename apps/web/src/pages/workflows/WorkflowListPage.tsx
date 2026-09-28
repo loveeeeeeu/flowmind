@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createWorkflow, deleteWorkflow, getWorkflows } from '../../api/workflow';
 import { queryKeys } from '../../api/queryKeys';
@@ -9,7 +10,7 @@ export function WorkflowListPage() {
   const queryClient = useQueryClient();
 
   const workflowQuery = useQuery({
-    queryKey: queryKeys.workflows.all,
+    queryKey: queryKeys.workflows.lists(),
     queryFn: () => getWorkflows(),
   });
 
@@ -104,7 +105,12 @@ export function WorkflowListPage() {
                 }}
               >
                 <div>
-                  <strong>{workflow.name}</strong>
+                  <Link
+                    to={`/workflows/${workflow.id}`}
+                    style={{ color: 'inherit', textDecoration: 'none' }}
+                  >
+                    <strong>{workflow.name}</strong>
+                  </Link>
                   <p style={{ marginBottom: 0, color: '#666' }}>
                     {workflow.description ?? 'No description'}
                   </p>
@@ -112,6 +118,7 @@ export function WorkflowListPage() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span>{workflow.status}</span>
+                  <Link to={`/workflows/${workflow.id}`}>Open →</Link>
                   <button
                     disabled={deleting}
                     onClick={() => {

@@ -23,3 +23,8 @@ export interface CreateWorkflowInput {
   name: string;
   description?: string;
 }
+
+export interface UpdateWorkflowInput {
+  name?: string;
+  description?: string | null;
+}
