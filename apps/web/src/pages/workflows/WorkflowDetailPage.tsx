@@ -49,10 +49,13 @@ export function WorkflowDetailPage() {
 
       <header style={{ marginTop: 24, marginBottom: 32 }}>
         <h1 style={{ marginBottom: 8 }}>{workflow.name}</h1>
-        <div>
-          Status: <strong>{workflow.status}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div>
+                Status: <strong>{workflow.status}</strong>
+            </div>
+            <Link to={`/workflows/${id}/editor`}>Open Editor →</Link>
         </div>
-      </header>
+     </header>
 
       <WorkflowEditForm
         key={workflow.id}
