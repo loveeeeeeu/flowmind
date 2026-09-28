@@ -1,17 +1,41 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useSearchParams } from 'react-router';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { createWorkflow, deleteWorkflow, getWorkflows } from '../../api/workflow';
 import { queryKeys } from '../../api/queryKeys';
 import { CreateWorkflowForm } from '../../components/CreateWorkflowForm';
+import { WorkflowSearchForm } from '../../components/WorkflowSearchForm';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
+
+function getPositiveInt(value: string | null, fallback: number, max = Infinity) {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return Math.min(parsed, max);
+}
 
 export function WorkflowListPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = getPositiveInt(searchParams.get('page'), 1);
+  const pageSize = getPositiveInt(searchParams.get('pageSize'), 10, 100);
+  const keyword = searchParams.get('keyword') ?? '';
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const queryClient = useQueryClient();
 
   const workflowQuery = useQuery({
-    queryKey: queryKeys.workflows.lists(),
-    queryFn: () => getWorkflows(),
+    queryKey: queryKeys.workflows.list(page, pageSize, keyword),
+    queryFn: () => getWorkflows(page, pageSize, keyword),
+    placeholderData: keepPreviousData,
   });
 
   const createMutation = useMutation({
@@ -30,6 +54,21 @@ export function WorkflowListPage() {
   });
 
   const workflows = workflowQuery.data?.items ?? [];
+  const pagination = workflowQuery.data?.pagination;
+
+  function updateSearchParams(changes: Record<string, string | null>) {
+    const next = new URLSearchParams(searchParams);
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null || value === '') {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    }
+
+    setSearchParams(next);
+  }
 
   return (
     <main style={{ maxWidth: 1000, margin: '0 auto', padding: 32 }}>
@@ -48,6 +87,12 @@ export function WorkflowListPage() {
 
         <button onClick={() => setShowCreateForm(true)}>+ Create Workflow</button>
       </header>
+
+      <WorkflowSearchForm
+        key={keyword}
+        initialKeyword={keyword}
+        onSearch={(value) => updateSearchParams({ keyword: value, page: '1' })}
+      />
 
       {showCreateForm && (
         <CreateWorkflowForm
@@ -77,11 +122,21 @@ export function WorkflowListPage() {
         </div>
       )}
 
-      {workflowQuery.isSuccess && workflows.length === 0 && (
-        <div>No workflows yet.</div>
+      {workflowQuery.isFetching && !workflowQuery.isPending && (
+        <div style={{ color: '#666', marginBottom: 8 }}>Refreshing...</div>
       )}
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      {workflowQuery.isSuccess && workflows.length === 0 && (
+        <div>{keyword ? `No workflows match "${keyword}".` : 'No workflows yet.'}</div>
+      )}
+
+      <div
+        style={{
+          display: 'grid',
+          gap: 12,
+          opacity: workflowQuery.isPlaceholderData ? 0.5 : 1,
+        }}
+      >
         {workflows.map((workflow) => {
           const deleting =
             deleteMutation.isPending && deleteMutation.variables === workflow.id;
@@ -135,6 +190,52 @@ export function WorkflowListPage() {
           );
         })}
       </div>
+
+      {pagination && (
+        <footer
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 24,
+          }}
+        >
+          <div>Total: {pagination.total}</div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              disabled={page <= 1}
+              onClick={() => updateSearchParams({ page: String(page - 1) })}
+            >
+              Previous
+            </button>
+
+            <span>
+              Page {page} / {Math.max(pagination.totalPages, 1)}
+            </span>
+
+            <button
+              disabled={page >= pagination.totalPages || workflowQuery.isPlaceholderData}
+              onClick={() => updateSearchParams({ page: String(page + 1) })}
+            >
+              Next
+            </button>
+
+            <select
+              value={String(pageSize)}
+              onChange={(event) =>
+                updateSearchParams({ pageSize: event.target.value, page: '1' })
+              }
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size} / page
+                </option>
+              ))}
+            </select>
+          </div>
+        </footer>
+      )}
     </main>
   );
 }
