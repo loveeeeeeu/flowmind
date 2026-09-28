@@ -1,42 +1,86 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { LLM_PROVIDER } from '../llm/llm.constants.js';
-import type { LLMProvider } from '../llm/providers/llm-provider.interface.js';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
+import { Prisma } from '../generated/prisma/client.js';
+import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 
 @Injectable()
 export class WorkflowService {
-  constructor(
-    @Inject(LLM_PROVIDER)
-    private readonly llm: LLMProvider,
-  ) {}
-
-  findAll() {
-    return [{ id: 'wf_1', name: '每日新闻摘要', description: '假数据' }];
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   create(dto: CreateWorkflowDto) {
-    return { id: 'wf_new', ...dto };
+    return this.prisma.workflow.create({
+      data: {
+        name: dto.name,
+        description: dto.description,
+      },
+    });
   }
 
-  findOne(id: string) {
-    return { id, name: '每日新闻摘要', description: '假数据' };
+  async findAll(query: QueryWorkflowDto) {
+    const { page, pageSize, keyword } = query;
+    const skip = (page - 1) * pageSize;
+  
+    const where: Prisma.WorkflowWhereInput = keyword
+      ? {
+          OR: [
+            { name: { contains: keyword, mode: 'insensitive' } },
+            { description: { contains: keyword, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+  
+    const [items, total] = await Promise.all([
+      this.prisma.workflow.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.workflow.count({ where }),
+    ]);
+  
+    return {
+      items,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 
-  update(id: string, dto: UpdateWorkflowDto) {
-    return { id, ...dto };
+  async findOne(id: string) {
+    const workflow = await this.prisma.workflow.findUnique({
+      where: { id },
+    });
+
+    if (!workflow) {
+      throw new NotFoundException(`Workflow ${id} not found`);
+    }
+
+    return workflow;
   }
 
-  remove(id: string) {
-    return { id, deleted: true };
+  async update(id: string, dto: UpdateWorkflowDto) {
+    await this.findOne(id);
+
+    return this.prisma.workflow.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        description: dto.description,
+      },
+    });
   }
 
-  publish(id: string) {
-    return { id, publishedVersion: 1 };
-  }
+  async remove(id: string) {
+    await this.findOne(id);
 
-  async run(id: string) {
-    const result = await this.llm.chat({ model: 'gpt-5', prompt: 'Hello' });
-    return { workflowId: id, output: result.content };
+    return this.prisma.workflow.delete({
+      where: { id },
+    });
   }
 }

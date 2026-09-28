@@ -1,35 +1,24 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model Workflow {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  versions WorkflowVersion[]
+enum WorkflowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
-model WorkflowVersion {
-  id         String   @id @default(uuid())
-  workflowId String
-  version    Int
-  canvas     Json
-  createdAt  DateTime @default(now())
+model Workflow {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      WorkflowStatus @default(DRAFT)
 
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-
-  @@unique([workflowId, version])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

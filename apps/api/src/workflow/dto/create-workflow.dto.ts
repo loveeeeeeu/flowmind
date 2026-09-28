@@ -1,9 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateWorkflowDto {
-  @ApiProperty({ description: '工作流名称', example: '每日新闻摘要' })
+  @ApiProperty({ description: '工作流名称', example: 'Customer Service' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   name: string;
 
-  @ApiPropertyOptional({ description: '工作流描述', example: '每天 8 点抓取新闻并用 AI 总结' })
+  @ApiPropertyOptional({ description: '工作流描述', example: 'AI customer service workflow' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   description?: string;
 }
