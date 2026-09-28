@@ -33,3 +33,24 @@ Swagger/浏览器 → WorkflowController（收请求）→ WorkflowService（业
 - 并发：列表和总数互不依赖，用 Promise.all 同时查，总耗时取决于较慢的那个。
 - 返回格式：{ items, pagination }，items 渲染表格，pagination 交给分页组件，接口设计要考虑前端好不好用。
 - 原则：没有实际问题就不提前抽象（暂不做统一响应格式）。
+
+# 服务器数据应该怎么被 React 管理？
+TanStack Query 是一个专门管理"服务器数据"的前端库。
+以前你用 useEffect 手写的那套"请求、存储、同步"逻辑，TanStack Query 已经帮你做好了，而且处理得更完整。
+读取：useQuery  修改：useMutation  同步缓存：invalidateQueries
+```
+点击 Create
+   ↓
+createMutation.mutate(input)     → isPending = true，按钮显示 Creating...
+   ↓
+POST /workflows                  → 数据库新增一条
+   ↓
+onSuccess
+   ↓
+invalidateQueries(['workflows']) → "workflows 这份副本过期了"
+   ↓
+useQuery 发现自己的数据过期 → 自动 GET /workflows
+   ↓
+缓存更新 → 组件重新渲染 → 新数据出现在列表里
+```
+

@@ -1,11 +1,26 @@
 import type {
+    CreateWorkflowInput,
+    Workflow,
     WorkflowListResponse,
   } from '../types/workflow';
   
-  const API_BASE_URL =
-    'http://localhost:3000';
+  const API_BASE_URL = 'http://localhost:3000';
   
-  export async function getWorkflows(
+  async function request<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${path}`, init);
+  
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const message = Array.isArray(body?.message)
+        ? body.message.join(', ')
+        : body?.message;
+      throw new Error(message ?? `Request failed with status ${response.status}`);
+    }
+  
+    return response.json() as Promise<T>;
+  }
+  
+  export function getWorkflows(
     page = 1,
     pageSize = 10,
     keyword = '',
@@ -19,15 +34,19 @@ import type {
       params.set('keyword', keyword);
     }
   
-    const response = await fetch(
-      `${API_BASE_URL}/workflows?${params.toString()}`,
-    );
+    return request<WorkflowListResponse>(`/workflows?${params.toString()}`);
+  }
   
-    if (!response.ok) {
-      throw new Error(
-        'Failed to fetch workflows',
-      );
-    }
+  export function createWorkflow(input: CreateWorkflowInput): Promise<Workflow> {
+    return request<Workflow>('/workflows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  }
   
-    return response.json();
+  export function deleteWorkflow(id: string): Promise<Workflow> {
+    return request<Workflow>(`/workflows/${id}`, {
+      method: 'DELETE',
+    });
   }
