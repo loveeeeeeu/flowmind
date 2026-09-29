@@ -4,6 +4,7 @@ import type { WorkflowNode, WorkflowNodeData } from '../types/workflowCanvas';
 interface PropertiesPanelProps {
   node: WorkflowNode | null;
   onNodeDataChange: (nodeId: string, patch: Partial<WorkflowNodeData>) => void;
+  onDeleteNode: (nodeId: string) => void;
 }
 
 const panelStyle: CSSProperties = {
@@ -32,7 +33,7 @@ const inputStyle: CSSProperties = {
   padding: '6px 8px',
 };
 
-export function PropertiesPanel({ node, onNodeDataChange }: PropertiesPanelProps) {
+export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: PropertiesPanelProps) {
   if (!node) {
     return (
       <aside style={panelStyle}>
@@ -74,6 +75,22 @@ export function PropertiesPanel({ node, onNodeDataChange }: PropertiesPanelProps
             onChange={(event) => onNodeDataChange(node.id, { prompt: event.target.value })}
           />
         </label>
+
+        <button
+          type="button"
+          onClick={() => onDeleteNode(node.id)}
+          style={{
+            marginTop: 24,
+            width: '100%',
+            padding: 8,
+            color: '#b91c1c',
+            border: '1px solid #fca5a5',
+            background: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          Delete Node
+        </button>
       </aside>
     );
   }
@@ -83,6 +100,7 @@ export function PropertiesPanel({ node, onNodeDataChange }: PropertiesPanelProps
       <h3 style={{ marginTop: 0 }}>Properties</h3>
       <p>Name: {node.data.label}</p>
       <p>Type: {node.type}</p>
+      <p style={{ fontSize: 13, color: '#777' }}>Start / End nodes cannot be deleted.</p>
     </aside>
   );
 }

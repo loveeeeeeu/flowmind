@@ -1,12 +1,16 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Background,
   Controls,
   ReactFlow,
   addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
   useEdgesState,
   useNodesState,
   type Connection,
+  type EdgeChange,
+  type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Link } from 'react-router';
@@ -17,6 +21,7 @@ import type { Workflow } from '../types/workflow';
 import { StartNode } from './nodes/StartNode';
 import { EndNode } from './nodes/EndNode';
 import { LlmNode } from './nodes/LlmNode';
+import { NodeLibrary } from './components/NodeLibrary';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { toPersistedCanvas } from './toPersistedCanvas';
 import type {
@@ -49,6 +54,19 @@ const defaultNodes: WorkflowNode[] = [
 
 const defaultEdges: WorkflowEdge[] = [];
 
+function isProtectedNode(node: WorkflowNode) {
+  return node.type === 'start' || node.type === 'end';
+}
+
+function withDeleteRules(nodes: WorkflowNode[]): WorkflowNode[] {
+  return nodes.map((node) => (isProtectedNode(node) ? { ...node, deletable: false } : node));
+}
+
+// 'dimensions' is emitted when React Flow measures nodes on first render, so it must not count as an edit.
+function isCanvasChange(change: NodeChange | EdgeChange) {
+  return change.type !== 'select' && change.type !== 'dimensions';
+}
+
 interface WorkflowCanvasEditorProps {
   workflow: Workflow;
 }
@@ -56,21 +74,62 @@ interface WorkflowCanvasEditorProps {
 export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const queryClient = useQueryClient();
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(
-    workflow.canvas?.nodes ?? defaultNodes,
+  const [nodes, setNodes] = useNodesState<WorkflowNode>(
+    withDeleteRules(workflow.canvas?.nodes ?? defaultNodes),
   );
-  const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdge>(
-    workflow.canvas?.edges ?? defaultEdges,
-  );
+  const [edges, setEdges] = useEdgesState<WorkflowEdge>(workflow.canvas?.edges ?? defaultEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<WorkflowNode>[]) => {
+      setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
+
+      if (changes.some(isCanvasChange)) {
+        setIsDirty(true);
+      }
+    },
+    [setNodes],
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange<WorkflowEdge>[]) => {
+      setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges));
+
+      if (changes.some(isCanvasChange)) {
+        setIsDirty(true);
+      }
+    },
+    [setEdges],
+  );
 
   const onConnect = useCallback(
     (connection: Connection) => {
       setEdges((currentEdges) => addEdge(connection, currentEdges));
+      setIsDirty(true);
     },
     [setEdges],
+  );
+
+  const isValidConnection = useCallback(
+    (connection: Connection | WorkflowEdge) => {
+      if (!connection.source || !connection.target) {
+        return false;
+      }
+
+      if (connection.source === connection.target) {
+        return false;
+      }
+
+      const exists = edges.some(
+        (edge) => edge.source === connection.source && edge.target === connection.target,
+      );
+
+      return !exists;
+    },
+    [edges],
   );
 
   function addLlmNode() {
@@ -86,6 +145,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     };
 
     setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
   }
 
   function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
@@ -104,16 +164,55 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         } as WorkflowNode;
       }),
     );
+    setIsDirty(true);
+  }
+
+  function deleteNode(nodeId: string) {
+    const node = nodes.find((item) => item.id === nodeId);
+
+    if (!node || isProtectedNode(node)) {
+      return;
+    }
+
+    setNodes((currentNodes) => currentNodes.filter((item) => item.id !== nodeId));
+    setEdges((currentEdges) =>
+      currentEdges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+    );
+    setSelectedNodeId(null);
+    setIsDirty(true);
   }
 
   const saveCanvasMutation = useMutation({
     mutationFn: () => updateWorkflowCanvas(workflow.id, toPersistedCanvas(nodes, edges)),
     onSuccess: async () => {
+      setIsDirty(false);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.workflows.detail(workflow.id),
       });
     },
   });
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
+
+      if (!isSaveShortcut) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (isDirty && !saveCanvasMutation.isPending) {
+        saveCanvasMutation.mutate();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDirty, saveCanvasMutation]);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -132,19 +231,21 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Link to={`/workflows/${workflow.id}`}>← Back</Link>
           <strong>{workflow.name}</strong>
+          <span style={{ fontSize: 13, color: isDirty ? '#b45309' : '#15803d' }}>
+            {isDirty ? '● Unsaved changes' : '✓ Saved'}
+          </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {saveCanvasMutation.isSuccess && <span style={{ color: '#2e7d32' }}>Saved</span>}
           {saveCanvasMutation.isError && (
-            <span style={{ color: '#d32f2f' }}>
-              Save failed: {saveCanvasMutation.error?.message}
+            <span style={{ fontSize: 13, color: '#d32f2f' }}>
+              Save failed: {saveCanvasMutation.error.message}
             </span>
           )}
 
           <button
             onClick={() => saveCanvasMutation.mutate()}
-            disabled={saveCanvasMutation.isPending}
+            disabled={!isDirty || saveCanvasMutation.isPending}
           >
             {saveCanvasMutation.isPending ? 'Saving...' : 'Save'}
           </button>
@@ -152,32 +253,18 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       </header>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <aside
-          style={{
-            width: 180,
-            flexShrink: 0,
-            padding: 16,
-            borderRight: '1px solid #e5e5e5',
-            background: '#fff',
-          }}
-        >
-          <strong>Nodes</strong>
-
-          <div style={{ marginTop: 16 }}>
-            <button onClick={addLlmNode} style={{ width: '100%' }}>
-              + LLM
-            </button>
-          </div>
-        </aside>
+        <NodeLibrary onAddLlm={addLlmNode} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
+            isValidConnection={isValidConnection}
+            deleteKeyCode={['Backspace', 'Delete']}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             fitView
@@ -187,7 +274,11 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
           </ReactFlow>
         </div>
 
-        <PropertiesPanel node={selectedNode} onNodeDataChange={updateNodeData} />
+        <PropertiesPanel
+          node={selectedNode}
+          onNodeDataChange={updateNodeData}
+          onDeleteNode={deleteNode}
+        />
       </div>
     </div>
   );
