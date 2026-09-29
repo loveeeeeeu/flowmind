@@ -1,15 +1,16 @@
 import type { Edge, Node } from '@xyflow/react';
 
-export type StartNodeData = {
+export type BaseNodeData = {
   label: string;
 };
 
-export type EndNodeData = {
-  label: string;
-};
+export type StartNodeData = BaseNodeData;
 
-export type LlmNodeData = {
-  label: string;
+export type EndNodeData = BaseNodeData;
+
+export type LlmNodeData = BaseNodeData & {
+  model: string;
+  prompt: string;
 };
 
 export type StartNodeType = Node<StartNodeData, 'start'>;
@@ -17,6 +18,7 @@ export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
 
 export type WorkflowNode = StartNodeType | EndNodeType | LlmNodeType;
+export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;
 
 export type WorkflowCanvas = {

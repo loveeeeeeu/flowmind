@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Background,
   Controls,
@@ -17,8 +17,14 @@ import type { Workflow } from '../types/workflow';
 import { StartNode } from './nodes/StartNode';
 import { EndNode } from './nodes/EndNode';
 import { LlmNode } from './nodes/LlmNode';
+import { PropertiesPanel } from './components/PropertiesPanel';
 import { toPersistedCanvas } from './toPersistedCanvas';
-import type { LlmNodeType, WorkflowEdge, WorkflowNode } from './types/workflowCanvas';
+import type {
+  LlmNodeType,
+  WorkflowEdge,
+  WorkflowNode,
+  WorkflowNodeData,
+} from './types/workflowCanvas';
 
 const nodeTypes = {
   start: StartNode,
@@ -56,6 +62,9 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdge>(
     workflow.canvas?.edges ?? defaultEdges,
   );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -69,10 +78,32 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       id: crypto.randomUUID(),
       type: 'llm',
       position: { x: 300, y: 300 },
-      data: { label: 'LLM' },
+      data: {
+        label: 'LLM',
+        model: 'gpt-5',
+        prompt: '',
+      },
     };
 
     setNodes((currentNodes) => [...currentNodes, newNode]);
+  }
+
+  function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        if (node.id !== nodeId) {
+          return node;
+        }
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            ...patch,
+          },
+        } as WorkflowNode;
+      }),
+    );
   }
 
   const saveCanvasMutation = useMutation({
@@ -111,7 +142,6 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
             </span>
           )}
 
-          <button onClick={addLlmNode}>+ Add LLM</button>
           <button
             onClick={() => saveCanvasMutation.mutate()}
             disabled={saveCanvasMutation.isPending}
@@ -121,19 +151,43 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         </div>
       </header>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          fitView
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <aside
+          style={{
+            width: 180,
+            flexShrink: 0,
+            padding: 16,
+            borderRight: '1px solid #e5e5e5',
+            background: '#fff',
+          }}
         >
-          <Background />
-          <Controls />
-        </ReactFlow>
+          <strong>Nodes</strong>
+
+          <div style={{ marginTop: 16 }}>
+            <button onClick={addLlmNode} style={{ width: '100%' }}>
+              + LLM
+            </button>
+          </div>
+        </aside>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+            onPaneClick={() => setSelectedNodeId(null)}
+            fitView
+          >
+            <Background />
+            <Controls />
+          </ReactFlow>
+        </div>
+
+        <PropertiesPanel node={selectedNode} onNodeDataChange={updateNodeData} />
       </div>
     </div>
   );

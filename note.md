@@ -37,7 +37,7 @@ Swagger/浏览器 → WorkflowController（收请求）→ WorkflowService（业
 # 服务器数据应该怎么被 React 管理？
 TanStack Query 是一个专门管理"服务器数据"的前端库。
 以前你用 useEffect 手写的那套"请求、存储、同步"逻辑，TanStack Query 已经帮你做好了，而且处理得更完整。
-读取：useQuery  修改：useMutation  同步缓存：invalidateQueries
+读取：useQuery（从服务器读数据，按 Query Key 存进缓存，并且会自动决定什么时候重新读）  修改：useMutation（调用你写的函数去改服务器上的数据）  同步缓存：invalidateQueries（告诉缓存"你已经过时了"，正在使用的数据会立刻重新读取）
 Query Key 是一个数组，TanStack Query 会从左往右逐项比较。可以把它想成文件夹路径
 Query Key 的层级设计：调用 invalidate 时，哪些会失效：invalidateQueries 默认按前缀匹配：只要缓存 key 的开头和你传入的 key 一样，就算匹配上。
 ```
