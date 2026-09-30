@@ -46,4 +46,10 @@ export class WorkflowController {
   updateCanvas(@Param('id') id: string, @Body() dto: UpdateWorkflowCanvasDto) {
     return this.workflowService.updateCanvas(id, dto);
   }
+
+  @ApiOperation({ summary: '校验工作流并生成执行顺序' })
+  @Post(':id/validate')
+  validate(@Param('id') id: string) {
+    return this.workflowService.validateWorkflow(id);
+  }
 }

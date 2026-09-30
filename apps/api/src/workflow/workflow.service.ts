@@ -1,14 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
+import { ExecutionService } from '../execution/execution.service.js';
+import type { WorkflowCanvas } from '../execution/engine/workflow-engine.types.js';
 
 @Injectable()
 export class WorkflowService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly executionService: ExecutionService,
+  ) {}
 
   create(dto: CreateWorkflowDto) {
     return this.prisma.workflow.create({
@@ -22,7 +27,7 @@ export class WorkflowService {
   async findAll(query: QueryWorkflowDto) {
     const { page, pageSize, keyword } = query;
     const skip = (page - 1) * pageSize;
-  
+
     const where: Prisma.WorkflowWhereInput = keyword
       ? {
           OR: [
@@ -31,7 +36,7 @@ export class WorkflowService {
           ],
         }
       : {};
-  
+
     const [items, total] = await Promise.all([
       this.prisma.workflow.findMany({
         where,
@@ -41,7 +46,7 @@ export class WorkflowService {
       }),
       this.prisma.workflow.count({ where }),
     ]);
-  
+
     return {
       items,
       pagination: {
@@ -84,15 +89,27 @@ export class WorkflowService {
       where: { id },
     });
   }
-  
+
   async updateCanvas(id: string, dto: UpdateWorkflowCanvasDto) {
     await this.findOne(id);
-  
+
     return this.prisma.workflow.update({
       where: { id },
       data: {
         canvas: { nodes: dto.nodes, edges: dto.edges } as Prisma.InputJsonValue,
       },
     });
+  }
+
+  async validateWorkflow(id: string) {
+    const workflow = await this.findOne(id);
+
+    if (!workflow.canvas) {
+      throw new BadRequestException('Workflow has no canvas');
+    }
+
+    return this.executionService.createExecutionPlan(
+      workflow.canvas as unknown as WorkflowCanvas,
+    );
   }
 }
