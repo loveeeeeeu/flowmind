@@ -5,6 +5,7 @@ import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
+import { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 
 @ApiTags('Workflows')
 @Controller('workflows')
@@ -51,5 +52,10 @@ export class WorkflowController {
   @Post(':id/validate')
   validate(@Param('id') id: string) {
     return this.workflowService.validateWorkflow(id);
+  }
+  @ApiOperation({ summary: '同步运行工作流' })
+  @Post(':id/run')
+  run(@Param('id') id: string, @Body() dto: RunWorkflowDto) {
+    return this.workflowService.runWorkflow(id, dto);
   }
 }

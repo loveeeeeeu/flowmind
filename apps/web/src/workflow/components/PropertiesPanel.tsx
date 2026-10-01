@@ -33,6 +33,32 @@ const inputStyle: CSSProperties = {
   padding: '6px 8px',
 };
 
+const textareaStyle: CSSProperties = {
+  ...inputStyle,
+  resize: 'vertical',
+  fontFamily: 'inherit',
+};
+
+function DeleteNodeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        marginTop: 24,
+        width: '100%',
+        padding: 8,
+        color: '#b91c1c',
+        border: '1px solid #fca5a5',
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      Delete Node
+    </button>
+  );
+}
+
 export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: PropertiesPanelProps) {
   if (!node) {
     return (
@@ -70,27 +96,77 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
           <div style={fieldLabelStyle}>Prompt</div>
           <textarea
             rows={10}
-            style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+            style={textareaStyle}
             value={node.data.prompt ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { prompt: event.target.value })}
           />
         </label>
 
-        <button
-          type="button"
-          onClick={() => onDeleteNode(node.id)}
-          style={{
-            marginTop: 24,
-            width: '100%',
-            padding: 8,
-            color: '#b91c1c',
-            border: '1px solid #fca5a5',
-            background: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          Delete Node
-        </button>
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
+  if (node.type === 'template') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>Template Properties</h3>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.label ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Template</div>
+          <textarea
+            rows={8}
+            style={textareaStyle}
+            placeholder="Hello {{name}}"
+            value={node.data.template ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { template: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Output Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="result"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { outputVariable: event.target.value })
+            }
+          />
+        </label>
+
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
+  if (node.type === 'end') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>End Properties</h3>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Output Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="result"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { outputVariable: event.target.value })
+            }
+          />
+        </label>
+
+        <p style={{ fontSize: 13, color: '#777' }}>End node cannot be deleted.</p>
       </aside>
     );
   }
@@ -100,7 +176,7 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
       <h3 style={{ marginTop: 0 }}>Properties</h3>
       <p>Name: {node.data.label}</p>
       <p>Type: {node.type}</p>
-      <p style={{ fontSize: 13, color: '#777' }}>Start / End nodes cannot be deleted.</p>
+      <p style={{ fontSize: 13, color: '#777' }}>Start node cannot be deleted.</p>
     </aside>
   );
 }

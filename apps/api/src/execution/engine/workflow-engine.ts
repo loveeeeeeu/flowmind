@@ -1,8 +1,49 @@
+import { ExecutionContext } from './execution-context.js';
+import { EndExecutor } from './executors/end.executor.js';
+import type { NodeExecutor } from './executors/node-executor.js';
+import { StartExecutor } from './executors/start.executor.js';
+import { TemplateExecutor } from './executors/template.executor.js';
 import type { WorkflowCanvas, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
 import { WorkflowValidationError } from './workflow-validation.error.js';
 
 export class WorkflowEngine {
+  private readonly executors = new Map<string, NodeExecutor>([
+    ['start', new StartExecutor()],
+    ['template', new TemplateExecutor()],
+    ['end', new EndExecutor()],
+  ]);
+
+  async execute(canvas: WorkflowCanvas, input: Record<string, unknown>) {
+    const executionPlan = this.buildExecutionPlan(canvas);
+
+    for (const node of executionPlan) {
+      if (!this.executors.has(node.type)) {
+        throw new WorkflowValidationError(`Unsupported node type: ${node.type}`);
+      }
+    }
+
+    const context = new ExecutionContext(input);
+    let finalResult: unknown = null;
+
+    for (const node of executionPlan) {
+      const executor = this.executors.get(node.type)!;
+      const output = await executor.execute(node, context);
+
+      context.setNodeOutput(node.id, output);
+
+      if (node.type === 'end') {
+        finalResult = output;
+      }
+    }
+
+    return {
+      result: finalResult,
+      variables: context.getVariables(),
+      nodeOutputs: context.getNodeOutputs(),
+    };
+  }
+
   buildExecutionPlan(canvas: WorkflowCanvas): WorkflowNode[] {
     this.validate(canvas);
 

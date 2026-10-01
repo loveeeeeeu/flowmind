@@ -1,0 +1,34 @@
+export class ExecutionContext {
+    private readonly variables = new Map<string, unknown>();
+    private readonly nodeOutputs = new Map<string, unknown>();
+  
+    constructor(input: Record<string, unknown>) {
+      for (const [key, value] of Object.entries(input)) {
+        this.variables.set(key, value);
+      }
+    }
+  
+    getVariable(key: string): unknown {
+      return this.variables.get(key);
+    }
+  
+    setVariable(key: string, value: unknown) {
+      this.variables.set(key, value);
+    }
+  
+    getVariables() {
+      return Object.fromEntries(this.variables.entries());
+    }
+  
+    setNodeOutput(nodeId: string, output: unknown) {
+      this.nodeOutputs.set(nodeId, output);
+    }
+  
+    getNodeOutput(nodeId: string) {
+      return this.nodeOutputs.get(nodeId);
+    }
+  
+    getNodeOutputs() {
+      return Object.fromEntries(this.nodeOutputs.entries());
+    }
+  }

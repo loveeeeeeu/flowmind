@@ -21,11 +21,13 @@ import type { Workflow } from '../types/workflow';
 import { StartNode } from './nodes/StartNode';
 import { EndNode } from './nodes/EndNode';
 import { LlmNode } from './nodes/LlmNode';
+import { TemplateNode } from './nodes/TemplateNode';
 import { NodeLibrary } from './components/NodeLibrary';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { toPersistedCanvas } from './toPersistedCanvas';
 import type {
   LlmNodeType,
+  TemplateNodeType,
   WorkflowEdge,
   WorkflowNode,
   WorkflowNodeData,
@@ -35,6 +37,7 @@ const nodeTypes = {
   start: StartNode,
   end: EndNode,
   llm: LlmNode,
+  template: TemplateNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -48,7 +51,7 @@ const defaultNodes: WorkflowNode[] = [
     id: 'end-1',
     type: 'end',
     position: { x: 600, y: 200 },
-    data: { label: 'End' },
+    data: { label: 'End', outputVariable: 'result' },
   },
 ];
 
@@ -141,6 +144,22 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         label: 'LLM',
         model: 'gpt-5',
         prompt: '',
+      },
+    };
+
+    setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
+
+  function addTemplateNode() {
+    const newNode: TemplateNodeType = {
+      id: crypto.randomUUID(),
+      type: 'template',
+      position: { x: 350, y: 300 },
+      data: {
+        label: 'Template',
+        template: 'Hello {{name}}',
+        outputVariable: 'result',
       },
     };
 
@@ -253,7 +272,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       </header>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <NodeLibrary onAddLlm={addLlmNode} />
+        <NodeLibrary onAddLlm={addLlmNode} onAddTemplate={addTemplateNode} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <ReactFlow

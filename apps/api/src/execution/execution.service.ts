@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { WorkflowEngine } from './engine/workflow-engine.js';
 import type { WorkflowCanvas } from './engine/workflow-engine.types.js';
+import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
 import { WorkflowValidationError } from './engine/workflow-validation.error.js';
 
 @Injectable()
@@ -16,11 +17,23 @@ export class ExecutionService {
         order: nodes.map((node) => node.id),
       };
     } catch (error) {
-      if (error instanceof WorkflowValidationError) {
-        throw new BadRequestException(error.message);
-      }
-
-      throw error;
+      this.rethrowAsHttpError(error);
     }
+  }
+
+  async execute(canvas: WorkflowCanvas, input: Record<string, unknown>) {
+    try {
+      return await this.engine.execute(canvas, input);
+    } catch (error) {
+      this.rethrowAsHttpError(error);
+    }
+  }
+
+  private rethrowAsHttpError(error: unknown): never {
+    if (error instanceof WorkflowValidationError || error instanceof WorkflowExecutionError) {
+      throw new BadRequestException(error.message);
+    }
+
+    throw error;
   }
 }

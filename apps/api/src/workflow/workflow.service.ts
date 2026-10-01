@@ -7,6 +7,7 @@ import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 import { ExecutionService } from '../execution/execution.service.js';
 import type { WorkflowCanvas } from '../execution/engine/workflow-engine.types.js';
+import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 
 @Injectable()
 export class WorkflowService {
@@ -110,6 +111,19 @@ export class WorkflowService {
 
     return this.executionService.createExecutionPlan(
       workflow.canvas as unknown as WorkflowCanvas,
+    );
+  }
+
+  async runWorkflow(id: string, dto: RunWorkflowDto) {
+    const workflow = await this.findOne(id);
+  
+    if (!workflow.canvas) {
+      throw new BadRequestException('Workflow has no canvas');
+    }
+  
+    return this.executionService.execute(
+      workflow.canvas as unknown as WorkflowCanvas,
+      dto.input,
     );
   }
 }

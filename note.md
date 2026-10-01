@@ -80,3 +80,25 @@ nodeTypes 把 type 字符串映射到组件，是编辑器的扩展点（后端�
 拓扑排序（Kahn 算法）：入度为 0 的节点放进队列（"现在就能做的待办清单"）→ 取出一个放进结果 → 它的下游入度 -1 → 减到 0 的放进队列 → 直到队列为空。
 排出来的数量 < 节点总数 → 有节点永远等不到 → 有环。环检测是拓扑排序的副产品，不需要单独的算法。
 复杂度 O(V+E)：每个节点进出队列一次，每条边只处理一次。
+
+# execute 执行
+上一课只生成执行计划（排出顺序），这一课按计划逐个运行节点，第一次真正跑通工作流：输入 { name } → Hello {{name}} → 输出结果。
+## 2个概念
+- **ExecutionContext**：一次运行的共享内存。variables 存工作流里能用的变量（开始时是用户输入，后续节点可以写入新变量）；nodeOutputs 存每个节点的原始返回值
+- **NodeExecutor**：所有执行器都实现 execute(node, context)。引擎里用一个 Map 把 type 对应到执行器（start / template / end），不写一长串 if-else。以后新增节点类型 = 新建一个执行器 + 在 Map 里登记一行。和 LLM 的 Adapter 是同一种思路：按类型选择具体实现。
+## 主流程：execute()
+```text
+POST /workflows/:id/run  { "input": { "name": "FlowMind" } }
+→ buildExecutionPlan（校验 + 拓扑排序）
+→ 先检查所有节点类型是否都有执行器（不支持就直接报错，一个节点都不执行）
+→ new ExecutionContext(input)
+→ 按顺序：找到执行器 → await execute(node, context) → 记录 nodeOutput
+→ End 的返回值作为最终结果
+→ 返回 { result, variables, nodeOutputs }
+```
+现在是串行执行：先保证结果正确，并行属于以后的性能优化
+## 错误与边界
+- 校验错误（运行前就能发现）：图结构不对、节点类型不支持 → WorkflowValidationError
+- 执行错误（运行中才发生）：变量不存在、节点缺少配置 → WorkflowExecutionError
+- 引擎只抛自己定义的错误，由 ExecutionService 统一转换成 HTTP 400；（HTTP 状态码里，4xx 表示"请求方的问题"，5xx 表示"服务器的问题"）
+- 先检查节点类型再执行：以后接入 LLM，避免先花钱调用了模型，后面才报错

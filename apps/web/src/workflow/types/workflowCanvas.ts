@@ -6,18 +6,26 @@ export type BaseNodeData = {
 
 export type StartNodeData = BaseNodeData;
 
-export type EndNodeData = BaseNodeData;
+export type EndNodeData = BaseNodeData & {
+  outputVariable?: string;
+};
 
 export type LlmNodeData = BaseNodeData & {
   model: string;
   prompt: string;
 };
 
+export type TemplateNodeData = BaseNodeData & {
+  template: string;
+  outputVariable: string;
+};
+
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
+export type TemplateNodeType = Node<TemplateNodeData, 'template'>;
 
-export type WorkflowNode = StartNodeType | EndNodeType | LlmNodeType;
+export type WorkflowNode = StartNodeType | EndNodeType | LlmNodeType | TemplateNodeType;
 export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;
 
