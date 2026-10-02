@@ -1,9 +1,10 @@
 interface NodeLibraryProps {
   onAddLlm: () => void;
   onAddTemplate: () => void;
+  onAddVariable: () => void;
 }
 
-export function NodeLibrary({ onAddLlm, onAddTemplate }: NodeLibraryProps) {
+export function NodeLibrary({ onAddLlm, onAddTemplate, onAddVariable }: NodeLibraryProps) {
   return (
     <aside
       style={{
@@ -25,6 +26,13 @@ export function NodeLibrary({ onAddLlm, onAddTemplate }: NodeLibraryProps) {
         style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
       >
         + Template
+      </button>
+
+      <button
+        onClick={onAddVariable}
+        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
+      >
+        + Variable
       </button>
     </aside>
   );

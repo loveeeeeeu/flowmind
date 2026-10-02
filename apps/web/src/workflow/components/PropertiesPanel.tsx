@@ -149,6 +149,45 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
     );
   }
 
+  if (node.type === 'variable') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>Variable Properties</h3>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.label ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Variable Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.variableName ?? ''}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { variableName: event.target.value })
+            }
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Value</div>
+          <input
+            style={inputStyle}
+            value={String(node.data.value ?? '')}
+            onChange={(event) => onNodeDataChange(node.id, { value: event.target.value })}
+          />
+        </label>
+  
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+  
   if (node.type === 'end') {
     return (
       <aside style={panelStyle}>

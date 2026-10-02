@@ -20,12 +20,24 @@ export type TemplateNodeData = BaseNodeData & {
   outputVariable: string;
 };
 
+export type VariableNodeData = BaseNodeData & {
+  variableName: string;
+  value: unknown;
+};
+
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
 export type TemplateNodeType = Node<TemplateNodeData, 'template'>;
+export type VariableNodeType = Node<VariableNodeData, 'variable'>;
 
-export type WorkflowNode = StartNodeType | EndNodeType | LlmNodeType | TemplateNodeType;
+export type WorkflowNode =
+  | StartNodeType
+  | EndNodeType
+  | LlmNodeType
+  | TemplateNodeType
+  | VariableNodeType;
+
 export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;
 

@@ -25,9 +25,11 @@ import { TemplateNode } from './nodes/TemplateNode';
 import { NodeLibrary } from './components/NodeLibrary';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { toPersistedCanvas } from './toPersistedCanvas';
+import { VariableNode } from './nodes/VariableNode';
 import type {
   LlmNodeType,
   TemplateNodeType,
+  VariableNodeType,
   WorkflowEdge,
   WorkflowNode,
   WorkflowNodeData,
@@ -38,6 +40,7 @@ const nodeTypes = {
   end: EndNode,
   llm: LlmNode,
   template: TemplateNode,
+  variable: VariableNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -166,7 +169,22 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     setNodes((currentNodes) => [...currentNodes, newNode]);
     setIsDirty(true);
   }
-
+  function addVariableNode() {
+    const newNode: VariableNodeType = {
+      id: crypto.randomUUID(),
+      type: 'variable',
+      position: { x: 350, y: 300 },
+      data: {
+        label: 'Variable',
+        variableName: 'name',
+        value: 'FlowMind',
+      },
+    };
+  
+    setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
+  
   function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
     setNodes((currentNodes) =>
       currentNodes.map((node) => {
@@ -272,7 +290,11 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       </header>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <NodeLibrary onAddLlm={addLlmNode} onAddTemplate={addTemplateNode} />
+      <NodeLibrary
+        onAddLlm={addLlmNode}
+        onAddTemplate={addTemplateNode}
+        onAddVariable={addVariableNode}
+      />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <ReactFlow
