@@ -1,5 +1,7 @@
+import { Injectable } from '@nestjs/common';
 import { ExecutionContext } from './execution-context.js';
 import { EndExecutor } from './executors/end.executor.js';
+import { LlmExecutor } from './executors/llm.executor.js';
 import type { NodeExecutor } from './executors/node-executor.js';
 import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
@@ -8,13 +10,25 @@ import type { WorkflowCanvas, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
 import { WorkflowValidationError } from './workflow-validation.error.js';
 
+@Injectable()
 export class WorkflowEngine {
-  private readonly executors = new Map<string, NodeExecutor>([
-    ['start', new StartExecutor()],
-    ['variable', new VariableExecutor()],
-    ['template', new TemplateExecutor()],
-    ['end', new EndExecutor()],
-  ]);
+  private readonly executors: Map<string, NodeExecutor>;
+
+  constructor(
+    startExecutor: StartExecutor,
+    variableExecutor: VariableExecutor,
+    templateExecutor: TemplateExecutor,
+    llmExecutor: LlmExecutor,
+    endExecutor: EndExecutor,
+  ) {
+    this.executors = new Map<string, NodeExecutor>([
+      ['start', startExecutor],
+      ['variable', variableExecutor],
+      ['template', templateExecutor],
+      ['llm', llmExecutor],
+      ['end', endExecutor],
+    ]);
+  }
 
   async execute(canvas: WorkflowCanvas, input: Record<string, unknown>) {
     const executionPlan = this.buildExecutionPlan(canvas);

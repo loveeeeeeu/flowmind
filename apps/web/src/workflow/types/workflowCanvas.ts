@@ -13,6 +13,7 @@ export type EndNodeData = BaseNodeData & {
 export type LlmNodeData = BaseNodeData & {
   model: string;
   prompt: string;
+  outputVariable?: string;
 };
 
 export type TemplateNodeData = BaseNodeData & {

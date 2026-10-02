@@ -102,6 +102,18 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
           />
         </label>
 
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Output Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="llmResult"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { outputVariable: event.target.value })
+            }
+          />
+        </label>
+
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );

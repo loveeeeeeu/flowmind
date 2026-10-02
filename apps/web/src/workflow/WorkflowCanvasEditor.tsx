@@ -145,8 +145,9 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       position: { x: 300, y: 300 },
       data: {
         label: 'LLM',
-        model: 'gpt-5',
-        prompt: '',
+        model: 'deepseek-flash',
+        prompt: '{{prompt}}',
+        outputVariable: 'llmResult',
       },
     };
 

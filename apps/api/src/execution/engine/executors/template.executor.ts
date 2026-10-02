@@ -1,9 +1,14 @@
+import { Injectable } from '@nestjs/common';
 import type { ExecutionContext } from '../execution-context.js';
+import { TemplateRenderer } from '../template-renderer.js';
 import type { WorkflowNode } from '../workflow-engine.types.js';
 import { WorkflowExecutionError } from '../workflow-execution.error.js';
 import type { NodeExecutor } from './node-executor.js';
 
+@Injectable()
 export class TemplateExecutor implements NodeExecutor {
+  constructor(private readonly renderer: TemplateRenderer) {}
+
   async execute(node: WorkflowNode, context: ExecutionContext) {
     const template = node.data.template;
     const outputVariable = node.data.outputVariable;
@@ -16,22 +21,10 @@ export class TemplateExecutor implements NodeExecutor {
       throw new WorkflowExecutionError(`Template node ${node.id} has no outputVariable`);
     }
 
-    const rendered = this.renderTemplate(template, context);
+    const rendered = this.renderer.render(template, context);
 
     context.setVariable(outputVariable, rendered);
 
     return rendered;
-  }
-
-  private renderTemplate(template: string, context: ExecutionContext) {
-    return template.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_match, variableName: string) => {
-      const value = context.getVariable(variableName);
-
-      if (value === undefined) {
-        throw new WorkflowExecutionError(`Variable "${variableName}" not found`);
-      }
-
-      return typeof value === 'object' ? JSON.stringify(value) : String(value);
-    });
   }
 }

@@ -126,3 +126,9 @@ POST /workflows/:id/run  { "input": { "name": "FlowMind" } }
 - 执行错误（运行中才发生）：变量不存在、节点缺少配置 → WorkflowExecutionError
 - 引擎只抛自己定义的错误，由 ExecutionService 统一转换成 HTTP 400；（HTTP 状态码里，4xx 表示"请求方的问题"，5xx 表示"服务器的问题"）
 - 先检查节点类型再执行：以后接入 LLM，避免先花钱调用了模型，后面才报错
+
+# LLM的调用
+## 做了什么
+接口定义（输入输出格式），适配器（把统一格式翻译成厂商 API（/chat/completions），再把厂商响应翻译回统一格式 ），llm.service业务入口，只依赖接口，不知到背后是哪家模型，llm.module决定接口背后接哪个模型实现
+## LlmExecutor 的四步
+校验（model / prompt / outputVariable 必填）→ 渲染 prompt → 调用 LlmService → 结果写入 outputVariable，返回 { text, model, usage }

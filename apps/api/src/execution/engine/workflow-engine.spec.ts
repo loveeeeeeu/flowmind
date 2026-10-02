@@ -1,11 +1,29 @@
+import type { LlmService } from '../../llm/llm.service.js';
+import { EndExecutor } from './executors/end.executor.js';
+import { LlmExecutor } from './executors/llm.executor.js';
+import { StartExecutor } from './executors/start.executor.js';
+import { TemplateExecutor } from './executors/template.executor.js';
+import { VariableExecutor } from './executors/variable.executor.js';
+import { TemplateRenderer } from './template-renderer.js';
 import { WorkflowEngine } from './workflow-engine.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
 
 describe('WorkflowEngine', () => {
   let engine: WorkflowEngine;
+  let generate: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    engine = new WorkflowEngine();
+    const renderer = new TemplateRenderer();
+    generate = vi.fn().mockResolvedValue({ text: 'Mock LLM response' });
+    const fakeLlmService = { generate } as unknown as LlmService;
+
+    engine = new WorkflowEngine(
+      new StartExecutor(),
+      new VariableExecutor(),
+      new TemplateExecutor(renderer),
+      new LlmExecutor(fakeLlmService, renderer),
+      new EndExecutor(),
+    );
   });
 
   function createBasicCanvas(): WorkflowCanvas {
@@ -161,5 +179,29 @@ describe('WorkflowEngine', () => {
 
     const result = await engine.execute(canvas, { name: 'Jack' });
     expect(result.variables.name).toBe('FlowMind');
+  });
+
+  it('executes llm node with rendered prompt', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'llm',
+          type: 'llm',
+          data: { model: 'test-model', prompt: 'Hello {{name}}', outputVariable: 'answer' },
+        },
+        { id: 'end', type: 'end', data: { outputVariable: 'answer' } },
+      ],
+      edges: [
+        { source: 'start', target: 'llm' },
+        { source: 'llm', target: 'end' },
+      ],
+    };
+
+    const result = await engine.execute(canvas, { name: 'FlowMind' });
+
+    expect(generate).toHaveBeenCalledWith({ model: 'test-model', prompt: 'Hello FlowMind' });
+    expect(result.result).toEqual({ result: 'Mock LLM response' });
+    expect(result.variables.answer).toBe('Mock LLM response');
   });
 });

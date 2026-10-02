@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
+import { LlmProviderError } from '../llm/llm-provider.error.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
 import type { WorkflowCanvas } from './engine/workflow-engine.types.js';
 import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
@@ -6,7 +7,7 @@ import { WorkflowValidationError } from './engine/workflow-validation.error.js';
 
 @Injectable()
 export class ExecutionService {
-  private readonly engine = new WorkflowEngine();
+  constructor(private readonly engine: WorkflowEngine) {}
 
   createExecutionPlan(canvas: WorkflowCanvas) {
     try {
@@ -32,6 +33,10 @@ export class ExecutionService {
   private rethrowAsHttpError(error: unknown): never {
     if (error instanceof WorkflowValidationError || error instanceof WorkflowExecutionError) {
       throw new BadRequestException(error.message);
+    }
+
+    if (error instanceof LlmProviderError) {
+      throw new BadGatewayException(error.message);
     }
 
     throw error;
