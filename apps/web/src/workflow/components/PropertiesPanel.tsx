@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
+import type { LlmProviderInfo } from '../../api/llm';
 import type { WorkflowNode, WorkflowNodeData } from '../types/workflowCanvas';
 
 interface PropertiesPanelProps {
   node: WorkflowNode | null;
+  providers: LlmProviderInfo[];
   onNodeDataChange: (nodeId: string, patch: Partial<WorkflowNodeData>) => void;
   onDeleteNode: (nodeId: string) => void;
 }
@@ -59,7 +61,12 @@ function DeleteNodeButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: PropertiesPanelProps) {
+export function PropertiesPanel({
+  node,
+  providers,
+  onNodeDataChange,
+  onDeleteNode,
+}: PropertiesPanelProps) {
   if (!node) {
     return (
       <aside style={panelStyle}>
@@ -70,10 +77,14 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
   }
 
   if (node.type === 'llm') {
+    const currentProvider = node.data.provider ?? '';
+    const isUnknownProvider =
+      currentProvider !== '' && !providers.some((provider) => provider.id === currentProvider);
+  
     return (
       <aside style={panelStyle}>
         <h3 style={{ marginTop: 0 }}>LLM Properties</h3>
-
+  
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
           <input
@@ -82,16 +93,49 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
             onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
           />
         </label>
-
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Provider</div>
+          <select
+            style={inputStyle}
+            value={currentProvider}
+            onChange={(event) => onNodeDataChange(node.id, { provider: event.target.value })}
+          >
+            <option value="" disabled>
+              Select provider
+            </option>
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.id}
+              </option>
+            ))}
+            {isUnknownProvider && (
+              <option value={currentProvider}>{currentProvider} (not configured)</option>
+            )}
+          </select>
+        </label>
+  
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Model</div>
           <input
             style={inputStyle}
+            placeholder="deepseek-flash"
             value={node.data.model ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { model: event.target.value })}
           />
         </label>
-
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>System Prompt</div>
+          <textarea
+            rows={4}
+            style={textareaStyle}
+            placeholder="You are a helpful assistant."
+            value={node.data.systemPrompt ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { systemPrompt: event.target.value })}
+          />
+        </label>
+  
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Prompt</div>
           <textarea
@@ -101,19 +145,36 @@ export function PropertiesPanel({ node, onNodeDataChange, onDeleteNode }: Proper
             onChange={(event) => onNodeDataChange(node.id, { prompt: event.target.value })}
           />
         </label>
-
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Temperature (0 ~ 2)</div>
+          <input
+            type="number"
+            min={0}
+            max={2}
+            step={0.1}
+            style={inputStyle}
+            placeholder="0.7"
+            value={node.data.temperature ?? ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              onNodeDataChange(node.id, { temperature: value === '' ? undefined : Number(value) });
+            }}
+          />
+        </label>
+  
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Output Variable</div>
           <input
             style={inputStyle}
-            placeholder="llmResult"
+            placeholder="answer"
             value={node.data.outputVariable ?? ''}
             onChange={(event) =>
               onNodeDataChange(node.id, { outputVariable: event.target.value })
             }
           />
         </label>
-
+  
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );

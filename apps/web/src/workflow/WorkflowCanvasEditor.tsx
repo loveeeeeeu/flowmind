@@ -14,7 +14,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Link } from 'react-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getLlmProviders } from '../api/llm';
 import { updateWorkflowCanvas } from '../api/workflow';
 import { queryKeys } from '../api/queryKeys';
 import type { Workflow } from '../types/workflow';
@@ -79,6 +80,10 @@ interface WorkflowCanvasEditorProps {
 
 export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const queryClient = useQueryClient();
+  const providersQuery = useQuery({
+    queryKey: queryKeys.llm.providers,
+    queryFn: getLlmProviders,
+  });
 
   const [nodes, setNodes] = useNodesState<WorkflowNode>(
     withDeleteRules(workflow.canvas?.nodes ?? defaultNodes),
@@ -145,9 +150,12 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       position: { x: 300, y: 300 },
       data: {
         label: 'LLM',
+        provider: 'deepseek',
         model: 'deepseek-flash',
+        systemPrompt: 'You are a helpful assistant.',
         prompt: '{{prompt}}',
-        outputVariable: 'llmResult',
+        temperature: 0.7,
+        outputVariable: 'answer',
       },
     };
 
@@ -318,6 +326,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
 
         <PropertiesPanel
           node={selectedNode}
+          providers={providersQuery.data ?? []}
           onNodeDataChange={updateNodeData}
           onDeleteNode={deleteNode}
         />

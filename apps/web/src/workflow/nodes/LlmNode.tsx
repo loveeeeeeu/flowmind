@@ -16,7 +16,7 @@ export function LlmNode({ data, selected }: NodeProps<LlmNodeType>) {
 
       <strong>{data.label || 'LLM'}</strong>
       <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>
-        {data.model || 'No model'}
+        {data.provider || '?'} / {data.model || 'No model'}
       </div>
 
       <Handle type="source" position={Position.Right} />

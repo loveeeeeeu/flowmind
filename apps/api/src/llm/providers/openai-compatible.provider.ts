@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { LlmProviderError } from '../llm-provider.error.js';
-import type { LlmGenerateInput, LlmGenerateResult, LlmProvider } from './llm-provider.js';
+import type {
+  LlmGenerateInput,
+  LlmGenerateResult,
+  LlmProvider,
+  LlmProviderConfig,
+} from './llm-provider.js';
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -19,54 +24,54 @@ const REQUEST_TIMEOUT_MS = 60_000;
 
 @Injectable()
 export class OpenAICompatibleProvider implements LlmProvider {
-  async generate(input: LlmGenerateInput): Promise<LlmGenerateResult> {
-    const baseUrl = process.env.LLM_BASE_URL;
-    const apiKey = process.env.LLM_API_KEY;
-
-    if (!baseUrl || !apiKey) {
-      throw new Error('LLM_BASE_URL and LLM_API_KEY must be configured');
-    }
-
+  async generate(config: LlmProviderConfig, input: LlmGenerateInput): Promise<LlmGenerateResult> {
     const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
 
-    if (input.systemPrompt) {
+    if (input.systemPrompt?.trim()) {
       messages.push({ role: 'system', content: input.systemPrompt });
     }
 
     messages.push({ role: 'user', content: input.prompt });
 
+    const body: Record<string, unknown> = {
+      model: input.model,
+      messages,
+      stream: false,
+    };
+
+    if (input.temperature !== undefined) {
+      body.temperature = input.temperature;
+    }
+
     let response: Response;
 
     try {
-      response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
         },
-        body: JSON.stringify({
-          model: input.model,
-          messages,
-          temperature: input.temperature,
-          stream: false,
-        }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      throw new LlmProviderError(`LLM request failed: ${reason}`);
+      throw new LlmProviderError(`LLM request failed (${config.id}): ${reason}`);
     }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new LlmProviderError(`LLM request failed: ${response.status} ${errorText}`);
+      throw new LlmProviderError(
+        `LLM request failed (${config.id}): ${response.status} ${errorText}`,
+      );
     }
 
     const data = (await response.json()) as ChatCompletionResponse;
     const text = data.choices?.[0]?.message?.content;
 
     if (!text) {
-      throw new LlmProviderError('LLM returned no text');
+      throw new LlmProviderError(`LLM provider "${config.id}" returned no text`);
     }
 
     return {

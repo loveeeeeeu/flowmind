@@ -128,7 +128,35 @@ POST /workflows/:id/run  { "input": { "name": "FlowMind" } }
 - 先检查节点类型再执行：以后接入 LLM，避免先花钱调用了模型，后面才报错
 
 # LLM的调用
-## 做了什么
+## 1.1 做了什么
 接口定义（输入输出格式），适配器（把统一格式翻译成厂商 API（/chat/completions），再把厂商响应翻译回统一格式 ），llm.service业务入口，只依赖接口，不知到背后是哪家模型，llm.module决定接口背后接哪个模型实现
-## LlmExecutor 的四步
+## 1.2 LlmExecutor 的四步
 校验（model / prompt / outputVariable 必填）→ 渲染 prompt → 调用 LlmService → 结果写入 outputVariable，返回 { text, model, usage }
+
+## 2.1 多Provider 配置与路由
+上面调用模型在程序里写死(Adapter 自己写process.env.LLM_BASE_URL,它永远只能拿一套配置)。这次改动是需要用户自己选择模型，所以正确职责变成：ProviderRegistry负责“deepseek 对应什么配置？”Adapter负责：这套配置怎么发请求（Adapter 现在完全不知道前端调用什么模型，只负责按对应配置请求，如按 OpenAI-compatible 格式请求）
+```当前 Provider 架构已经升级成
+                LlmExecutor
+                    │
+                    ▼
+                LlmService
+                    │
+            providerId = deepseek
+                    │
+                    ▼
+             ProviderRegistry
+                    │
+            ┌───────┼────────┐
+            ▼       ▼        ▼
+        deepseek  openai   custom
+            │       │        │
+            └───────┼────────┘
+                    ▼
+        OpenAICompatibleProvider
+                    │
+                    ▼
+             External API
+目前所有 Provider 共用一个 Adapter,如果以后某个 Provider请求格式完全不同,如未来某种 Anthropic-style API，那么我们再出现AnthropicCompatibleProvider,Registry 的配置里可以进一步增加protocol:'openai'|'anthropic'
+```
+
+

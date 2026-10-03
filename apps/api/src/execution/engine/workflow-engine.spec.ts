@@ -14,7 +14,7 @@ describe('WorkflowEngine', () => {
 
   beforeEach(() => {
     const renderer = new TemplateRenderer();
-    generate = vi.fn().mockResolvedValue({ text: 'Mock LLM response' });
+    generate = vi.fn(async (providerId: string) => ({ text: `Mock response from ${providerId}` }));
     const fakeLlmService = { generate } as unknown as LlmService;
 
     engine = new WorkflowEngine(
@@ -181,14 +181,21 @@ describe('WorkflowEngine', () => {
     expect(result.variables.name).toBe('FlowMind');
   });
 
-  it('executes llm node with rendered prompt', async () => {
+  it('executes llm node with rendered prompts and provider', async () => {
     const canvas: WorkflowCanvas = {
       nodes: [
         { id: 'start', type: 'start', data: {} },
         {
           id: 'llm',
           type: 'llm',
-          data: { model: 'test-model', prompt: 'Hello {{name}}', outputVariable: 'answer' },
+          data: {
+            provider: 'deepseek',
+            model: 'test-model',
+            systemPrompt: 'You are helping {{name}}.',
+            prompt: 'Hello {{name}}',
+            temperature: 0.3,
+            outputVariable: 'answer',
+          },
         },
         { id: 'end', type: 'end', data: { outputVariable: 'answer' } },
       ],
@@ -197,11 +204,92 @@ describe('WorkflowEngine', () => {
         { source: 'llm', target: 'end' },
       ],
     };
-
+  
     const result = await engine.execute(canvas, { name: 'FlowMind' });
-
-    expect(generate).toHaveBeenCalledWith({ model: 'test-model', prompt: 'Hello FlowMind' });
-    expect(result.result).toEqual({ result: 'Mock LLM response' });
-    expect(result.variables.answer).toBe('Mock LLM response');
+  
+    expect(generate).toHaveBeenCalledWith('deepseek', {
+      model: 'test-model',
+      prompt: 'Hello FlowMind',
+      systemPrompt: 'You are helping FlowMind.',
+      temperature: 0.3,
+    });
+    expect(result.result).toEqual({ result: 'Mock response from deepseek' });
+  });
+  
+  it('routes different llm nodes to different providers', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'llm-a',
+          type: 'llm',
+          data: { provider: 'deepseek', model: 'm1', prompt: 'Hello {{name}}', outputVariable: 'a' },
+        },
+        {
+          id: 'llm-b',
+          type: 'llm',
+          data: { provider: 'custom', model: 'm2', prompt: 'Echo {{a}}', outputVariable: 'b' },
+        },
+        { id: 'end', type: 'end', data: { outputVariable: 'b' } },
+      ],
+      edges: [
+        { source: 'start', target: 'llm-a' },
+        { source: 'llm-a', target: 'llm-b' },
+        { source: 'llm-b', target: 'end' },
+      ],
+    };
+  
+    const result = await engine.execute(canvas, { name: 'FlowMind' });
+  
+    expect(generate).toHaveBeenNthCalledWith(
+      1,
+      'deepseek',
+      expect.objectContaining({ prompt: 'Hello FlowMind' }),
+    );
+    expect(generate).toHaveBeenNthCalledWith(
+      2,
+      'custom',
+      expect.objectContaining({ prompt: 'Echo Mock response from deepseek' }),
+    );
+    expect(result.result).toEqual({ result: 'Mock response from custom' });
+  });
+  
+  it('rejects llm node without provider', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'llm', type: 'llm', data: { model: 'm', prompt: 'hi', outputVariable: 'a' } },
+        { id: 'end', type: 'end', data: { outputVariable: 'a' } },
+      ],
+      edges: [
+        { source: 'start', target: 'llm' },
+        { source: 'llm', target: 'end' },
+      ],
+    };
+  
+    await expect(engine.execute(canvas, {})).rejects.toThrow('LLM node llm has no provider');
+    expect(generate).not.toHaveBeenCalled();
+  });
+  
+  it('rejects temperature out of range', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'llm',
+          type: 'llm',
+          data: { provider: 'deepseek', model: 'm', prompt: 'hi', temperature: 3, outputVariable: 'a' },
+        },
+        { id: 'end', type: 'end', data: { outputVariable: 'a' } },
+      ],
+      edges: [
+        { source: 'start', target: 'llm' },
+        { source: 'llm', target: 'end' },
+      ],
+    };
+  
+    await expect(engine.execute(canvas, {})).rejects.toThrow(
+      'LLM node llm temperature must be between 0 and 2',
+    );
   });
 });

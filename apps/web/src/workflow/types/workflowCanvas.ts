@@ -11,8 +11,11 @@ export type EndNodeData = BaseNodeData & {
 };
 
 export type LlmNodeData = BaseNodeData & {
+  provider?: string;
   model: string;
+  systemPrompt?: string;
   prompt: string;
+  temperature?: number;
   outputVariable?: string;
 };
 
