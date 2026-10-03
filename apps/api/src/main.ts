@@ -1,5 +1,5 @@
-import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
@@ -10,7 +10,7 @@ async function bootstrap() {
   app.enableCors({
     origin: 'http://localhost:5173',
   });
-  
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -26,7 +26,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  await app.listen(process.env.PORT ?? 3000);
+  const configService = app.get(ConfigService);
+  await app.listen(configService.get<number>('PORT', 3000));
 }
 
 await bootstrap();

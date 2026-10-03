@@ -158,5 +158,24 @@ POST /workflows/:id/run  { "input": { "name": "FlowMind" } }
              External API
 目前所有 Provider 共用一个 Adapter,如果以后某个 Provider请求格式完全不同,如未来某种 Anthropic-style API，那么我们再出现AnthropicCompatibleProvider,Registry 的配置里可以进一步增加protocol:'openai'|'anthropic'
 ```
+## 3.1 LLM Runtime 稳定性v1
+```链路升级成
+LlmExecutor
+   ↓
+LlmService
+   ↓
+ProviderRegistry
+   ↓
+OpenAICompatibleProvider
+   ↓
+Timeout
+   ↓
+统一 Provider Error
+   ↓
+External API
 
-
+本节课让 LLM 调用更稳定，分两部分：非重试和重试错误检测
+启动校验（Zod + ConfigModule）：检查本地env配置写得对不对，写错了直接启动失败； -> 主要检测输入格式，是否缺少配置，这部分错误是不需要请求重试的
+Timeout：请求最多等 LLM_TIMEOUT_MS，超时就取消，不会一直卡住；
+错误分类：fetch是不会捕获2xx，4xx错误的，只会捕获未返回响应的错误5xx.5xx错误先定义成网络错误，状态码类的错误（401、429、500）：fetch 正常返回,表示外部服务接不接受：Key 是否有效、有没有余额、是否被限流、服务是否在线
+```

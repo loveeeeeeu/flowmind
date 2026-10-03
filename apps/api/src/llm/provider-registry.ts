@@ -1,26 +1,27 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { LlmProviderConfig } from './providers/llm-provider.js';
 
 @Injectable()
 export class ProviderRegistry {
   private readonly providers = new Map<string, LlmProviderConfig>();
 
-  constructor() {
-    this.registerFromEnv();
-  }
-
-  private registerFromEnv() {
+  constructor(private readonly configService: ConfigService) {
     this.register(
       'deepseek',
-      process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-      process.env.DEEPSEEK_API_KEY,
+      this.read('DEEPSEEK_BASE_URL') || 'https://api.deepseek.com',
+      this.read('DEEPSEEK_API_KEY'),
     );
     this.register(
       'openai',
-      process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-      process.env.OPENAI_API_KEY,
+      this.read('OPENAI_BASE_URL') || 'https://api.openai.com/v1',
+      this.read('OPENAI_API_KEY'),
     );
-    this.register('custom', process.env.CUSTOM_LLM_BASE_URL, process.env.CUSTOM_LLM_API_KEY);
+    this.register('custom', this.read('CUSTOM_LLM_BASE_URL'), this.read('CUSTOM_LLM_API_KEY'));
+  }
+
+  private read(key: string) {
+    return this.configService.get<string>(key);
   }
 
   private register(id: string, baseUrl: string | undefined, apiKey: string | undefined) {

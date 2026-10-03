@@ -1,5 +1,5 @@
-import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
-import { LlmProviderError } from '../llm/llm-provider.error.js';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { LlmProviderError } from '../llm/errors/llm-provider.error.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
 import type { WorkflowCanvas } from './engine/workflow-engine.types.js';
 import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
@@ -36,7 +36,13 @@ export class ExecutionService {
     }
 
     if (error instanceof LlmProviderError) {
-      throw new BadGatewayException(error.message);
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        message: error.message,
+        code: error.code,
+        provider: error.providerId,
+        retryable: error.retryable,
+      });
     }
 
     throw error;
