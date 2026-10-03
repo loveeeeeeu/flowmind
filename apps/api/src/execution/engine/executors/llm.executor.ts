@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { LlmService } from '../../../llm/llm.service.js';
 import type { ExecutionContext } from '../execution-context.js';
-import { TemplateRenderer } from '../template-renderer.js';
+import { VariableResolver } from '../variable-resolver.js';
 import type { WorkflowNode } from '../workflow-engine.types.js';
 import { WorkflowExecutionError } from '../workflow-execution.error.js';
 import type { NodeExecutor } from './node-executor.js';
@@ -13,7 +13,7 @@ const MAX_TEMPERATURE = 2;
 export class LlmExecutor implements NodeExecutor {
   constructor(
     private readonly llmService: LlmService,
-    private readonly renderer: TemplateRenderer,
+    private readonly resolver: VariableResolver,
   ) {}
 
   async execute(node: WorkflowNode, context: ExecutionContext) {
@@ -52,10 +52,10 @@ export class LlmExecutor implements NodeExecutor {
       );
     }
 
-    const renderedPrompt = this.renderer.render(prompt, context);
+    const renderedPrompt = this.resolver.resolveString(prompt, context);
     const renderedSystemPrompt =
       typeof systemPrompt === 'string' && systemPrompt.trim()
-        ? this.renderer.render(systemPrompt, context)
+        ? this.resolver.resolveString(systemPrompt, context)
         : undefined;
 
     const result = await this.llmService.generate(provider, {

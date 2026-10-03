@@ -1,6 +1,6 @@
 import type { LlmService } from '../../../llm/llm.service.js';
 import { ExecutionContext } from '../execution-context.js';
-import { TemplateRenderer } from '../template-renderer.js';
+import { VariableResolver } from '../variable-resolver.js';
 import type { WorkflowNode } from '../workflow-engine.types.js';
 import { LlmExecutor } from './llm.executor.js';
 
@@ -10,7 +10,7 @@ describe('LlmExecutor', () => {
 
   beforeEach(() => {
     generate = vi.fn(async (providerId: string) => ({ text: `hello from ${providerId}` }));
-    executor = new LlmExecutor({ generate } as unknown as LlmService, new TemplateRenderer());
+    executor = new LlmExecutor({ generate } as unknown as LlmService, new VariableResolver());
   });
 
   it('passes provider to llm service and writes output variable', async () => {

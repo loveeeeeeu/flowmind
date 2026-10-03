@@ -28,6 +28,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { toPersistedCanvas } from './toPersistedCanvas';
 import { VariableNode } from './nodes/VariableNode';
 import type {
+  HttpNodeType,
   LlmNodeType,
   TemplateNodeType,
   VariableNodeType,
@@ -35,6 +36,7 @@ import type {
   WorkflowNode,
   WorkflowNodeData,
 } from './types/workflowCanvas';
+import { HttpNode } from './nodes/HttpNode';
 
 const nodeTypes = {
   start: StartNode,
@@ -42,6 +44,7 @@ const nodeTypes = {
   llm: LlmNode,
   template: TemplateNode,
   variable: VariableNode,
+  http: HttpNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -193,6 +196,25 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     setNodes((currentNodes) => [...currentNodes, newNode]);
     setIsDirty(true);
   }
+  function addHttpNode() {
+    const newNode: HttpNodeType = {
+      id: crypto.randomUUID(),
+      type: 'http',
+      position: { x: 400, y: 300 },
+      data: {
+        label: 'HTTP Request',
+        method: 'GET',
+        url: 'https://jsonplaceholder.typicode.com/users/{{userId}}',
+        headers: { Accept: 'application/json' },
+        body: '',
+        timeoutMs: 10000,
+        outputVariable: 'response',
+      },
+    };
+  
+    setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
   
   function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
     setNodes((currentNodes) =>
@@ -303,6 +325,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         onAddLlm={addLlmNode}
         onAddTemplate={addTemplateNode}
         onAddVariable={addVariableNode}
+        onAddHttp={addHttpNode}
       />
 
         <div style={{ flex: 1, minWidth: 0 }}>

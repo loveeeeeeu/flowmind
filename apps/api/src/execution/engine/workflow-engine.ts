@@ -9,6 +9,7 @@ import { VariableExecutor } from './executors/variable.executor.js';
 import type { WorkflowCanvas, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
 import { WorkflowValidationError } from './workflow-validation.error.js';
+import { HttpExecutor } from './executors/http.executor.js';
 
 @Injectable()
 export class WorkflowEngine {
@@ -18,6 +19,7 @@ export class WorkflowEngine {
     startExecutor: StartExecutor,
     variableExecutor: VariableExecutor,
     templateExecutor: TemplateExecutor,
+    httpExecutor: HttpExecutor,
     llmExecutor: LlmExecutor,
     endExecutor: EndExecutor,
   ) {
@@ -25,6 +27,7 @@ export class WorkflowEngine {
       ['start', startExecutor],
       ['variable', variableExecutor],
       ['template', templateExecutor],
+      ['http', httpExecutor],
       ['llm', llmExecutor],
       ['end', endExecutor],
     ]);

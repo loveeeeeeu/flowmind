@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { LlmProviderInfo } from '../../api/llm';
-import type { WorkflowNode, WorkflowNodeData } from '../types/workflowCanvas';
+import { HTTP_METHODS, type HttpMethod, type WorkflowNode, type WorkflowNodeData } from '../types/workflowCanvas';
+import { JsonObjectEditor } from './JsonObjectEditor';
 
 interface PropertiesPanelProps {
   node: WorkflowNode | null;
@@ -168,6 +169,101 @@ export function PropertiesPanel({
           <input
             style={inputStyle}
             placeholder="answer"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { outputVariable: event.target.value })
+            }
+          />
+        </label>
+  
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
+  if (node.type === 'http') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>HTTP Properties</h3>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.label ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Method</div>
+          <select
+            style={inputStyle}
+            value={node.data.method}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { method: event.target.value as HttpMethod })
+            }
+          >
+            {HTTP_METHODS.map((method) => (
+              <option key={method} value={method}>
+                {method}
+              </option>
+            ))}
+          </select>
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>URL</div>
+          <input
+            style={inputStyle}
+            placeholder="https://example.com/users/{{userId}}"
+            value={node.data.url ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { url: event.target.value })}
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Headers (JSON)</div>
+          <JsonObjectEditor
+            key={node.id}
+            style={textareaStyle}
+            value={node.data.headers ?? {}}
+            onChange={(headers) => onNodeDataChange(node.id, { headers })}
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Body (only for POST / PUT / PATCH)</div>
+          <textarea
+            rows={8}
+            style={textareaStyle}
+            placeholder={'{"message": "{{prompt}}"}'}
+            value={node.data.body ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { body: event.target.value })}
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Timeout (ms, max 60000)</div>
+          <input
+            type="number"
+            min={1}
+            max={60000}
+            style={inputStyle}
+            placeholder="10000"
+            value={node.data.timeoutMs ?? ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              onNodeDataChange(node.id, { timeoutMs: value === '' ? undefined : Number(value) });
+            }}
+          />
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Output Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="response"
             value={node.data.outputVariable ?? ''}
             onChange={(event) =>
               onNodeDataChange(node.id, { outputVariable: event.target.value })

@@ -4,7 +4,8 @@ import { LlmExecutor } from './executors/llm.executor.js';
 import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
 import { VariableExecutor } from './executors/variable.executor.js';
-import { TemplateRenderer } from './template-renderer.js';
+import { HttpExecutor } from './executors/http.executor.js';
+import { VariableResolver } from './variable-resolver.js';
 import { WorkflowEngine } from './workflow-engine.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
 
@@ -13,15 +14,16 @@ describe('WorkflowEngine', () => {
   let generate: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    const renderer = new TemplateRenderer();
+    const resolver = new VariableResolver();
     generate = vi.fn(async (providerId: string) => ({ text: `Mock response from ${providerId}` }));
     const fakeLlmService = { generate } as unknown as LlmService;
-
+  
     engine = new WorkflowEngine(
       new StartExecutor(),
       new VariableExecutor(),
-      new TemplateExecutor(renderer),
-      new LlmExecutor(fakeLlmService, renderer),
+      new TemplateExecutor(resolver),
+      new HttpExecutor(resolver),
+      new LlmExecutor(fakeLlmService, resolver),
       new EndExecutor(),
     );
   });
