@@ -68,7 +68,29 @@ export class WorkflowGraph {
     return this.inDegree.get(id) ?? 0;
   }
 
-  getInDegreeMap() {
-    return new Map(this.inDegree);
+  isLoopBackEdge(edge: WorkflowEdge) {
+    return edge.targetHandle === 'loop' && this.getNode(edge.target)?.type === 'loop';
+  }
+
+  getStructuralNextNodes(id: string): string[] {
+    return this.getOutgoingEdges(id)
+      .filter((edge) => !this.isLoopBackEdge(edge))
+      .map((edge) => edge.target);
+  }
+
+  getStructuralInDegreeMap() {
+    const result = new Map<string, number>();
+
+    for (const id of this.nodeMap.keys()) {
+      result.set(id, 0);
+    }
+
+    for (const edge of this.canvas.edges) {
+      if (!this.isLoopBackEdge(edge)) {
+        result.set(edge.target, (result.get(edge.target) ?? 0) + 1);
+      }
+    }
+
+    return result;
   }
 }

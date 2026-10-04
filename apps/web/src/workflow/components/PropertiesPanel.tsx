@@ -190,6 +190,60 @@ export function PropertiesPanel({
     );
   }
 
+  if (node.type === 'loop') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>Loop Properties</h3>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.label ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Items Variable Path</div>
+          <input
+            style={inputStyle}
+            placeholder="items or response.data.users"
+            value={node.data.itemsPath ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { itemsPath: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Item Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="item"
+            value={node.data.itemVariable ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { itemVariable: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Index Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="index"
+            value={node.data.indexVariable ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { indexVariable: event.target.value })}
+          />
+        </label>
+
+        <p style={{ fontSize: 13, color: '#777' }}>
+          Connect "body" to the first body node, and the last body node back to the bottom
+          "loop" handle. Connect "done" to what runs after the loop.
+        </p>
+
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
   if (node.type === 'if') {
     return (
       <aside style={panelStyle}>

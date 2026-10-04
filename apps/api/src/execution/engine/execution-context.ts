@@ -1,6 +1,7 @@
 export class ExecutionContext {
     private readonly variables = new Map<string, unknown>();
     private readonly nodeOutputs = new Map<string, unknown>();
+    private readonly nodeStates = new Map<string, unknown>();
   
     constructor(input: Record<string, unknown>) {
       for (const [key, value] of Object.entries(input)) {
@@ -30,5 +31,17 @@ export class ExecutionContext {
   
     getNodeOutputs() {
       return Object.fromEntries(this.nodeOutputs.entries());
+    }
+
+    getNodeState<T>(nodeId: string): T | undefined {
+      return this.nodeStates.get(nodeId) as T | undefined;
+    }
+
+    setNodeState(nodeId: string, state: unknown) {
+      this.nodeStates.set(nodeId, state);
+    }
+
+    deleteNodeState(nodeId: string) {
+      this.nodeStates.delete(nodeId);
     }
   }

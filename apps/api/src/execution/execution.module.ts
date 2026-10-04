@@ -4,6 +4,7 @@ import { EndExecutor } from './engine/executors/end.executor.js';
 import { HttpExecutor } from './engine/executors/http.executor.js';
 import { IfExecutor } from './engine/executors/if.executor.js';
 import { LlmExecutor } from './engine/executors/llm.executor.js';
+import { LoopExecutor } from './engine/executors/loop.executor.js';
 import { StartExecutor } from './engine/executors/start.executor.js';
 import { TemplateExecutor } from './engine/executors/template.executor.js';
 import { VariableExecutor } from './engine/executors/variable.executor.js';
@@ -24,6 +25,7 @@ import { ExecutionService } from './execution.service.js';
     TemplateExecutor,
     HttpExecutor,
     IfExecutor,
+    LoopExecutor,
     LlmExecutor,
     EndExecutor,
   ],

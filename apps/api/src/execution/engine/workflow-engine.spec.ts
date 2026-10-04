@@ -6,6 +6,7 @@ import { TemplateExecutor } from './executors/template.executor.js';
 import { VariableExecutor } from './executors/variable.executor.js';
 import { HttpExecutor } from './executors/http.executor.js';
 import { IfExecutor } from './executors/if.executor.js';
+import { LoopExecutor } from './executors/loop.executor.js';
 import { VariableResolver } from './variable-resolver.js';
 import { WorkflowEngine } from './workflow-engine.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
@@ -27,6 +28,7 @@ describe('WorkflowEngine', () => {
       new TemplateExecutor(resolver),
       new HttpExecutor(resolver),
       new IfExecutor(resolver),
+      new LoopExecutor(resolver),
       new LlmExecutor(fakeLlmService, resolver),
       new EndExecutor(),
     );
@@ -380,5 +382,79 @@ describe('WorkflowEngine', () => {
     });
   
     expect(result.result).toEqual({ result: 'Passed Jack' });
+  });
+
+  function createLoopCanvas(): WorkflowCanvas {
+    return {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'loop',
+          type: 'loop',
+          data: { itemsPath: 'items', itemVariable: 'item', indexVariable: 'index' },
+        },
+        {
+          id: 'template',
+          type: 'template',
+          data: { template: '{{index}}:{{item}}', outputVariable: 'result' },
+        },
+        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
+      ],
+      edges: [
+        { source: 'start', target: 'loop' },
+        { source: 'loop', target: 'template', sourceHandle: 'body' },
+        { source: 'template', target: 'loop', targetHandle: 'loop' },
+        { source: 'loop', target: 'end', sourceHandle: 'done' },
+      ],
+    };
+  }
+
+  it('accepts loop-back edge in execution plan', () => {
+    expect(engine.buildExecutionPlan(createLoopCanvas())).toHaveLength(4);
+  });
+
+  it('runs loop body once per item', async () => {
+    const result = await engine.execute(createLoopCanvas(), {
+      items: ['apple', 'banana', 'orange'],
+    });
+
+    expect(result.result).toEqual({ result: '2:orange' });
+    expect(result.executedNodeIds).toEqual([
+      'start', 'loop', 'template', 'loop', 'template', 'loop', 'template', 'loop', 'end',
+    ]);
+  });
+
+  it('treats back edge without loop handle as a cycle', () => {
+    const canvas = createLoopCanvas();
+    canvas.edges[2] = { source: 'template', target: 'loop' };
+
+    expect(() => engine.buildExecutionPlan(canvas)).toThrow('Workflow contains a cycle');
+  });
+
+  it('rejects loop-back edge coming from the done branch', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'loop',
+          type: 'loop',
+          data: { itemsPath: 'items', itemVariable: 'item', indexVariable: 'index' },
+        },
+        { id: 'a', type: 'template', data: { template: 'A', outputVariable: 'result' } },
+        { id: 'b', type: 'template', data: { template: 'B', outputVariable: 'result' } },
+        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
+      ],
+      edges: [
+        { source: 'start', target: 'loop' },
+        { source: 'loop', target: 'a', sourceHandle: 'body' },
+        { source: 'a', target: 'end' },
+        { source: 'loop', target: 'b', sourceHandle: 'done' },
+        { source: 'b', target: 'loop', targetHandle: 'loop' },
+      ],
+    };
+
+    await expect(engine.execute(canvas, { items: ['x'] })).rejects.toThrow(
+      'loop-back edge must come from the body branch',
+    );
   });
 });

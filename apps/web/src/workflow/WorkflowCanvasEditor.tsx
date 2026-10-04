@@ -31,6 +31,7 @@ import type {
   HttpNodeType,
   IfNodeType,
   LlmNodeType,
+  LoopNodeType,
   TemplateNodeType,
   VariableNodeType,
   WorkflowEdge,
@@ -39,6 +40,7 @@ import type {
 } from './types/workflowCanvas';
 import { HttpNode } from './nodes/HttpNode';
 import { IfNode } from './nodes/IfNode';
+import { LoopNode } from './nodes/LoopNode';
 
 const nodeTypes = {
   start: StartNode,
@@ -48,6 +50,7 @@ const nodeTypes = {
   variable: VariableNode,
   http: HttpNode,
   if: IfNode,
+  loop: LoopNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -149,19 +152,37 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       }
 
       const sourceNode = nodes.find((node) => node.id === connection.source);
+      const targetNode = nodes.find((node) => node.id === connection.target);
       const outgoing = edges.filter((edge) => edge.source === connection.source);
 
-      if (sourceNode?.type === 'if') {
+      if (targetNode?.type === 'loop' && connection.targetHandle === 'loop') {
+        const loopBackUsed = edges.some(
+          (edge) => edge.target === connection.target && edge.targetHandle === 'loop',
+        );
+
+        if (loopBackUsed) {
+          return false;
+        }
+      }
+
+      const branchHandles =
+        sourceNode?.type === 'if'
+          ? ['true', 'false']
+          : sourceNode?.type === 'loop'
+            ? ['body', 'done']
+            : null;
+
+      if (branchHandles) {
         const handle = connection.sourceHandle;
 
-        if (handle !== 'true' && handle !== 'false') {
+        if (!handle || !branchHandles.includes(handle)) {
           return false;
         }
 
         return !outgoing.some((edge) => edge.sourceHandle === handle);
       }
 
-      // Scheduler v1 has no parallel branches: non-IF nodes get one outgoing edge.
+      // Scheduler has no parallel branches: plain nodes get one outgoing edge.
       return outgoing.length === 0;
     },
     [nodes, edges],
@@ -249,6 +270,23 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         operator: 'gte',
         valueType: 'number',
         value: '60',
+      },
+    };
+
+    setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
+
+  function addLoopNode() {
+    const newNode: LoopNodeType = {
+      id: crypto.randomUUID(),
+      type: 'loop',
+      position: { x: 400, y: 300 },
+      data: {
+        label: 'Loop',
+        itemsPath: 'items',
+        itemVariable: 'item',
+        indexVariable: 'index',
       },
     };
 
@@ -367,6 +405,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         onAddVariable={addVariableNode}
         onAddHttp={addHttpNode}
         onAddIf={addIfNode}
+        onAddLoop={addLoopNode}
       />
 
         <div style={{ flex: 1, minWidth: 0 }}>

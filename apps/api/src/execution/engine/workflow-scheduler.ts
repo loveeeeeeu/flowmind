@@ -5,6 +5,8 @@ import type { WorkflowEdge, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowExecutionError } from './workflow-execution.error.js';
 import type { WorkflowGraph } from './workflow-graph.js';
 
+export const MAX_EXECUTION_STEPS = 10_000;
+
 @Injectable()
 export class WorkflowScheduler {
   async run(
@@ -15,8 +17,17 @@ export class WorkflowScheduler {
   ) {
     const executedNodeIds: string[] = [];
     let current: WorkflowNode | undefined = startNode;
+    let steps = 0;
 
     while (current) {
+      steps += 1;
+
+      if (steps > MAX_EXECUTION_STEPS) {
+        throw new WorkflowExecutionError(
+          `Workflow exceeded maximum execution steps (${MAX_EXECUTION_STEPS})`,
+        );
+      }
+
       const executor = executors.get(current.type);
 
       if (!executor) {

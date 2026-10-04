@@ -241,3 +241,15 @@ WorkflowEngine.execute              图校验 → 运行时校验 → 创建 Con
 # Variable System v2
 之前已经把变量存入共享内存里了，但是取的时候只支持按response取出整个对象，本节课完善了对象引用。
 对象引用 = 在共享内存里找到顶层对象，再一层层取属性。字符串转换 = 只有要把结果嵌进文字时才做。不是“对象一直在 JSON 字符串里转圈”。
+
+# loop节点 v1
+只需要记住三句话：
+## 1.Loop 是受控的环：只有回到 Loop 底部 loop 入口的边才合法，其他环照样禁止。
+只有回到 Loop 的环才是“受控”的，其他环照样禁止
+## 2.状态跟着一次运行走：处理到第几个记在 Context 里，不记在执行器上。
+所以 Context 现在有三个“抽屉”：
+variables  工作流里的变量
+nodeOutputs  每个节点的输出
+nodeStates（新增）  节点自己的临时记忆（Loop 处理到第几个）
+## 3.Loop 自己不循环：它每次只判断走 body 还是 done，真正的“绕回去”是 Scheduler 顺着回边走出来的。
+节点返回一个出口名（nextHandle），Scheduler 就去找从这个出口出去的那条边

@@ -4,6 +4,7 @@ import { EndExecutor } from './executors/end.executor.js';
 import { HttpExecutor } from './executors/http.executor.js';
 import { IfExecutor } from './executors/if.executor.js';
 import { LlmExecutor } from './executors/llm.executor.js';
+import { LoopExecutor } from './executors/loop.executor.js';
 import type { NodeExecutor } from './executors/node-executor.js';
 import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
@@ -24,6 +25,7 @@ export class WorkflowEngine {
     templateExecutor: TemplateExecutor,
     httpExecutor: HttpExecutor,
     ifExecutor: IfExecutor,
+    loopExecutor: LoopExecutor,
     llmExecutor: LlmExecutor,
     endExecutor: EndExecutor,
   ) {
@@ -33,6 +35,7 @@ export class WorkflowEngine {
       ['template', templateExecutor],
       ['http', httpExecutor],
       ['if', ifExecutor],
+      ['loop', loopExecutor],
       ['llm', llmExecutor],
       ['end', endExecutor],
     ]);
@@ -102,6 +105,11 @@ export class WorkflowEngine {
         continue;
       }
 
+      if (node.type === 'loop') {
+        this.validateLoopEdges(graph, node.id);
+        continue;
+      }
+
       if (outgoing.length !== 1) {
         throw new WorkflowValidationError(`Node ${node.id} must have exactly one outgoing edge`);
       }
@@ -117,6 +125,47 @@ export class WorkflowEngine {
 
     if (!handles.includes('true') || !handles.includes('false')) {
       throw new WorkflowValidationError(`IF node ${nodeId} must have true and false branches`);
+    }
+  }
+
+  private validateLoopEdges(graph: WorkflowGraph, nodeId: string) {
+    const outgoing = graph.getOutgoingEdges(nodeId);
+    const bodyEdges = outgoing.filter((edge) => edge.sourceHandle === 'body');
+    const doneEdges = outgoing.filter((edge) => edge.sourceHandle === 'done');
+
+    if (bodyEdges.length !== 1) {
+      throw new WorkflowValidationError(`Loop node ${nodeId} must have exactly one body edge`);
+    }
+
+    if (doneEdges.length !== 1) {
+      throw new WorkflowValidationError(`Loop node ${nodeId} must have exactly one done edge`);
+    }
+
+    if (outgoing.length !== 2) {
+      throw new WorkflowValidationError(`Loop node ${nodeId} can only have body and done edges`);
+    }
+
+    const incoming = graph.getIncomingEdges(nodeId);
+    const loopBackEdges = incoming.filter((edge) => graph.isLoopBackEdge(edge));
+
+    if (loopBackEdges.length !== 1) {
+      throw new WorkflowValidationError(`Loop node ${nodeId} must have exactly one loop-back edge`);
+    }
+
+    if (incoming.length === loopBackEdges.length) {
+      throw new WorkflowValidationError(`Loop node ${nodeId} has no entry edge`);
+    }
+
+    const structuralNext = (id: string) => graph.getStructuralNextNodes(id);
+    const fromBody = this.collectReachableNodes(bodyEdges[0].target, structuralNext);
+    const fromDone = this.collectReachableNodes(doneEdges[0].target, structuralNext);
+    const loopBackSource = loopBackEdges[0].source;
+
+    // A loop-back reachable from "done" would restart the loop forever.
+    if (!fromBody.has(loopBackSource) || fromDone.has(loopBackSource)) {
+      throw new WorkflowValidationError(
+        `Loop node ${nodeId} loop-back edge must come from the body branch`,
+      );
     }
   }
 
@@ -199,7 +248,7 @@ export class WorkflowEngine {
   }
 
   topologicalSort(graph: WorkflowGraph): WorkflowNode[] {
-    const inDegree = graph.getInDegreeMap();
+    const inDegree = graph.getStructuralInDegreeMap();
     const queue: string[] = [];
 
     for (const [nodeId, degree] of inDegree) {
@@ -220,7 +269,7 @@ export class WorkflowEngine {
 
       result.push(node);
 
-      for (const nextId of graph.getNextNodes(nodeId)) {
+      for (const nextId of graph.getStructuralNextNodes(nodeId)) {
         const nextDegree = (inDegree.get(nextId) ?? 0) - 1;
         inDegree.set(nextId, nextDegree);
 

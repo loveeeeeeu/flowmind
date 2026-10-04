@@ -62,6 +62,12 @@ export type IfNodeData = BaseNodeData & {
   value: string;
 };
 
+export type LoopNodeData = BaseNodeData & {
+  itemsPath: string;
+  itemVariable: string;
+  indexVariable: string;
+};
+
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
@@ -70,6 +76,7 @@ export type VariableNodeType = Node<VariableNodeData, 'variable'>;
 
 export type HttpNodeType = Node<HttpNodeData, 'http'>;
 export type IfNodeType = Node<IfNodeData, 'if'>;
+export type LoopNodeType = Node<LoopNodeData, 'loop'>;
 
 export type WorkflowNode =
   | StartNodeType
@@ -78,7 +85,8 @@ export type WorkflowNode =
   | TemplateNodeType
   | VariableNodeType
   | HttpNodeType
-  | IfNodeType;
+  | IfNodeType
+  | LoopNodeType;
 
 export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;
