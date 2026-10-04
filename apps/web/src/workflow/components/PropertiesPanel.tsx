@@ -8,6 +8,7 @@ import {
   type HttpMethod,
   type WorkflowNode,
   type WorkflowNodeData,
+  type VariableSourceType,
 } from '../types/workflowCanvas';
 import { JsonObjectEditor } from './JsonObjectEditor';
 
@@ -207,7 +208,7 @@ export function PropertiesPanel({
           <div style={fieldLabelStyle}>Variable</div>
           <input
             style={inputStyle}
-            placeholder="score"
+            placeholder="score or response.data.score"
             value={node.data.variable ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { variable: event.target.value })}
           />
@@ -403,6 +404,8 @@ export function PropertiesPanel({
   }
 
   if (node.type === 'variable') {
+    const isReference = node.data.sourceType === 'reference';
+  
     return (
       <aside style={panelStyle}>
         <h3 style={{ marginTop: 0 }}>Variable Properties</h3>
@@ -428,13 +431,36 @@ export function PropertiesPanel({
         </label>
   
         <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Value</div>
+          <div style={fieldLabelStyle}>Source Type</div>
+          <select
+            style={inputStyle}
+            value={node.data.sourceType ?? 'literal'}
+            onChange={(event) =>
+              onNodeDataChange(node.id, {
+                sourceType: event.target.value as VariableSourceType,
+              })
+            }
+          >
+            <option value="literal">Literal</option>
+            <option value="reference">Variable Reference</option>
+          </select>
+        </label>
+  
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>{isReference ? 'Variable Path' : 'Value'}</div>
           <input
             style={inputStyle}
+            placeholder={isReference ? 'response.data.user.name' : 'FlowMind'}
             value={String(node.data.value ?? '')}
             onChange={(event) => onNodeDataChange(node.id, { value: event.target.value })}
           />
         </label>
+  
+        {isReference && (
+          <p style={{ fontSize: 13, color: '#777' }}>
+            Path only, without {'{{ }}'}. Use users.0.name for arrays.
+          </p>
+        )}
   
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>

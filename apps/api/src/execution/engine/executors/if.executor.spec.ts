@@ -1,13 +1,14 @@
 import { ExecutionContext } from '../execution-context.js';
 import type { WorkflowNode } from '../workflow-engine.types.js';
 import { IfExecutor } from './if.executor.js';
+import { VariableResolver } from '../variable-resolver.js';
 
 function ifNode(data: Record<string, unknown>): WorkflowNode {
   return { id: 'if', type: 'if', data };
 }
 
 describe('IfExecutor', () => {
-  const executor = new IfExecutor();
+  const executor = new IfExecutor(new VariableResolver());
 
   it.each([
     { operator: 'eq', score: 60, expected: true },
@@ -77,5 +78,14 @@ describe('IfExecutor', () => {
         new ExecutionContext({ score: 'abc' }),
       ),
     ).rejects.toThrow('is not a number');
+  });
+
+  it('evaluates nested variable path', async () => {
+    const result = await executor.execute(
+      ifNode({ variable: 'response.score', operator: 'gte', valueType: 'number', value: '60' }),
+      new ExecutionContext({ response: { score: 85 } }),
+    );
+  
+    expect(result.nextHandle).toBe('true');
   });
 });

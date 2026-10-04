@@ -23,10 +23,10 @@ describe('WorkflowEngine', () => {
     engine = new WorkflowEngine(
       new WorkflowScheduler(),
       new StartExecutor(),
-      new VariableExecutor(),
+      new VariableExecutor(resolver),
       new TemplateExecutor(resolver),
       new HttpExecutor(resolver),
-      new IfExecutor(),
+      new IfExecutor(resolver),
       new LlmExecutor(fakeLlmService, resolver),
       new EndExecutor(),
     );
@@ -368,5 +368,17 @@ describe('WorkflowEngine', () => {
     await expect(engine.execute(canvas, {})).rejects.toThrow(
       'Node start must have exactly one outgoing edge',
     );
+  });
+
+  it('resolves nested paths in IF and template', async () => {
+    const canvas = createBranchCanvas();
+    canvas.nodes[1].data.variable = 'response.user.score';
+    canvas.nodes[2].data.template = 'Passed {{response.user.name}}';
+  
+    const result = await engine.execute(canvas, {
+      response: { user: { name: 'Jack', score: 85 } },
+    });
+  
+    expect(result.result).toEqual({ result: 'Passed Jack' });
   });
 });

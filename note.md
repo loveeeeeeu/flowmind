@@ -237,3 +237,7 @@ WorkflowEngine.execute              图校验 → 运行时校验 → 创建 Con
             是 End？→ 返回结果
             selectEdge(nextHandle)  → edge.target → 下一个节点
 ```
+
+# Variable System v2
+之前已经把变量存入共享内存里了，但是取的时候只支持按response取出整个对象，本节课完善了对象引用。
+对象引用 = 在共享内存里找到顶层对象，再一层层取属性。字符串转换 = 只有要把结果嵌进文字时才做。不是“对象一直在 JSON 字符串里转圈”。

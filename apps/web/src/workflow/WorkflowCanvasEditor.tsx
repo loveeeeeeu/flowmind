@@ -210,6 +210,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       data: {
         label: 'Variable',
         variableName: 'name',
+        sourceType: 'literal',
         value: 'FlowMind',
       },
     };

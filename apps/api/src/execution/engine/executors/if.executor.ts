@@ -3,6 +3,7 @@ import type { ExecutionContext } from '../execution-context.js';
 import type { WorkflowNode } from '../workflow-engine.types.js';
 import { WorkflowExecutionError } from '../workflow-execution.error.js';
 import type { NodeExecutionResult, NodeExecutor } from './node-executor.js';
+import { VariableResolver } from '../variable-resolver.js';
 
 const OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'] as const;
 const VALUE_TYPES = ['string', 'number', 'boolean'] as const;
@@ -23,6 +24,8 @@ function isValueType(value: unknown): value is ValueType {
 
 @Injectable()
 export class IfExecutor implements NodeExecutor {
+  constructor(private readonly resolver: VariableResolver) {}
+
   async execute(node: WorkflowNode, context: ExecutionContext): Promise<NodeExecutionResult> {
     const { variable, operator, value } = node.data;
     const valueType = node.data.valueType ?? 'string';
@@ -49,11 +52,7 @@ export class IfExecutor implements NodeExecutor {
       );
     }
 
-    const actualValue = context.getVariable(variable);
-
-    if (actualValue === undefined) {
-      throw new WorkflowExecutionError(`Variable "${variable}" not found`);
-    }
+    const actualValue = this.resolver.resolve(variable, context);
 
     const actual = this.coerce(node.id, actualValue, valueType, `variable "${variable}"`);
     const expected = this.coerce(node.id, value, valueType, 'value');

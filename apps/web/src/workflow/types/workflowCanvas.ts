@@ -24,8 +24,11 @@ export type TemplateNodeData = BaseNodeData & {
   outputVariable: string;
 };
 
+export type VariableSourceType = 'literal' | 'reference';
+
 export type VariableNodeData = BaseNodeData & {
   variableName: string;
+  sourceType?: VariableSourceType;
   value: unknown;
 };
 

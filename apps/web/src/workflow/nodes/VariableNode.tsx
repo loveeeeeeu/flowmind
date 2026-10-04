@@ -17,6 +17,7 @@ export function VariableNode({ data, selected }: NodeProps<VariableNodeType>) {
       <strong>{data.label || 'Variable'}</strong>
       <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>
         {data.variableName || 'No variable'}
+        {data.sourceType === 'reference' && ` ← ${String(data.value ?? '')}`}
       </div>
 
       <Handle type="source" position={Position.Right} />
