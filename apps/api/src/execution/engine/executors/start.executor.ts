@@ -6,9 +6,6 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class StartExecutor implements NodeExecutor {
   async execute(node: WorkflowNode, context: ExecutionContext) {
-    return {
-      nodeId: node.id,
-      input: context.getVariables(),
-    };
+    return { output: { nodeId: node.id, input: context.getVariables() } };
   }
 }

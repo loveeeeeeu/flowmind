@@ -19,8 +19,6 @@ export class EndExecutor implements NodeExecutor {
       throw new WorkflowExecutionError(`Output variable "${outputVariable}" not found`);
     }
 
-    return {
-      result: value,
-    };
+    return { output: { result: value } };
   }
 }

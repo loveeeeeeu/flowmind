@@ -1,25 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { ExecutionContext } from './execution-context.js';
 import { EndExecutor } from './executors/end.executor.js';
+import { HttpExecutor } from './executors/http.executor.js';
+import { IfExecutor } from './executors/if.executor.js';
 import { LlmExecutor } from './executors/llm.executor.js';
 import type { NodeExecutor } from './executors/node-executor.js';
 import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
 import { VariableExecutor } from './executors/variable.executor.js';
-import type { WorkflowCanvas, WorkflowNode } from './workflow-engine.types.js';
+import type { WorkflowCanvas, WorkflowEdge, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
+import { WorkflowScheduler } from './workflow-scheduler.js';
 import { WorkflowValidationError } from './workflow-validation.error.js';
-import { HttpExecutor } from './executors/http.executor.js';
 
 @Injectable()
 export class WorkflowEngine {
   private readonly executors: Map<string, NodeExecutor>;
 
   constructor(
+    private readonly scheduler: WorkflowScheduler,
     startExecutor: StartExecutor,
     variableExecutor: VariableExecutor,
     templateExecutor: TemplateExecutor,
     httpExecutor: HttpExecutor,
+    ifExecutor: IfExecutor,
     llmExecutor: LlmExecutor,
     endExecutor: EndExecutor,
   ) {
@@ -28,42 +32,44 @@ export class WorkflowEngine {
       ['variable', variableExecutor],
       ['template', templateExecutor],
       ['http', httpExecutor],
+      ['if', ifExecutor],
       ['llm', llmExecutor],
       ['end', endExecutor],
     ]);
   }
 
   async execute(canvas: WorkflowCanvas, input: Record<string, unknown>) {
-    const executionPlan = this.buildExecutionPlan(canvas);
+    const { graph, startId } = this.validateCanvas(canvas);
 
-    for (const node of executionPlan) {
+    for (const node of graph.getNodes()) {
       if (!this.executors.has(node.type)) {
         throw new WorkflowValidationError(`Unsupported node type: ${node.type}`);
       }
     }
 
+    this.validateRuntimeGraph(graph);
+
     const context = new ExecutionContext(input);
-    let finalResult: unknown = null;
-
-    for (const node of executionPlan) {
-      const executor = this.executors.get(node.type)!;
-      const output = await executor.execute(node, context);
-
-      context.setNodeOutput(node.id, output);
-
-      if (node.type === 'end') {
-        finalResult = output;
-      }
-    }
+    const { result, executedNodeIds } = await this.scheduler.run(
+      graph,
+      graph.getNode(startId)!,
+      this.executors,
+      context,
+    );
 
     return {
-      result: finalResult,
+      result,
+      executedNodeIds,
       variables: context.getVariables(),
       nodeOutputs: context.getNodeOutputs(),
     };
   }
 
   buildExecutionPlan(canvas: WorkflowCanvas): WorkflowNode[] {
+    return this.validateCanvas(canvas).executionPlan;
+  }
+
+  private validateCanvas(canvas: WorkflowCanvas) {
     if (!Array.isArray(canvas?.nodes) || !Array.isArray(canvas?.edges)) {
       throw new WorkflowValidationError('Workflow canvas is malformed');
     }
@@ -80,7 +86,38 @@ export class WorkflowEngine {
 
     this.validateReachability(graph, startId, endId);
 
-    return executionPlan;
+    return { graph, startId, executionPlan };
+  }
+
+  private validateRuntimeGraph(graph: WorkflowGraph) {
+    for (const node of graph.getNodes()) {
+      if (node.type === 'end') {
+        continue;
+      }
+
+      const outgoing = graph.getOutgoingEdges(node.id);
+
+      if (node.type === 'if') {
+        this.validateIfEdges(node.id, outgoing);
+        continue;
+      }
+
+      if (outgoing.length !== 1) {
+        throw new WorkflowValidationError(`Node ${node.id} must have exactly one outgoing edge`);
+      }
+    }
+  }
+
+  private validateIfEdges(nodeId: string, edges: WorkflowEdge[]) {
+    if (edges.length !== 2) {
+      throw new WorkflowValidationError(`IF node ${nodeId} must have exactly two outgoing edges`);
+    }
+
+    const handles = edges.map((edge) => edge.sourceHandle);
+
+    if (!handles.includes('true') || !handles.includes('false')) {
+      throw new WorkflowValidationError(`IF node ${nodeId} must have true and false branches`);
+    }
   }
 
   private validateBasicStructure(canvas: WorkflowCanvas, graph: WorkflowGraph) {

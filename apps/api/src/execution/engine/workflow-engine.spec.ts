@@ -5,9 +5,11 @@ import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
 import { VariableExecutor } from './executors/variable.executor.js';
 import { HttpExecutor } from './executors/http.executor.js';
+import { IfExecutor } from './executors/if.executor.js';
 import { VariableResolver } from './variable-resolver.js';
 import { WorkflowEngine } from './workflow-engine.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
+import { WorkflowScheduler } from './workflow-scheduler.js';
 
 describe('WorkflowEngine', () => {
   let engine: WorkflowEngine;
@@ -19,10 +21,12 @@ describe('WorkflowEngine', () => {
     const fakeLlmService = { generate } as unknown as LlmService;
   
     engine = new WorkflowEngine(
+      new WorkflowScheduler(),
       new StartExecutor(),
       new VariableExecutor(),
       new TemplateExecutor(resolver),
       new HttpExecutor(resolver),
+      new IfExecutor(),
       new LlmExecutor(fakeLlmService, resolver),
       new EndExecutor(),
     );
@@ -292,6 +296,77 @@ describe('WorkflowEngine', () => {
   
     await expect(engine.execute(canvas, {})).rejects.toThrow(
       'LLM node llm temperature must be between 0 and 2',
+    );
+  });
+
+  function createBranchCanvas(): WorkflowCanvas {
+    return {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'if',
+          type: 'if',
+          data: { variable: 'score', operator: 'gte', valueType: 'number', value: '60' },
+        },
+        { id: 'pass', type: 'template', data: { template: 'Passed', outputVariable: 'result' } },
+        { id: 'fail', type: 'template', data: { template: 'Failed', outputVariable: 'result' } },
+        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
+      ],
+      edges: [
+        { source: 'start', target: 'if' },
+        { source: 'if', target: 'pass', sourceHandle: 'true' },
+        { source: 'if', target: 'fail', sourceHandle: 'false' },
+        { source: 'pass', target: 'end' },
+        { source: 'fail', target: 'end' },
+      ],
+    };
+  }
+
+  it('runs only the true branch when condition matches', async () => {
+    const result = await engine.execute(createBranchCanvas(), { score: 85 });
+
+    expect(result.result).toEqual({ result: 'Passed' });
+    expect(result.executedNodeIds).toEqual(['start', 'if', 'pass', 'end']);
+    expect(result.nodeOutputs).not.toHaveProperty('fail');
+  });
+
+  it('runs only the false branch when condition does not match', async () => {
+    const result = await engine.execute(createBranchCanvas(), { score: 40 });
+
+    expect(result.result).toEqual({ result: 'Failed' });
+    expect(result.executedNodeIds).toEqual(['start', 'if', 'fail', 'end']);
+    expect(result.nodeOutputs).not.toHaveProperty('pass');
+  });
+
+  it('rejects IF node without false branch', async () => {
+    const canvas = createBranchCanvas();
+    canvas.nodes = canvas.nodes.filter((node) => node.id !== 'fail');
+    canvas.edges = canvas.edges.filter((edge) => edge.source !== 'fail' && edge.target !== 'fail');
+
+    await expect(engine.execute(canvas, { score: 85 })).rejects.toThrow(
+      'IF node if must have exactly two outgoing edges',
+    );
+  });
+
+  it('accepts parallel fork as DAG but rejects it at runtime', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'a', type: 'template', data: { template: 'A', outputVariable: 'result' } },
+        { id: 'b', type: 'template', data: { template: 'B', outputVariable: 'result' } },
+        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
+      ],
+      edges: [
+        { source: 'start', target: 'a' },
+        { source: 'start', target: 'b' },
+        { source: 'a', target: 'end' },
+        { source: 'b', target: 'end' },
+      ],
+    };
+
+    expect(engine.buildExecutionPlan(canvas)).toHaveLength(4);
+    await expect(engine.execute(canvas, {})).rejects.toThrow(
+      'Node start must have exactly one outgoing edge',
     );
   });
 });

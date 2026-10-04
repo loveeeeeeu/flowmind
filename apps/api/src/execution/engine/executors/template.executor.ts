@@ -25,6 +25,6 @@ export class TemplateExecutor implements NodeExecutor {
 
     context.setVariable(outputVariable, rendered);
 
-    return rendered;
+    return { output: rendered };
   }
 }

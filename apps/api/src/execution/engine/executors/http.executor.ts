@@ -91,8 +91,10 @@ export class HttpExecutor implements NodeExecutor {
     context.setVariable(outputVariable, result);
 
     return {
-      status: response.status,
-      data: result,
+      output: {
+        status: response.status,
+        data: result,
+      },
     };
   }
 

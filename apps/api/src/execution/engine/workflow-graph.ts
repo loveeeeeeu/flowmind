@@ -1,10 +1,10 @@
-import type { WorkflowCanvas, WorkflowNode } from './workflow-engine.types.js';
+import type { WorkflowCanvas, WorkflowEdge, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowValidationError } from './workflow-validation.error.js';
 
 export class WorkflowGraph {
   private readonly nodeMap = new Map<string, WorkflowNode>();
-  private readonly adjacency = new Map<string, string[]>();
-  private readonly reverseAdjacency = new Map<string, string[]>();
+  private readonly outgoingEdges = new Map<string, WorkflowEdge[]>();
+  private readonly incomingEdges = new Map<string, WorkflowEdge[]>();
   private readonly inDegree = new Map<string, number>();
 
   constructor(private readonly canvas: WorkflowCanvas) {
@@ -18,24 +18,24 @@ export class WorkflowGraph {
       }
 
       this.nodeMap.set(node.id, node);
-      this.adjacency.set(node.id, []);
-      this.reverseAdjacency.set(node.id, []);
+      this.outgoingEdges.set(node.id, []);
+      this.incomingEdges.set(node.id, []);
       this.inDegree.set(node.id, 0);
     }
 
     for (const edge of this.canvas.edges) {
-      const sourceTargets = this.adjacency.get(edge.source);
-      if (!sourceTargets) {
+      const outgoing = this.outgoingEdges.get(edge.source);
+      if (!outgoing) {
         throw new WorkflowValidationError(`Source node ${edge.source} does not exist`);
       }
 
-      const targetSources = this.reverseAdjacency.get(edge.target);
-      if (!targetSources) {
+      const incoming = this.incomingEdges.get(edge.target);
+      if (!incoming) {
         throw new WorkflowValidationError(`Target node ${edge.target} does not exist`);
       }
 
-      sourceTargets.push(edge.target);
-      targetSources.push(edge.source);
+      outgoing.push(edge);
+      incoming.push(edge);
       this.inDegree.set(edge.target, (this.inDegree.get(edge.target) ?? 0) + 1);
     }
   }
@@ -48,12 +48,20 @@ export class WorkflowGraph {
     return [...this.nodeMap.values()];
   }
 
+  getOutgoingEdges(id: string): WorkflowEdge[] {
+    return this.outgoingEdges.get(id) ?? [];
+  }
+
+  getIncomingEdges(id: string): WorkflowEdge[] {
+    return this.incomingEdges.get(id) ?? [];
+  }
+
   getNextNodes(id: string): string[] {
-    return this.adjacency.get(id) ?? [];
+    return this.getOutgoingEdges(id).map((edge) => edge.target);
   }
 
   getPreviousNodes(id: string): string[] {
-    return this.reverseAdjacency.get(id) ?? [];
+    return this.getIncomingEdges(id).map((edge) => edge.source);
   }
 
   getInDegree(id: string) {

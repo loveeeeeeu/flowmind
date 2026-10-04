@@ -67,11 +67,6 @@ export class LlmExecutor implements NodeExecutor {
 
     context.setVariable(outputVariable, result.text);
 
-    return {
-      provider,
-      model,
-      text: result.text,
-      usage: result.usage,
-    };
+    return { output: { provider, model, text: result.text, usage: result.usage } };
   }
 }

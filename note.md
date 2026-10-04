@@ -183,3 +183,57 @@ Timeout：请求最多等 LLM_TIMEOUT_MS，超时就取消，不会一直卡住�
 # HTTP 节点
 本节课新增了 HTTP 节点，让工作流可以调用外部 API，并能和 LLM 串成“拿数据 → 理解 → 输出”的链路
 同样做了错误检测，按照请求前校验配置，请求失败（超时或网络）、状态码非 2xx”三个阶段做错误检测，做了基础的安全边界（只允许 http 和 https），并明确 SSRF 防护要等到上线前再补
+
+# IF节点
+本节课新增了if节点，带有2条出边，画布节点和边定义要调整，运行逻辑也要调整
+## 画布节点和边定义要调整
+if节点需要根据计算结果，返回ture/false，统一成nextHandle字段，下一节点需要按照nextHandle选择路径。
+## Engine 执行逻辑的变化
+| | 以前 | 现在 |
+|---|---|---|
+| 怎么执行 | 先拓扑排序得到 `[start, if, pass, fail, end]`，再按顺序全部执行 | 从 Start 出发，执行完一个节点再决定下一个走哪 |
+| 有 IF 时 | pass 和 fail 都执行，结果被后执行的覆盖（错误） | 只执行被选中的那条分支 |
+| 拓扑排序的作用 | 决定执行顺序 | 只用来检测环，以及给 `/validate` 返回顺序 |
+
+Scheduler 的循环：
+```text
+当前节点 = Start
+循环：
+  找执行器 → execute(node, context) → 返回 { output, nextHandle? }
+  记录 nodeOutput
+  是 End？→ 返回结果，结束
+  选下一条边：
+    有 nextHandle（IF）→ 在出边里找 sourceHandle === nextHandle 的那条
+    没有（普通节点）  → 取唯一那条出边
+  当前节点 = 边的 target
+```
+分工：执行器只负责"算"（IF 只告诉你走哪个出口），Scheduler 负责"走"（拿出口名去图里找边、找下一个节点）。执行器拿不到图，所以不可能返回"下游节点"。
+
+## 图校验和运行时校验
+图校验回答的是“这张图有没有画错”。
+运行时校验回答的是“现在的引擎能力够不够跑它”。如：节点类型是否都有对应的执行器
+
+## 当前架构：
+```一次 /run 请求的代码调用链
+POST /workflows/:id/run
+        │
+        ▼
+ExecutionService.execute          ← 调用 Engine，出错时翻译错误，也就是错误分类（图校验和各节点的校验负责发现错误并抛出）
+        │
+        ▼
+WorkflowEngine.execute              图校验 → 运行时校验 → 创建 Context → 交给 Scheduler
+  ├─ ① validateCanvas              【图校验】
+  │     ├─ new WorkflowGraph        建索引，检查重复 id 和悬空边
+  │     ├─ validateBasicStructure   1 个 Start、1 个 End
+  │     ├─ topologicalSort          检测有没有环
+  │     └─ validateReachability     从 Start 可达、能到 End
+  ├─ ② 节点类型是否都支持            【运行时校验】
+  ├─ ③ validateRuntimeGraph         普通节点 1 条出边，IF 有 true / false 两条
+  ├─ ④ new ExecutionContext(input)
+  └─ ⑤ WorkflowScheduler.run
+          循环：
+            executor.execute(node)  → { output, nextHandle? }
+            context.setNodeOutput
+            是 End？→ 返回结果
+            selectEdge(nextHandle)  → edge.target → 下一个节点
+```

@@ -29,6 +29,7 @@ import { toPersistedCanvas } from './toPersistedCanvas';
 import { VariableNode } from './nodes/VariableNode';
 import type {
   HttpNodeType,
+  IfNodeType,
   LlmNodeType,
   TemplateNodeType,
   VariableNodeType,
@@ -37,6 +38,7 @@ import type {
   WorkflowNodeData,
 } from './types/workflowCanvas';
 import { HttpNode } from './nodes/HttpNode';
+import { IfNode } from './nodes/IfNode';
 
 const nodeTypes = {
   start: StartNode,
@@ -45,6 +47,7 @@ const nodeTypes = {
   template: TemplateNode,
   variable: VariableNode,
   http: HttpNode,
+  if: IfNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -141,9 +144,27 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         (edge) => edge.source === connection.source && edge.target === connection.target,
       );
 
-      return !exists;
+      if (exists) {
+        return false;
+      }
+
+      const sourceNode = nodes.find((node) => node.id === connection.source);
+      const outgoing = edges.filter((edge) => edge.source === connection.source);
+
+      if (sourceNode?.type === 'if') {
+        const handle = connection.sourceHandle;
+
+        if (handle !== 'true' && handle !== 'false') {
+          return false;
+        }
+
+        return !outgoing.some((edge) => edge.sourceHandle === handle);
+      }
+
+      // Scheduler v1 has no parallel branches: non-IF nodes get one outgoing edge.
+      return outgoing.length === 0;
     },
-    [edges],
+    [nodes, edges],
   );
 
   function addLlmNode() {
@@ -215,7 +236,25 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     setNodes((currentNodes) => [...currentNodes, newNode]);
     setIsDirty(true);
   }
-  
+
+  function addIfNode() {
+    const newNode: IfNodeType = {
+      id: crypto.randomUUID(),
+      type: 'if',
+      position: { x: 400, y: 300 },
+      data: {
+        label: 'IF',
+        variable: 'score',
+        operator: 'gte',
+        valueType: 'number',
+        value: '60',
+      },
+    };
+
+    setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
+
   function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
     setNodes((currentNodes) =>
       currentNodes.map((node) => {
@@ -326,6 +365,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         onAddTemplate={addTemplateNode}
         onAddVariable={addVariableNode}
         onAddHttp={addHttpNode}
+        onAddIf={addIfNode}
       />
 
         <div style={{ flex: 1, minWidth: 0 }}>

@@ -3,9 +3,16 @@ interface NodeLibraryProps {
   onAddTemplate: () => void;
   onAddVariable: () => void;
   onAddHttp: () => void;
+  onAddIf: () => void;
 }
 
-export function NodeLibrary({ onAddLlm, onAddTemplate, onAddVariable, onAddHttp }: NodeLibraryProps) {
+export function NodeLibrary({
+  onAddLlm,
+  onAddTemplate,
+  onAddVariable,
+  onAddHttp,
+  onAddIf,
+}: NodeLibraryProps) {
   return (
     <aside
       style={{
@@ -41,6 +48,13 @@ export function NodeLibrary({ onAddLlm, onAddTemplate, onAddVariable, onAddHttp 
         style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
       >
         + HTTP
+      </button>
+
+      <button
+        onClick={onAddIf}
+        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
+      >
+        + IF
       </button>
     </aside>
   );

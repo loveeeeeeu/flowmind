@@ -16,9 +16,6 @@ export class VariableExecutor implements NodeExecutor {
 
     context.setVariable(variableName, value);
 
-    return {
-      variableName,
-      value,
-    };
+    return { output: { variableName, value } };
   }
 }

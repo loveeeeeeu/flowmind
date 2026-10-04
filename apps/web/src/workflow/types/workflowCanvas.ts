@@ -41,6 +41,24 @@ export type HttpNodeData = BaseNodeData & {
   outputVariable: string;
 };
 
+export const CONDITION_OPERATORS = [
+  { value: 'eq', label: '==' },
+  { value: 'neq', label: '!=' },
+  { value: 'gt', label: '>' },
+  { value: 'gte', label: '>=' },
+  { value: 'lt', label: '<' },
+  { value: 'lte', label: '<=' },
+] as const;
+export type ConditionOperator = (typeof CONDITION_OPERATORS)[number]['value'];
+export type ConditionValueType = 'string' | 'number' | 'boolean';
+
+export type IfNodeData = BaseNodeData & {
+  variable: string;
+  operator: ConditionOperator;
+  valueType: ConditionValueType;
+  value: string;
+};
+
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
@@ -48,6 +66,7 @@ export type TemplateNodeType = Node<TemplateNodeData, 'template'>;
 export type VariableNodeType = Node<VariableNodeData, 'variable'>;
 
 export type HttpNodeType = Node<HttpNodeData, 'http'>;
+export type IfNodeType = Node<IfNodeData, 'if'>;
 
 export type WorkflowNode =
   | StartNodeType
@@ -55,7 +74,8 @@ export type WorkflowNode =
   | LlmNodeType
   | TemplateNodeType
   | VariableNodeType
-  | HttpNodeType;
+  | HttpNodeType
+  | IfNodeType;
 
 export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;

@@ -27,7 +27,7 @@ describe('LlmExecutor', () => {
     };
     const context = new ExecutionContext({ name: 'FlowMind' });
 
-    const output = await executor.execute(node, context);
+    const { output } = await executor.execute(node, context);
 
     expect(generate).toHaveBeenCalledWith('deepseek', {
       model: 'test',

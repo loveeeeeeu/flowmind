@@ -1,6 +1,14 @@
 import type { CSSProperties } from 'react';
 import type { LlmProviderInfo } from '../../api/llm';
-import { HTTP_METHODS, type HttpMethod, type WorkflowNode, type WorkflowNodeData } from '../types/workflowCanvas';
+import {
+  CONDITION_OPERATORS,
+  HTTP_METHODS,
+  type ConditionOperator,
+  type ConditionValueType,
+  type HttpMethod,
+  type WorkflowNode,
+  type WorkflowNodeData,
+} from '../types/workflowCanvas';
 import { JsonObjectEditor } from './JsonObjectEditor';
 
 interface PropertiesPanelProps {
@@ -176,6 +184,82 @@ export function PropertiesPanel({
           />
         </label>
   
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
+  if (node.type === 'if') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>IF Properties</h3>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.label ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="score"
+            value={node.data.variable ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { variable: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Operator</div>
+          <select
+            style={inputStyle}
+            value={node.data.operator}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { operator: event.target.value as ConditionOperator })
+            }
+          >
+            {CONDITION_OPERATORS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Value Type</div>
+          <select
+            style={inputStyle}
+            value={node.data.valueType}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { valueType: event.target.value as ConditionValueType })
+            }
+          >
+            <option value="string">string</option>
+            <option value="number">number</option>
+            <option value="boolean">boolean</option>
+          </select>
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Value</div>
+          <input
+            style={inputStyle}
+            placeholder="60"
+            value={node.data.value ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { value: event.target.value })}
+          />
+        </label>
+
+        <p style={{ fontSize: 13, color: '#777' }}>
+          &gt; / &gt;= / &lt; / &lt;= require Value Type "number". Connect both the true and
+          false handles before running.
+        </p>
+
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );
