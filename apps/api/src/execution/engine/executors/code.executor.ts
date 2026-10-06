@@ -13,6 +13,8 @@ const MAX_CODE_LENGTH = 20_000;
 
 @Injectable()
 export class CodeExecutor implements NodeExecutor {
+  readonly type = 'code';
+
   constructor(
     private readonly codeRunner: CodeRunnerService,
     private readonly resolver: VariableResolver,

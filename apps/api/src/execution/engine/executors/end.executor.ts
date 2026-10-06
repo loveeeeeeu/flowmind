@@ -6,6 +6,8 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class EndExecutor implements NodeExecutor {
+  readonly type = 'end';
+
   async execute(node: WorkflowNode, context: ExecutionContext) {
     const outputVariable = node.data.outputVariable;
 

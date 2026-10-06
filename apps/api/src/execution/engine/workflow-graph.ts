@@ -12,7 +12,15 @@ export class WorkflowGraph {
   }
 
   private build() {
+    if (!Array.isArray(this.canvas?.nodes) || !Array.isArray(this.canvas?.edges)) {
+      throw new WorkflowValidationError('Workflow canvas is malformed');
+    }
+
     for (const node of this.canvas.nodes) {
+      if (!node?.id || !node.type) {
+        throw new WorkflowValidationError('Workflow node must have id and type');
+      }
+
       if (this.nodeMap.has(node.id)) {
         throw new WorkflowValidationError(`Duplicate node id ${node.id}`);
       }
@@ -22,6 +30,8 @@ export class WorkflowGraph {
       this.incomingEdges.set(node.id, []);
       this.inDegree.set(node.id, 0);
     }
+
+    const edgeKeys = new Set<string>();
 
     for (const edge of this.canvas.edges) {
       const outgoing = this.outgoingEdges.get(edge.source);
@@ -33,6 +43,15 @@ export class WorkflowGraph {
       if (!incoming) {
         throw new WorkflowValidationError(`Target node ${edge.target} does not exist`);
       }
+
+      // Handles are part of the key: IF true and false may both point to the same node.
+      const key = [edge.source, edge.sourceHandle ?? '', edge.target, edge.targetHandle ?? ''].join(
+        '::',
+      );
+      if (edgeKeys.has(key)) {
+        throw new WorkflowValidationError(`Duplicate edge: ${key}`);
+      }
+      edgeKeys.add(key);
 
       outgoing.push(edge);
       incoming.push(edge);

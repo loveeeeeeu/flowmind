@@ -20,6 +20,8 @@ function requireName(nodeId: string, value: unknown, field: string): string {
 
 @Injectable()
 export class LoopExecutor implements NodeExecutor {
+  readonly type = 'loop';
+
   constructor(private readonly resolver: VariableResolver) {}
 
   async execute(node: WorkflowNode, context: ExecutionContext): Promise<NodeExecutionResult> {

@@ -27,6 +27,8 @@ function describeError(error: unknown) {
 
 @Injectable()
 export class HttpExecutor implements NodeExecutor {
+  readonly type = 'http';
+
   constructor(private readonly resolver: VariableResolver) {}
 
   async execute(node: WorkflowNode, context: ExecutionContext) {

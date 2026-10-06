@@ -272,3 +272,15 @@ worker线程：在同一个进程里再开一个线程，和主线程只能通�
 
 ## work核心概念（隔离、超时、内存限制、跨线程通信）
 一句话：用户代码不可信，Worker 把它关进另一个线程，管住时间、内存和数据进出
+
+# 工作流执行和校验重构
+## 问题：随着执行器增加，workEngine里constructor的执行器实例 越来越长，Validation 越来越散、越来越难维护
+## 本节课是把执行器查找和执行器校验从Scheduler和Engine里抽象抽象出来,ExecutorRegistry,WorkflowValidator（两个模块已经分别拥有了清晰、独立且不断增长的职责）
+```WorkflowEngine 职责不变
+   ① new WorkflowGraph(canvas)    建索引，同时检查输入完整性
+   ② validator.validate(graph)    所有可以静态检查的工作流配置问题都会在执行前暴露：之前是在执行时判断是否存在该节点的执行器，现在提前到执行前的校验了
+   ③ new ExecutionContext(input)
+   ④ scheduler.run(...)           不关心有哪些 Executor
+      循环：registry.get(node.type) → executor.execute(node, context)
+         → 存 output → 按 nextHandle 选边 → 下一个节点
+```

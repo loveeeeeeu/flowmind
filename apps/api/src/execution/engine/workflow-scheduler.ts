@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ExecutionContext } from './execution-context.js';
-import type { NodeExecutor } from './executors/node-executor.js';
+import { ExecutorRegistry } from './executor-registry.js';
 import type { WorkflowEdge, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowExecutionError } from './workflow-execution.error.js';
 import type { WorkflowGraph } from './workflow-graph.js';
@@ -9,12 +9,9 @@ export const MAX_EXECUTION_STEPS = 10_000;
 
 @Injectable()
 export class WorkflowScheduler {
-  async run(
-    graph: WorkflowGraph,
-    startNode: WorkflowNode,
-    executors: Map<string, NodeExecutor>,
-    context: ExecutionContext,
-  ) {
+  constructor(private readonly registry: ExecutorRegistry) {}
+
+  async run(graph: WorkflowGraph, startNode: WorkflowNode, context: ExecutionContext) {
     const executedNodeIds: string[] = [];
     let current: WorkflowNode | undefined = startNode;
     let steps = 0;
@@ -28,13 +25,7 @@ export class WorkflowScheduler {
         );
       }
 
-      const executor = executors.get(current.type);
-
-      if (!executor) {
-        throw new WorkflowExecutionError(`Unsupported node type: ${current.type}`);
-      }
-
-      const executionResult = await executor.execute(current, context);
+      const executionResult = await this.registry.get(current.type).execute(current, context);
       executedNodeIds.push(current.id);
       context.setNodeOutput(current.id, executionResult.output);
 

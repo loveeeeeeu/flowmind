@@ -11,6 +11,8 @@ const MAX_TEMPERATURE = 2;
 
 @Injectable()
 export class LlmExecutor implements NodeExecutor {
+  readonly type = 'llm';
+
   constructor(
     private readonly llmService: LlmService,
     private readonly resolver: VariableResolver,

@@ -7,6 +7,8 @@ import type { NodeExecutionResult, NodeExecutor } from './node-executor.js';
 
 @Injectable()
 export class VariableExecutor implements NodeExecutor {
+  readonly type = 'variable';
+
   constructor(private readonly resolver: VariableResolver) {}
 
   async execute(node: WorkflowNode, context: ExecutionContext): Promise<NodeExecutionResult> {

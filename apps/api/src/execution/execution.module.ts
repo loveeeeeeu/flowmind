@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LlmModule } from '../llm/llm.module.js';
 import { CodeRunnerService } from './code/code-runner.service.js';
+import { ExecutorRegistry } from './engine/executor-registry.js';
 import { CodeExecutor } from './engine/executors/code.executor.js';
 import { EndExecutor } from './engine/executors/end.executor.js';
 import { HttpExecutor } from './engine/executors/http.executor.js';
@@ -13,6 +14,7 @@ import { VariableExecutor } from './engine/executors/variable.executor.js';
 import { VariableResolver } from './engine/variable-resolver.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
 import { WorkflowScheduler } from './engine/workflow-scheduler.js';
+import { WorkflowValidator } from './engine/workflow-validator.js';
 import { ExecutionService } from './execution.service.js';
 
 @Module({
@@ -20,7 +22,9 @@ import { ExecutionService } from './execution.service.js';
   providers: [
     ExecutionService,
     WorkflowEngine,
+    WorkflowValidator,
     WorkflowScheduler,
+    ExecutorRegistry,
     VariableResolver,
     CodeRunnerService,
     StartExecutor,

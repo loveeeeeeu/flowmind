@@ -1,4 +1,5 @@
 import { ExecutionContext } from './execution-context.js';
+import type { ExecutorRegistry } from './executor-registry.js';
 import { LoopExecutor } from './executors/loop.executor.js';
 import type { NodeExecutionResult, NodeExecutor } from './executors/node-executor.js';
 import { VariableResolver } from './variable-resolver.js';
@@ -6,8 +7,14 @@ import type { WorkflowCanvas } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
 import { MAX_EXECUTION_STEPS, WorkflowScheduler } from './workflow-scheduler.js';
 
-function fakeExecutor(result: NodeExecutionResult = {}) {
-  return { execute: vi.fn(async () => result) } satisfies NodeExecutor;
+function fakeExecutor(type: string, result: NodeExecutionResult = {}) {
+  return { type, execute: vi.fn(async () => result) } satisfies NodeExecutor;
+}
+
+function createScheduler(executors: NodeExecutor[]) {
+  const map = new Map(executors.map((executor) => [executor.type, executor]));
+  const registry = { get: (type: string) => map.get(type)! } as unknown as ExecutorRegistry;
+  return new WorkflowScheduler(registry);
 }
 
 function createCanvas(): WorkflowCanvas {
@@ -30,24 +37,17 @@ function createCanvas(): WorkflowCanvas {
 }
 
 describe('WorkflowScheduler', () => {
-  const scheduler = new WorkflowScheduler();
-
   function setup(nextHandle: string) {
     const graph = new WorkflowGraph(createCanvas());
     const executors = {
-      start: fakeExecutor(),
-      if: fakeExecutor({ output: nextHandle === 'true', nextHandle }),
-      a: fakeExecutor({ output: 'A' }),
-      b: fakeExecutor({ output: 'B' }),
-      end: fakeExecutor({ output: 'done' }),
+      start: fakeExecutor('start'),
+      if: fakeExecutor('if', { output: nextHandle === 'true', nextHandle }),
+      a: fakeExecutor('a', { output: 'A' }),
+      b: fakeExecutor('b', { output: 'B' }),
+      end: fakeExecutor('end', { output: 'done' }),
     };
-    const run = () =>
-      scheduler.run(
-        graph,
-        graph.getNode('start')!,
-        new Map<string, NodeExecutor>(Object.entries(executors)),
-        new ExecutionContext({}),
-      );
+    const scheduler = createScheduler(Object.values(executors));
+    const run = () => scheduler.run(graph, graph.getNode('start')!, new ExecutionContext({}));
 
     return { executors, run };
   }
@@ -76,8 +76,6 @@ describe('WorkflowScheduler', () => {
 });
 
 describe('WorkflowScheduler with loop', () => {
-  const scheduler = new WorkflowScheduler();
-
   function createLoopGraph() {
     return new WorkflowGraph({
       nodes: [
@@ -101,18 +99,18 @@ describe('WorkflowScheduler with loop', () => {
 
   function run(loopExecutor: NodeExecutor, body: NodeExecutor, input: Record<string, unknown>) {
     const graph = createLoopGraph();
-    const executors = new Map<string, NodeExecutor>([
-      ['start', fakeExecutor()],
-      ['loop', loopExecutor],
-      ['body', body],
-      ['end', fakeExecutor({ output: 'done' })],
+    const scheduler = createScheduler([
+      fakeExecutor('start'),
+      loopExecutor,
+      body,
+      fakeExecutor('end', { output: 'done' }),
     ]);
 
-    return scheduler.run(graph, graph.getNode('start')!, executors, new ExecutionContext(input));
+    return scheduler.run(graph, graph.getNode('start')!, new ExecutionContext(input));
   }
 
   it('re-executes the body once per item', async () => {
-    const body = fakeExecutor({ output: 'B' });
+    const body = fakeExecutor('body', { output: 'B' });
     const result = await run(new LoopExecutor(new VariableResolver()), body, { items: ['a', 'b'] });
 
     expect(result.executedNodeIds).toEqual([
@@ -122,9 +120,9 @@ describe('WorkflowScheduler with loop', () => {
   });
 
   it('stops a runaway loop at the step limit', async () => {
-    const neverDone = fakeExecutor({ nextHandle: 'body' });
+    const neverDone = fakeExecutor('loop', { nextHandle: 'body' });
 
-    await expect(run(neverDone, fakeExecutor(), {})).rejects.toThrow(
+    await expect(run(neverDone, fakeExecutor('body'), {})).rejects.toThrow(
       `maximum execution steps (${MAX_EXECUTION_STEPS})`,
     );
   });

@@ -7,6 +7,8 @@ import type { NodeExecutor } from './node-executor.js';
 
 @Injectable()
 export class TemplateExecutor implements NodeExecutor {
+  readonly type = 'template';
+
   constructor(private readonly resolver: VariableResolver) {}
 
   async execute(node: WorkflowNode, context: ExecutionContext) {

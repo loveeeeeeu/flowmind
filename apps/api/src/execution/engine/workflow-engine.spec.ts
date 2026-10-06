@@ -1,5 +1,6 @@
 import type { LlmService } from '../../llm/llm.service.js';
 import type { CodeRunnerService } from '../code/code-runner.service.js';
+import { ExecutorRegistry } from './executor-registry.js';
 import { CodeExecutor } from './executors/code.executor.js';
 import { EndExecutor } from './executors/end.executor.js';
 import { LlmExecutor } from './executors/llm.executor.js';
@@ -13,6 +14,7 @@ import { VariableResolver } from './variable-resolver.js';
 import { WorkflowEngine } from './workflow-engine.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
 import { WorkflowScheduler } from './workflow-scheduler.js';
+import { WorkflowValidator } from './workflow-validator.js';
 
 describe('WorkflowEngine', () => {
   let engine: WorkflowEngine;
@@ -26,8 +28,7 @@ describe('WorkflowEngine', () => {
       run: vi.fn(async () => ({ output: { total: 300 } })),
     } as unknown as CodeRunnerService;
   
-    engine = new WorkflowEngine(
-      new WorkflowScheduler(),
+    const registry = new ExecutorRegistry(
       new StartExecutor(),
       new VariableExecutor(resolver),
       new TemplateExecutor(resolver),
@@ -38,6 +39,8 @@ describe('WorkflowEngine', () => {
       new LlmExecutor(fakeLlmService, resolver),
       new EndExecutor(),
     );
+
+    engine = new WorkflowEngine(new WorkflowValidator(registry), new WorkflowScheduler(registry));
   });
 
   function createBasicCanvas(): WorkflowCanvas {
@@ -71,69 +74,6 @@ describe('WorkflowEngine', () => {
       name: 'FlowMind',
       result: 'Hello FlowMind',
     });
-  });
-
-  it('rejects workflow without start node', () => {
-    const canvas: WorkflowCanvas = {
-      nodes: [{ id: 'end', type: 'end', data: { outputVariable: 'result' } }],
-      edges: [],
-    };
-
-    expect(() => engine.buildExecutionPlan(canvas)).toThrow(
-      'Workflow must have exactly one start node',
-    );
-  });
-
-  it('rejects cyclic workflow', () => {
-    const canvas: WorkflowCanvas = {
-      nodes: [
-        { id: 'start', type: 'start', data: {} },
-        { id: 'a', type: 'template', data: { template: 'A', outputVariable: 'a' } },
-        { id: 'b', type: 'template', data: { template: 'B', outputVariable: 'b' } },
-        { id: 'end', type: 'end', data: { outputVariable: 'b' } },
-      ],
-      edges: [
-        { source: 'start', target: 'a' },
-        { source: 'a', target: 'b' },
-        { source: 'b', target: 'a' },
-        { source: 'b', target: 'end' },
-      ],
-    };
-
-    expect(() => engine.buildExecutionPlan(canvas)).toThrow('Workflow contains a cycle');
-  });
-
-  it('rejects isolated node', () => {
-    const canvas: WorkflowCanvas = {
-      nodes: [
-        { id: 'start', type: 'start', data: {} },
-        { id: 'unused', type: 'template', data: { template: 'x', outputVariable: 'x' } },
-        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
-      ],
-      edges: [{ source: 'start', target: 'end' }],
-    };
-
-    expect(() => engine.buildExecutionPlan(canvas)).toThrow(
-      'Node unused is not reachable from start',
-    );
-  });
-
-  it('rejects node that cannot reach end', () => {
-    const canvas: WorkflowCanvas = {
-      nodes: [
-        { id: 'start', type: 'start', data: {} },
-        { id: 'dead-end', type: 'template', data: { template: 'x', outputVariable: 'x' } },
-        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
-      ],
-      edges: [
-        { source: 'start', target: 'end' },
-        { source: 'start', target: 'dead-end' },
-      ],
-    };
-
-    expect(() => engine.buildExecutionPlan(canvas)).toThrow(
-      'Node dead-end cannot reach end',
-    );
   });
 
   it('writes variable into execution context', async () => {
@@ -346,38 +286,6 @@ describe('WorkflowEngine', () => {
     expect(result.nodeOutputs).not.toHaveProperty('pass');
   });
 
-  it('rejects IF node without false branch', async () => {
-    const canvas = createBranchCanvas();
-    canvas.nodes = canvas.nodes.filter((node) => node.id !== 'fail');
-    canvas.edges = canvas.edges.filter((edge) => edge.source !== 'fail' && edge.target !== 'fail');
-
-    await expect(engine.execute(canvas, { score: 85 })).rejects.toThrow(
-      'IF node if must have exactly two outgoing edges',
-    );
-  });
-
-  it('accepts parallel fork as DAG but rejects it at runtime', async () => {
-    const canvas: WorkflowCanvas = {
-      nodes: [
-        { id: 'start', type: 'start', data: {} },
-        { id: 'a', type: 'template', data: { template: 'A', outputVariable: 'result' } },
-        { id: 'b', type: 'template', data: { template: 'B', outputVariable: 'result' } },
-        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
-      ],
-      edges: [
-        { source: 'start', target: 'a' },
-        { source: 'start', target: 'b' },
-        { source: 'a', target: 'end' },
-        { source: 'b', target: 'end' },
-      ],
-    };
-
-    expect(engine.buildExecutionPlan(canvas)).toHaveLength(4);
-    await expect(engine.execute(canvas, {})).rejects.toThrow(
-      'Node start must have exactly one outgoing edge',
-    );
-  });
-
   it('resolves nested paths in IF and template', async () => {
     const canvas = createBranchCanvas();
     canvas.nodes[1].data.variable = 'response.user.score';
@@ -415,10 +323,6 @@ describe('WorkflowEngine', () => {
     };
   }
 
-  it('accepts loop-back edge in execution plan', () => {
-    expect(engine.buildExecutionPlan(createLoopCanvas())).toHaveLength(4);
-  });
-
   it('runs loop body once per item', async () => {
     const result = await engine.execute(createLoopCanvas(), {
       items: ['apple', 'banana', 'orange'],
@@ -428,40 +332,6 @@ describe('WorkflowEngine', () => {
     expect(result.executedNodeIds).toEqual([
       'start', 'loop', 'template', 'loop', 'template', 'loop', 'template', 'loop', 'end',
     ]);
-  });
-
-  it('treats back edge without loop handle as a cycle', () => {
-    const canvas = createLoopCanvas();
-    canvas.edges[2] = { source: 'template', target: 'loop' };
-
-    expect(() => engine.buildExecutionPlan(canvas)).toThrow('Workflow contains a cycle');
-  });
-
-  it('rejects loop-back edge coming from the done branch', async () => {
-    const canvas: WorkflowCanvas = {
-      nodes: [
-        { id: 'start', type: 'start', data: {} },
-        {
-          id: 'loop',
-          type: 'loop',
-          data: { itemsPath: 'items', itemVariable: 'item', indexVariable: 'index' },
-        },
-        { id: 'a', type: 'template', data: { template: 'A', outputVariable: 'result' } },
-        { id: 'b', type: 'template', data: { template: 'B', outputVariable: 'result' } },
-        { id: 'end', type: 'end', data: { outputVariable: 'result' } },
-      ],
-      edges: [
-        { source: 'start', target: 'loop' },
-        { source: 'loop', target: 'a', sourceHandle: 'body' },
-        { source: 'a', target: 'end' },
-        { source: 'loop', target: 'b', sourceHandle: 'done' },
-        { source: 'b', target: 'loop', targetHandle: 'loop' },
-      ],
-    };
-
-    await expect(engine.execute(canvas, { items: ['x'] })).rejects.toThrow(
-      'loop-back edge must come from the body branch',
-    );
   });
 
   it('feeds code output into IF and template', async () => {
@@ -480,5 +350,28 @@ describe('WorkflowEngine', () => {
 
     expect(result.result).toEqual({ result: 'Total 300' });
     expect(result.executedNodeIds).toEqual(['start', 'code', 'if', 'pass', 'end']);
+  });
+
+  it('validates the whole graph before executing any node', async () => {
+    const canvas: WorkflowCanvas = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        {
+          id: 'llm',
+          type: 'llm',
+          data: { provider: 'deepseek', model: 'm', prompt: 'hi', outputVariable: 'a' },
+        },
+        { id: 'magic', type: 'magic', data: {} },
+        { id: 'end', type: 'end', data: { outputVariable: 'a' } },
+      ],
+      edges: [
+        { source: 'start', target: 'llm' },
+        { source: 'llm', target: 'magic' },
+        { source: 'magic', target: 'end' },
+      ],
+    };
+
+    await expect(engine.execute(canvas, {})).rejects.toThrow('Unsupported node type: magic');
+    expect(generate).not.toHaveBeenCalled();
   });
 });

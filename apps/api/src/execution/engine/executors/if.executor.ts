@@ -24,6 +24,8 @@ function isValueType(value: unknown): value is ValueType {
 
 @Injectable()
 export class IfExecutor implements NodeExecutor {
+  readonly type = 'if';
+
   constructor(private readonly resolver: VariableResolver) {}
 
   async execute(node: WorkflowNode, context: ExecutionContext): Promise<NodeExecutionResult> {

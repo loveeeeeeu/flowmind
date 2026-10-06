@@ -7,5 +7,6 @@ export interface NodeExecutionResult {
 }
 
 export interface NodeExecutor {
+  readonly type: string;
   execute(node: WorkflowNode, context: ExecutionContext): Promise<NodeExecutionResult>;
 }
