@@ -68,6 +68,13 @@ export type LoopNodeData = BaseNodeData & {
   indexVariable: string;
 };
 
+export type CodeNodeData = BaseNodeData & {
+  inputPath: string;
+  code: string;
+  outputVariable: string;
+  timeoutMs?: number;
+};
+
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
@@ -77,6 +84,7 @@ export type VariableNodeType = Node<VariableNodeData, 'variable'>;
 export type HttpNodeType = Node<HttpNodeData, 'http'>;
 export type IfNodeType = Node<IfNodeData, 'if'>;
 export type LoopNodeType = Node<LoopNodeData, 'loop'>;
+export type CodeNodeType = Node<CodeNodeData, 'code'>;
 
 export type WorkflowNode =
   | StartNodeType
@@ -86,7 +94,8 @@ export type WorkflowNode =
   | VariableNodeType
   | HttpNodeType
   | IfNodeType
-  | LoopNodeType;
+  | LoopNodeType
+  | CodeNodeType;
 
 export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;

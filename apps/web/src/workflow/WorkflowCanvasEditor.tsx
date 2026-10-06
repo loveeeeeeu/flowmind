@@ -28,6 +28,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { toPersistedCanvas } from './toPersistedCanvas';
 import { VariableNode } from './nodes/VariableNode';
 import type {
+  CodeNodeType,
   HttpNodeType,
   IfNodeType,
   LlmNodeType,
@@ -41,6 +42,7 @@ import type {
 import { HttpNode } from './nodes/HttpNode';
 import { IfNode } from './nodes/IfNode';
 import { LoopNode } from './nodes/LoopNode';
+import { CodeNode } from './nodes/CodeNode';
 
 const nodeTypes = {
   start: StartNode,
@@ -51,6 +53,7 @@ const nodeTypes = {
   http: HttpNode,
   if: IfNode,
   loop: LoopNode,
+  code: CodeNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -294,6 +297,24 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     setIsDirty(true);
   }
 
+  function addCodeNode() {
+    const newNode: CodeNodeType = {
+      id: crypto.randomUUID(),
+      type: 'code',
+      position: { x: 400, y: 300 },
+      data: {
+        label: 'Code',
+        inputPath: 'order',
+        code: 'return { total: input.price * input.quantity };',
+        outputVariable: 'calculation',
+        timeoutMs: 1000,
+      },
+    };
+
+    setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
+
   function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
     setNodes((currentNodes) =>
       currentNodes.map((node) => {
@@ -406,6 +427,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         onAddHttp={addHttpNode}
         onAddIf={addIfNode}
         onAddLoop={addLoopNode}
+        onAddCode={addCodeNode}
       />
 
         <div style={{ flex: 1, minWidth: 0 }}>

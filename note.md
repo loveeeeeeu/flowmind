@@ -253,3 +253,22 @@ nodeOutputs  每个节点的输出
 nodeStates（新增）  节点自己的临时记忆（Loop 处理到第几个）
 ## 3.Loop 自己不循环：它每次只判断走 body 还是 done，真正的“绕回去”是 Scheduler 顺着回边走出来的。
 节点返回一个出口名（nextHandle），Scheduler 就去找从这个出口出去的那条边
+
+# Code 节点 v1（暂无docekr沙箱）
+code节点执行架构和llm类似，code执行器不关心代码具体如何run，只关心输入是什么，以及调用代码执行的能力（llmExecutor->llmService->provider）
+## 一次执行的完整时序 
+```Scheduler 走到 code 节点
+ → CodeExecutor 校验配置， 得到 input
+ → CodeRunnerService.run()：new Worker(复制 code + input，env 为空，限内存)，启动外层计时器
+   → Worker：createContext({ input }) → 包成 async 函数 → runInContext(内层超时)
+   → postMessage({ ok, output })
+ → Service 收到message（正常返回/代码报错） / error（崩溃/内存超限 / 退出 / 超时（先到先得）→ terminate
+ → CodeExecutor：setVariable(outputVariable, output)，返回 { output }（没有 nextHandle）
+ → Scheduler 走唯一的出边到下一个节点
+```
+### 如何对照说：
+问题：Node 是单线程的。NestJS 处理所有请求都靠一个主线程加事件循环。如果在主线程里直接跑用户的 while (true) {}，整个 API 卡死，其他用户的请求全部没有响应； setTimeout 写的超时都触发不了，因为定时器回调也要等主线程空闲才能执行
+worker线程：在同一个进程里再开一个线程，和主线程只能通过消息通信（复制数据），不共享变量；主线程可以随时 worker.terminate() 强制杀掉它
+
+## work核心概念（隔离、超时、内存限制、跨线程通信）
+一句话：用户代码不可信，Worker 把它关进另一个线程，管住时间、内存和数据进出

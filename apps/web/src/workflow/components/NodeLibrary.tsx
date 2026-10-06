@@ -5,6 +5,7 @@ interface NodeLibraryProps {
   onAddHttp: () => void;
   onAddIf: () => void;
   onAddLoop: () => void;
+  onAddCode: () => void;
 }
 
 export function NodeLibrary({
@@ -14,6 +15,7 @@ export function NodeLibrary({
   onAddHttp,
   onAddIf,
   onAddLoop,
+  onAddCode,
 }: NodeLibraryProps) {
   return (
     <aside
@@ -64,6 +66,13 @@ export function NodeLibrary({
         style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
       >
         + Loop
+      </button>
+
+      <button
+        onClick={onAddCode}
+        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
+      >
+        + Code
       </button>
     </aside>
   );

@@ -190,6 +190,81 @@ export function PropertiesPanel({
     );
   }
 
+  if (node.type === 'code') {
+    return (
+      <aside style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>Code Properties</h3>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Name</div>
+          <input
+            style={inputStyle}
+            value={node.data.label ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Input Variable Path</div>
+          <input
+            style={inputStyle}
+            placeholder="order or response.data"
+            value={node.data.inputPath ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { inputPath: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>JavaScript</div>
+          <textarea
+            rows={14}
+            spellCheck={false}
+            style={{ ...textareaStyle, fontFamily: 'monospace', fontSize: 13 }}
+            value={node.data.code ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { code: event.target.value })}
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Output Variable</div>
+          <input
+            style={inputStyle}
+            placeholder="calculation"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { outputVariable: event.target.value })
+            }
+          />
+        </label>
+
+        <label style={fieldStyle}>
+          <div style={fieldLabelStyle}>Timeout (ms, 50 ~ 5000)</div>
+          <input
+            type="number"
+            min={50}
+            max={5000}
+            step={50}
+            style={inputStyle}
+            placeholder="1000"
+            value={node.data.timeoutMs ?? ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              onNodeDataChange(node.id, { timeoutMs: value === '' ? undefined : Number(value) });
+            }}
+          />
+        </label>
+
+        <p style={{ fontSize: 13, color: '#777' }}>
+          Read the input value from <code>input</code> and <code>return</code> a JSON-compatible
+          value. <code>await</code> is supported; Node APIs like require and process are not
+          available.
+        </p>
+
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
   if (node.type === 'loop') {
     return (
       <aside style={panelStyle}>

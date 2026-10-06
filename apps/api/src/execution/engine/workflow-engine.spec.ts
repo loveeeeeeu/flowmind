@@ -1,4 +1,6 @@
 import type { LlmService } from '../../llm/llm.service.js';
+import type { CodeRunnerService } from '../code/code-runner.service.js';
+import { CodeExecutor } from './executors/code.executor.js';
 import { EndExecutor } from './executors/end.executor.js';
 import { LlmExecutor } from './executors/llm.executor.js';
 import { StartExecutor } from './executors/start.executor.js';
@@ -20,6 +22,9 @@ describe('WorkflowEngine', () => {
     const resolver = new VariableResolver();
     generate = vi.fn(async (providerId: string) => ({ text: `Mock response from ${providerId}` }));
     const fakeLlmService = { generate } as unknown as LlmService;
+    const fakeCodeRunner = {
+      run: vi.fn(async () => ({ output: { total: 300 } })),
+    } as unknown as CodeRunnerService;
   
     engine = new WorkflowEngine(
       new WorkflowScheduler(),
@@ -29,6 +34,7 @@ describe('WorkflowEngine', () => {
       new HttpExecutor(resolver),
       new IfExecutor(resolver),
       new LoopExecutor(resolver),
+      new CodeExecutor(fakeCodeRunner, resolver),
       new LlmExecutor(fakeLlmService, resolver),
       new EndExecutor(),
     );
@@ -456,5 +462,23 @@ describe('WorkflowEngine', () => {
     await expect(engine.execute(canvas, { items: ['x'] })).rejects.toThrow(
       'loop-back edge must come from the body branch',
     );
+  });
+
+  it('feeds code output into IF and template', async () => {
+    const canvas = createBranchCanvas();
+    canvas.nodes.splice(1, 0, {
+      id: 'code',
+      type: 'code',
+      data: { code: 'return {};', inputPath: 'order', outputVariable: 'calculation' },
+    });
+    canvas.edges[0] = { source: 'start', target: 'code' };
+    canvas.edges.unshift({ source: 'code', target: 'if' });
+    canvas.nodes[2].data.variable = 'calculation.total';
+    canvas.nodes[3].data.template = 'Total {{calculation.total}}';
+
+    const result = await engine.execute(canvas, { order: { price: 100, quantity: 3 } });
+
+    expect(result.result).toEqual({ result: 'Total 300' });
+    expect(result.executedNodeIds).toEqual(['start', 'code', 'if', 'pass', 'end']);
   });
 });

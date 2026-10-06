@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LlmModule } from '../llm/llm.module.js';
+import { CodeRunnerService } from './code/code-runner.service.js';
+import { CodeExecutor } from './engine/executors/code.executor.js';
 import { EndExecutor } from './engine/executors/end.executor.js';
 import { HttpExecutor } from './engine/executors/http.executor.js';
 import { IfExecutor } from './engine/executors/if.executor.js';
@@ -20,12 +22,14 @@ import { ExecutionService } from './execution.service.js';
     WorkflowEngine,
     WorkflowScheduler,
     VariableResolver,
+    CodeRunnerService,
     StartExecutor,
     VariableExecutor,
     TemplateExecutor,
     HttpExecutor,
     IfExecutor,
     LoopExecutor,
+    CodeExecutor,
     LlmExecutor,
     EndExecutor,
   ],

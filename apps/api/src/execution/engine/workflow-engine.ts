@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ExecutionContext } from './execution-context.js';
+import { CodeExecutor } from './executors/code.executor.js';
 import { EndExecutor } from './executors/end.executor.js';
 import { HttpExecutor } from './executors/http.executor.js';
 import { IfExecutor } from './executors/if.executor.js';
@@ -26,6 +27,7 @@ export class WorkflowEngine {
     httpExecutor: HttpExecutor,
     ifExecutor: IfExecutor,
     loopExecutor: LoopExecutor,
+    codeExecutor: CodeExecutor,
     llmExecutor: LlmExecutor,
     endExecutor: EndExecutor,
   ) {
@@ -36,6 +38,7 @@ export class WorkflowEngine {
       ['http', httpExecutor],
       ['if', ifExecutor],
       ['loop', loopExecutor],
+      ['code', codeExecutor],
       ['llm', llmExecutor],
       ['end', endExecutor],
     ]);
