@@ -16,9 +16,14 @@ import { WorkflowEngine } from './engine/workflow-engine.js';
 import { WorkflowScheduler } from './engine/workflow-scheduler.js';
 import { WorkflowValidator } from './engine/workflow-validator.js';
 import { ExecutionService } from './execution.service.js';
+import { ExecutionTracker } from './run/execution-tracker.js';
+import { NodeRunService } from './run/node-run.service.js';
+import { RunController } from './run/run.controller.js';
+import { WorkflowRunService } from './run/workflow-run.service.js';
 
 @Module({
   imports: [LlmModule],
+  controllers: [RunController],
   providers: [
     ExecutionService,
     WorkflowEngine,
@@ -27,6 +32,9 @@ import { ExecutionService } from './execution.service.js';
     ExecutorRegistry,
     VariableResolver,
     CodeRunnerService,
+    WorkflowRunService,
+    NodeRunService,
+    ExecutionTracker,
     StartExecutor,
     VariableExecutor,
     TemplateExecutor,

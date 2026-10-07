@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
@@ -57,5 +66,11 @@ export class WorkflowController {
   @Post(':id/run')
   run(@Param('id') id: string, @Body() dto: RunWorkflowDto) {
     return this.workflowService.runWorkflow(id, dto);
+  }
+
+  @ApiOperation({ summary: 'List workflow runs' })
+  @Get(':id/runs')
+  findRuns(@Param('id') id: string) {
+    return this.workflowService.findRuns(id);
   }
 }

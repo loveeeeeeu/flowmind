@@ -13,6 +13,22 @@ enum WorkflowStatus {
   ARCHIVED
 }
 
+enum RunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum NodeRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
 model Workflow {
   id          String         @id @default(cuid())
   name        String
@@ -21,6 +37,67 @@ model Workflow {
 
   canvas Json?
 
+  runs WorkflowRun[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model WorkflowRun {
+  id String @id @default(cuid())
+
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  status RunStatus @default(PENDING)
+
+  input  Json?
+  output Json?
+
+  errorCode    String?
+  errorMessage String?
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nodeRuns NodeRun[]
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model NodeRun {
+  id String @id @default(cuid())
+
+  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  nodeId   String
+  nodeType String
+
+  status NodeRunStatus @default(PENDING)
+
+  sequence  Int
+  iteration Int?
+  attempt   Int @default(1)
+
+  input  Json?
+  output Json?
+
+  errorCode    String?
+  errorMessage String?
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workflowRunId])
+  @@index([workflowRunId, sequence])
+  @@index([nodeId])
 }

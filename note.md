@@ -284,3 +284,51 @@ worker线程：在同一个进程里再开一个线程，和主线程只能通�
       循环：registry.get(node.type) → executor.execute(node, context)
          → 存 output → 按 nextHandle 选边 → 下一个节点
 ```
+
+# 一次 Workflow Execution 应该如何被持久化
+问题： 目前工作流能跑，但是不能持久化，需要回答，这次 Run 到底发生了什么？执行到哪个节点？哪个节点失败？一共跑了多久？最终输入输出是什么？等
+## 核心变化：post run 不再只是"调用一个函数",而是在系统里产生一个真正的执行实例（一次生命周期）
+理解run和workflow是什么关系：workflow描述怎么执行，run表示这张workflow某一次具体执行，所以每次run都是独立版本，workflow:run=1:n
+```数据关系：谁归谁
+Workflow（工作流定义）
+  └─ WorkflowRun（一次完整执行）整次工作流运行的状态、输入、最终输出、总错误。
+       └─ NodeRun（一次节点执行事件）某个节点某一次真实执行的顺序、输出、状态、错误。
+
+Workflow 1 : N WorkflowRun
+WorkflowRun 1 : N NodeRun
+```
+### 持久化实现
+Prisma 设计RunStatus，NodeRunStatus,WorkflowRun ,NodeRun （都是为了回答问题，落库保存，可持久化）
+```当前架构【真正的执行过程】
+POST /workflows/:id/run
+          │
+          ▼
+WorkflowController
+          │
+          ▼
+WorkflowService
+  └─ 查 Workflow、拿 canvas
+          │
+          ▼
+ExecutionService
+  ├─ create WorkflowRun
+  ├─ mark WorkflowRun RUNNING
+  └─ Engine.execute(canvas, input, workflowRunId)
+       └─ Scheduler 循环：
+            当前 Node
+              ├─ 创建 NodeRun RUNNING
+              ├─ Registry 找到对应 Executor
+              ├─ Executor.execute(Node, Context)
+              ├─ NodeRun 更新为 SUCCESS / FAILED      
+              └─ Scheduler 选择下一个 Node
+  └─ WorkflowRun → SUCCESS / FAILED
+```
+### 三层不要混在一起
+WorkflowRunService（ NodeRunService同理，但是对象是单次节点执行记录）
+= 怎么把 WorkflowRun 存进数据库
+
+WorkflowEngine
+= 怎么解释并运行工作流图
+
+ExecutionService
+= 怎么把“数据库中的一次 Run”与“Engine 的一次执行”串成完整生命周期

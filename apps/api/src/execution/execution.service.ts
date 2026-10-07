@@ -1,13 +1,27 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { LlmProviderError } from '../llm/errors/llm-provider.error.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
 import type { WorkflowCanvas } from './engine/workflow-engine.types.js';
 import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
 import { WorkflowValidationError } from './engine/workflow-validation.error.js';
+import { WorkflowRunService } from './run/workflow-run.service.js';
+
+export interface ExecuteWorkflowParams {
+  workflowId: string;
+  canvas: WorkflowCanvas;
+  input: Record<string, unknown>;
+}
 
 @Injectable()
 export class ExecutionService {
-  constructor(private readonly engine: WorkflowEngine) {}
+  constructor(
+    private readonly engine: WorkflowEngine,
+    private readonly runs: WorkflowRunService,
+  ) {}
 
   createExecutionPlan(canvas: WorkflowCanvas) {
     try {
@@ -22,16 +36,36 @@ export class ExecutionService {
     }
   }
 
-  async execute(canvas: WorkflowCanvas, input: Record<string, unknown>) {
+  async execute(params: ExecuteWorkflowParams) {
+    const run = await this.runs.create(params.workflowId, params.input);
+    await this.runs.markRunning(run.id);
+
     try {
-      return await this.engine.execute(canvas, input);
+      const result = await this.engine.execute(params.canvas, params.input, {
+        workflowRunId: run.id,
+      });
+
+      await this.runs.markSuccess(run.id, result);
+
+      return {
+        runId: run.id,
+        ...result,
+      };
     } catch (error) {
+      await this.runs.markFailed(run.id, error);
       this.rethrowAsHttpError(error);
     }
   }
 
+  findWorkflowRuns(workflowId: string) {
+    return this.runs.findByWorkflow(workflowId);
+  }
+
   private rethrowAsHttpError(error: unknown): never {
-    if (error instanceof WorkflowValidationError || error instanceof WorkflowExecutionError) {
+    if (
+      error instanceof WorkflowValidationError ||
+      error instanceof WorkflowExecutionError
+    ) {
       throw new BadRequestException(error.message);
     }
 

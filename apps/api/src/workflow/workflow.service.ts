@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
@@ -116,14 +120,20 @@ export class WorkflowService {
 
   async runWorkflow(id: string, dto: RunWorkflowDto) {
     const workflow = await this.findOne(id);
-  
+
     if (!workflow.canvas) {
       throw new BadRequestException('Workflow has no canvas');
     }
-  
-    return this.executionService.execute(
-      workflow.canvas as unknown as WorkflowCanvas,
-      dto.input,
-    );
+
+    return this.executionService.execute({
+      workflowId: workflow.id,
+      canvas: workflow.canvas as unknown as WorkflowCanvas,
+      input: dto.input,
+    });
+  }
+
+  async findRuns(id: string) {
+    await this.findOne(id);
+    return this.executionService.findWorkflowRuns(id);
   }
 }
