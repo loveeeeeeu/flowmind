@@ -23,19 +23,19 @@ export function WorkflowDetailPage() {
   });
 
   if (!id) {
-    return <div>Invalid workflow id.</div>;
+    return <main className="workspace-page detail-page"><div className="error-message">无效的工作流标识。</div></main>;
   }
 
   if (workflowQuery.isPending) {
-    return <div style={{ padding: 32 }}>Loading workflow...</div>;
+    return <main className="workspace-page detail-page"><div className="empty-state">正在加载应用…</div></main>;
   }
 
   if (workflowQuery.isError) {
     return (
-      <main style={{ maxWidth: 800, margin: '0 auto', padding: 32 }}>
-        <Link to="/workflows">← Back to Workflows</Link>
-        <div style={{ color: '#d32f2f', marginTop: 24 }}>
-          Failed to load: {workflowQuery.error.message}
+      <main className="workspace-page detail-page">
+        <Link className="back-link" to="/workflows">‹ 返回工作室</Link>
+        <div className="error-message">
+          加载应用失败：{workflowQuery.error.message}
         </div>
       </main>
     );
@@ -44,18 +44,23 @@ export function WorkflowDetailPage() {
   const workflow = workflowQuery.data;
 
   return (
-    <main style={{ maxWidth: 800, margin: '0 auto', padding: 32 }}>
-      <Link to="/workflows">← Back to Workflows</Link>
+    <main className="workspace-page detail-page">
+      <Link className="back-link" to="/workflows">‹ 返回工作室</Link>
 
-      <header style={{ marginTop: 24, marginBottom: 32 }}>
-        <h1 style={{ marginBottom: 8 }}>{workflow.name}</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div>
-                Status: <strong>{workflow.status}</strong>
-            </div>
-            <Link to={`/workflows/${id}/editor`}>Open Editor →</Link>
+      <header className="detail-header">
+        <span className="detail-app-icon">✦</span>
+        <div>
+          <p className="page-eyebrow">WORKFLOW APP</p>
+          <h1>{workflow.name}</h1>
+          <div className="detail-meta">
+            <span className={`status-pill ${workflow.status === 'PUBLISHED' ? 'published' : ''}`}>
+              {workflow.status === 'PUBLISHED' ? '已发布' : '草稿'}
+            </span>
+            <span>工作流应用</span>
+          </div>
         </div>
-     </header>
+        <Link className="primary-button detail-editor-link" to={`/workflows/${id}/editor`}>打开编排器</Link>
+      </header>
 
       <WorkflowEditForm
         key={workflow.id}
@@ -65,13 +70,11 @@ export function WorkflowDetailPage() {
       />
 
       {updateMutation.isError && (
-        <div style={{ color: '#d32f2f', marginTop: 16 }}>
-          Save failed: {updateMutation.error?.message}
-        </div>
+        <div className="error-message">保存失败：{updateMutation.error?.message}</div>
       )}
 
       {updateMutation.isSuccess && (
-        <div style={{ color: '#2e7d32', marginTop: 16 }}>Saved.</div>
+        <div className="saved-message">已保存更改。</div>
       )}
     </main>
   );

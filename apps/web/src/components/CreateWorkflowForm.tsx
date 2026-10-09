@@ -30,6 +30,7 @@ export function CreateWorkflowForm({
 
   return (
     <form
+      className="create-workflow-form"
       onSubmit={handleSubmit}
       style={{
         display: 'grid',
@@ -42,29 +43,29 @@ export function CreateWorkflowForm({
       }}
     >
       <label>
-        <div>Name</div>
+        <div>应用名称</div>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="Customer Service"
+          placeholder="例如：智能客服助手"
         />
       </label>
 
       <label>
-        <div>Description</div>
+        <div>应用描述 <span>（可选）</span></div>
         <input
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="AI customer service workflow"
+          placeholder="简要说明这个工作流要完成的事情"
         />
       </label>
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={onCancel}>
-          Cancel
+          取消
         </button>
         <button type="submit" disabled={pending}>
-          {pending ? 'Creating...' : 'Create'}
+          {pending ? '创建中…' : '创建'}
         </button>
       </div>
     </form>

@@ -71,118 +71,86 @@ export function WorkflowListPage() {
   }
 
   return (
-    <main style={{ maxWidth: 1000, margin: '0 auto', padding: 32 }}>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
+    <main className="workspace-page">
+      <header className="page-title-row">
         <div>
-          <h1 style={{ marginBottom: 4 }}>Workflows</h1>
-          <div style={{ color: '#666' }}>Build and manage AI workflows.</div>
+          <p className="page-eyebrow">WORKSPACE</p>
+          <h1>工作室</h1>
+          <div className="page-subtitle">创建、编排并管理你的 AI 工作流。</div>
         </div>
-
-        <button onClick={() => setShowCreateForm(true)}>+ Create Workflow</button>
+        <button className="primary-button" onClick={() => setShowCreateForm(true)}>＋ 创建应用</button>
       </header>
 
-      <WorkflowSearchForm
-        key={keyword}
-        initialKeyword={keyword}
-        onSearch={(value) => updateSearchParams({ keyword: value, page: '1' })}
-      />
+      <section className="workspace-filter-bar">
+        <div className="app-tabs"><span className="active">▦ 全部</span><span>⌘ 工作流</span><span>◉ Chatflow</span><span>◌ Agent</span></div>
+        <WorkflowSearchForm key={keyword} initialKeyword={keyword} onSearch={(value) => updateSearchParams({ keyword: value, page: '1' })} />
+      </section>
 
       {showCreateForm && (
-        <CreateWorkflowForm
-          pending={createMutation.isPending}
-          onCancel={() => setShowCreateForm(false)}
-          onSubmit={(input) => createMutation.mutate(input)}
-        />
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal-card" role="dialog" aria-modal="true" aria-label="创建应用">
+            <CreateWorkflowForm
+              pending={createMutation.isPending}
+              onCancel={() => setShowCreateForm(false)}
+              onSubmit={(input) => createMutation.mutate(input)}
+            />
+          </div>
+        </div>
       )}
 
       {createMutation.isError && (
-        <div style={{ color: '#d32f2f', marginBottom: 16 }}>
+        <div className="error-message">
           Create failed: {createMutation.error?.message}
         </div>
       )}
 
       {deleteMutation.isError && (
-        <div style={{ color: '#d32f2f', marginBottom: 16 }}>
+        <div className="error-message">
           Delete failed: {deleteMutation.error?.message}
         </div>
       )}
 
-      {workflowQuery.isPending && <div>Loading workflows...</div>}
+      {workflowQuery.isPending && <div className="empty-state">正在加载应用…</div>}
 
       {workflowQuery.isError && (
-        <div style={{ color: '#d32f2f' }}>
+        <div className="error-message">
           Failed to load workflows: {workflowQuery.error?.message}
         </div>
       )}
 
       {workflowQuery.isFetching && !workflowQuery.isPending && (
-        <div style={{ color: '#666', marginBottom: 8 }}>Refreshing...</div>
+        <div className="refreshing">正在同步最新内容…</div>
       )}
 
       {workflowQuery.isSuccess && workflows.length === 0 && (
-        <div>{keyword ? `No workflows match "${keyword}".` : 'No workflows yet.'}</div>
+        <div className="empty-state">{keyword ? `未找到与 “${keyword}” 匹配的应用。` : '还没有应用，创建第一个工作流开始吧。'}</div>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          opacity: workflowQuery.isPlaceholderData ? 0.5 : 1,
-        }}
-      >
+      <div className="app-card-grid" style={{ opacity: workflowQuery.isPlaceholderData ? 0.5 : 1 }}>
+        <button className="create-card" onClick={() => setShowCreateForm(true)}><span>＋</span><strong>创建空白应用</strong><small>从工作流开始编排</small></button>
         {workflows.map((workflow) => {
           const deleting =
             deleteMutation.isPending && deleteMutation.variables === workflow.id;
 
           return (
-            <article
-              key={workflow.id}
-              style={{
-                background: '#fff',
-                border: '1px solid #e5e5e5',
-                borderRadius: 12,
-                padding: 20,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                }}
-              >
-                <div>
-                  <Link
-                    to={`/workflows/${workflow.id}`}
-                    style={{ color: 'inherit', textDecoration: 'none' }}
-                  >
-                    <strong>{workflow.name}</strong>
-                  </Link>
-                  <p style={{ marginBottom: 0, color: '#666' }}>
-                    {workflow.description ?? 'No description'}
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span>{workflow.status}</span>
-                  <Link to={`/workflows/${workflow.id}`}>Open →</Link>
+            <article key={workflow.id} className="app-card">
+              <div className="app-card-header"><span className="app-icon">✦</span><span className="app-status">{workflow.status === 'PUBLISHED' ? '已发布' : '草稿'}</span></div>
+              <Link to={`/workflows/${workflow.id}`} className="app-card-title"><strong>{workflow.name}</strong></Link>
+              <p>{workflow.description ?? '尚未添加应用描述'}</p>
+              <div className="app-card-footer">
+                <span>工作流 · 最近编辑</span>
+                <div className="card-actions"><Link to={`/workflows/${workflow.id}/editor`}>编排</Link>
                   <button
+                    className="icon-delete"
                     disabled={deleting}
                     onClick={() => {
                       if (window.confirm(`Delete "${workflow.name}"?`)) {
                         deleteMutation.mutate(workflow.id);
                       }
                     }}
+                    title="删除应用"
                   >
-                    {deleting ? 'Deleting...' : 'Delete'}
+                    {deleting ? '…' : '×'}
                   </button>
                 </div>
               </div>
@@ -192,33 +160,25 @@ export function WorkflowListPage() {
       </div>
 
       {pagination && (
-        <footer
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: 24,
-          }}
-        >
-          <div>Total: {pagination.total}</div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <footer className="pagination-bar">
+          <div>共 {pagination.total} 个应用</div>
+          <div className="pagination-actions">
             <button
               disabled={page <= 1}
               onClick={() => updateSearchParams({ page: String(page - 1) })}
             >
-              Previous
+              上一页
             </button>
 
             <span>
-              Page {page} / {Math.max(pagination.totalPages, 1)}
+              第 {page} / {Math.max(pagination.totalPages, 1)} 页
             </span>
 
             <button
               disabled={page >= pagination.totalPages || workflowQuery.isPlaceholderData}
               onClick={() => updateSearchParams({ page: String(page + 1) })}
             >
-              Next
+              下一页
             </button>
 
             <select
@@ -229,7 +189,7 @@ export function WorkflowListPage() {
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>
-                  {size} / page
+                  {size} / 页
                 </option>
               ))}
             </select>

@@ -66,7 +66,7 @@ function DeleteNodeButton({ onClick }: { onClick: () => void }) {
         cursor: 'pointer',
       }}
     >
-      Delete Node
+      删除节点
     </button>
   );
 }
@@ -79,9 +79,9 @@ export function PropertiesPanel({
 }: PropertiesPanelProps) {
   if (!node) {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>Properties</h3>
-        <p style={{ color: '#777' }}>Select a node to edit it.</p>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>节点配置</h3>
+        <p style={{ color: '#777' }}>选择画布中的节点以编辑配置。</p>
       </aside>
     );
   }
@@ -92,8 +92,8 @@ export function PropertiesPanel({
       currentProvider !== '' && !providers.some((provider) => provider.id === currentProvider);
   
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>LLM Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>LLM 调用</h3>
   
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -192,8 +192,8 @@ export function PropertiesPanel({
 
   if (node.type === 'code') {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>Code Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>代码执行</h3>
 
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -267,8 +267,8 @@ export function PropertiesPanel({
 
   if (node.type === 'loop') {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>Loop Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>循环</h3>
 
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -321,8 +321,8 @@ export function PropertiesPanel({
 
   if (node.type === 'if') {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>IF Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>条件分支</h3>
 
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -397,8 +397,8 @@ export function PropertiesPanel({
 
   if (node.type === 'http') {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>HTTP Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>HTTP 请求</h3>
   
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -492,8 +492,8 @@ export function PropertiesPanel({
 
   if (node.type === 'template') {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>Template Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>模板</h3>
 
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -536,8 +536,8 @@ export function PropertiesPanel({
     const isReference = node.data.sourceType === 'reference';
   
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>Variable Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>变量</h3>
   
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Name</div>
@@ -598,8 +598,8 @@ export function PropertiesPanel({
   
   if (node.type === 'end') {
     return (
-      <aside style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>End Properties</h3>
+      <aside className="properties-panel" style={panelStyle}>
+        <h3 style={{ marginTop: 0 }}>结束</h3>
 
         <label style={fieldStyle}>
           <div style={fieldLabelStyle}>Output Variable</div>
@@ -619,8 +619,8 @@ export function PropertiesPanel({
   }
 
   return (
-    <aside style={panelStyle}>
-      <h3 style={{ marginTop: 0 }}>Properties</h3>
+    <aside className="properties-panel" style={panelStyle}>
+      <h3 style={{ marginTop: 0 }}>节点配置</h3>
       <p>Name: {node.data.label}</p>
       <p>Type: {node.type}</p>
       <p style={{ fontSize: 13, color: '#777' }}>Start node cannot be deleted.</p>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Background,
   Controls,
+  MiniMap,
   ReactFlow,
   addEdge,
   applyEdgeChanges,
@@ -382,44 +383,37 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   }, [isDirty, saveCanvasMutation]);
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header
-        style={{
-          height: 60,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 20px',
-          borderBottom: '1px solid #e5e5e5',
-          background: '#fff',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Link to={`/workflows/${workflow.id}`}>← Back</Link>
-          <strong>{workflow.name}</strong>
-          <span style={{ fontSize: 13, color: isDirty ? '#b45309' : '#15803d' }}>
-            {isDirty ? '● Unsaved changes' : '✓ Saved'}
-          </span>
+    <div className="workflow-editor">
+      <header className="editor-toolbar">
+        <div className="editor-identity">
+          <Link className="editor-back" to={`/workflows/${workflow.id}`} aria-label="返回工作流详情">
+            ‹
+          </Link>
+          <span className="editor-workflow-icon">⌘</span>
+          <div>
+            <strong className="editor-name">{workflow.name}</strong>
+            <span className={`editor-save-state ${isDirty ? 'dirty' : ''}`}>
+              {isDirty ? '未保存的更改' : '已自动保存'}
+            </span>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="editor-actions">
           {saveCanvasMutation.isError && (
-            <span style={{ fontSize: 13, color: '#d32f2f' }}>
-              Save failed: {saveCanvasMutation.error.message}
-            </span>
+            <span className="editor-save-error">保存失败：{saveCanvasMutation.error.message}</span>
           )}
-
+          <span className="editor-mode">编排模式</span>
           <button
+            className="save-action"
             onClick={() => saveCanvasMutation.mutate()}
             disabled={!isDirty || saveCanvasMutation.isPending}
           >
-            {saveCanvasMutation.isPending ? 'Saving...' : 'Save'}
+            {saveCanvasMutation.isPending ? '保存中…' : '保存'}
           </button>
         </div>
       </header>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <div className="editor-body">
       <NodeLibrary
         onAddLlm={addLlmNode}
         onAddTemplate={addTemplateNode}
@@ -430,7 +424,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
         onAddCode={addCodeNode}
       />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="canvas-stage">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -444,8 +438,9 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
             onPaneClick={() => setSelectedNodeId(null)}
             fitView
           >
-            <Background />
+            <Background color="#d9e0eb" gap={18} size={1} />
             <Controls />
+            <MiniMap zoomable pannable />
           </ReactFlow>
         </div>
 

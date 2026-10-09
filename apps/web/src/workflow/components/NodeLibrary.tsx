@@ -18,62 +18,24 @@ export function NodeLibrary({
   onAddCode,
 }: NodeLibraryProps) {
   return (
-    <aside
-      style={{
-        width: 200,
-        flexShrink: 0,
-        padding: 16,
-        borderRight: '1px solid #e5e5e5',
-        background: '#fff',
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>Nodes</h3>
+    <aside className="node-library">
+      <div className="node-library-heading">
+        <h3>节点</h3>
+        <span>拖入或点击添加</span>
+      </div>
 
-      <button onClick={onAddLlm} style={{ width: '100%', padding: 10, textAlign: 'left' }}>
-        + LLM
-      </button>
+      <p className="node-group">AI</p>
+      <button type="button" onClick={onAddLlm}><span className="node-icon ai">✦</span>LLM</button>
+      <button type="button" onClick={onAddTemplate}><span className="node-icon template">T</span>模板</button>
 
-      <button
-        onClick={onAddTemplate}
-        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
-      >
-        + Template
-      </button>
+      <p className="node-group">流程控制</p>
+      <button type="button" onClick={onAddVariable}><span className="node-icon variable">{'{}'}</span>变量</button>
+      <button type="button" onClick={onAddIf}><span className="node-icon condition">⌘</span>条件分支</button>
+      <button type="button" onClick={onAddLoop}><span className="node-icon loop">↻</span>循环</button>
 
-      <button
-        onClick={onAddVariable}
-        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
-      >
-        + Variable
-      </button>
-
-      <button
-        onClick={onAddHttp}
-        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
-      >
-        + HTTP
-      </button>
-
-      <button
-        onClick={onAddIf}
-        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
-      >
-        + IF
-      </button>
-
-      <button
-        onClick={onAddLoop}
-        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
-      >
-        + Loop
-      </button>
-
-      <button
-        onClick={onAddCode}
-        style={{ width: '100%', padding: 10, marginTop: 8, textAlign: 'left' }}
-      >
-        + Code
-      </button>
+      <p className="node-group">工具</p>
+      <button type="button" onClick={onAddHttp}><span className="node-icon http">↗</span>HTTP 请求</button>
+      <button type="button" onClick={onAddCode}><span className="node-icon code">›_</span>代码执行</button>
     </aside>
   );
 }

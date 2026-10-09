@@ -18,10 +18,10 @@ export function WorkflowSearchForm({ initialKeyword, onSearch }: WorkflowSearchF
       <input
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        placeholder="Search workflows..."
+        placeholder="搜索应用"
         style={{ flex: 1, padding: 10 }}
       />
-      <button type="submit">Search</button>
+      <button type="submit">搜索</button>
       <button
         type="button"
         onClick={() => {
@@ -29,7 +29,7 @@ export function WorkflowSearchForm({ initialKeyword, onSearch }: WorkflowSearchF
           onSearch('');
         }}
       >
-        Clear
+        清除
       </button>
     </form>
   );
