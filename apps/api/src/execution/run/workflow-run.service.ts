@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { normalizeExecutionError } from '@flowmind/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { normalizeExecutionError } from './execution-error.js';
 import { toJsonInput } from './json-value.js';
 
 @Injectable()
@@ -13,27 +13,6 @@ export class WorkflowRunService {
         workflowId,
         status: 'PENDING',
         input: toJsonInput(input),
-      },
-    });
-  }
-
-  markRunning(runId: string) {
-    return this.prisma.workflowRun.update({
-      where: { id: runId },
-      data: {
-        status: 'RUNNING',
-        startedAt: new Date(),
-      },
-    });
-  }
-
-  markSuccess(runId: string, output: unknown) {
-    return this.prisma.workflowRun.update({
-      where: { id: runId },
-      data: {
-        status: 'SUCCESS',
-        ...(output === undefined ? {} : { output: toJsonInput(output) }),
-        finishedAt: new Date(),
       },
     });
   }

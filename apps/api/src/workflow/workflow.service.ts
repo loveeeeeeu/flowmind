@@ -10,7 +10,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 import { ExecutionService } from '../execution/execution.service.js';
-import type { WorkflowCanvas } from '../execution/engine/workflow-engine.types.js';
+import type { WorkflowCanvas } from '@flowmind/workflow-core';
 import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 

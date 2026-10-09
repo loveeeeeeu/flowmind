@@ -1,10 +1,10 @@
-import type { Queue } from 'bullmq';
 import {
   EXECUTE_WORKFLOW_JOB,
+  type ExecuteWorkflowJobData,
   WORKFLOW_EXECUTION_QUEUE,
-} from './execution-queue.constants.js';
+} from '@flowmind/shared';
+import type { Queue } from 'bullmq';
 import { ExecutionQueueService } from './execution-queue.service.js';
-import type { ExecuteWorkflowJobData } from './execution-queue.types.js';
 
 describe('ExecutionQueueService', () => {
   it('enqueues a workflow run using the run id as the BullMQ job id', async () => {

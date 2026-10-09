@@ -333,10 +333,12 @@ WorkflowEngine
 ExecutionService
 = 怎么把“数据库中的一次 Run”与“Engine 的一次执行”串成完整生命周期
 
-# Redis + BullMQ：把 Run 放进真正的执行队列
-问题： 当前同步状态下，长任务会阻止run返回状态，需要redis异步执行run，马上提交执行状态。将提交run和执行run分开。
+# API 和执行进程分离的异步
+按“问题 → 方案 → 关键设计 → 结果”讲
+## API阶段：Redis + BullMQ：把 Run 放进真正的执行队列
+问题： 当前同步状态下，长任务会阻止run接口返回状态。方案：需要redis异步执行run，马上提交执行状态。将提交run和执行run分开
 PostgreSQL 和 Redis 分工： PostgreSQL：WorkflowRun / NodeRun，业务真相。Redis + BullMQ：等待执行的 Job。
-## 架构重构：execute()，从API 同步执行工作流”变成了“API 提交任务，队列等待 Worker 执行”。
+### 架构重构：execute()，从API 同步执行工作流”变成了“API 提交任务，队列等待 Worker 执行”。
 ```createRun()提交任务
 创建 Run
 ↓
@@ -344,7 +346,7 @@ PostgreSQL 和 Redis 分工： PostgreSQL：WorkflowRun / NodeRun，业务真相
 ↓
 返回状态:PENDING
 ```
-```Worker 拿到 Job , 状态：RUNNING（下一节课，暂未实现worker）
+```Worker（消费者） 拿到 Job , 状态：RUNNING（下一节课，暂未实现worker）
 runId
 ↓
 PostgreSQL
@@ -354,3 +356,79 @@ PostgreSQL
 执行
 ```
 ExecutionService 也确实重构了。它从“执行工作流的人”变成了“提交工作流任务的人”。真正的执行工作以后会移动到Worker
+
+## Worker阶段：独立 Worker App + BullMQ Consumer + Workflow Engine 共享
+上一节课已经把任务放进队列，这节课将任务从队列取出来，执行
+### 最终架构
+```
+                    React
+                      │
+                      ▼
+                ┌──────────┐
+                │   API    │
+                └────┬─────┘
+                     │
+           create WorkflowRun
+                     │
+                     ▼
+                PostgreSQL
+                 PENDING
+                     │
+                     ▼
+                  BullMQ
+                   Redis
+                     │
+                     ▼
+              ┌────────────┐
+              │   Worker   │
+              └─────┬──────┘
+                    │
+              mark RUNNING
+                    │
+                    ▼
+             WorkflowEngine
+                    │
+          ┌─────────┼─────────┐
+          ▼         ▼         ▼
+        HTTP       LLM       Code
+          │         │         │
+          └─────────┼─────────┘
+                    ▼
+               NodeRun[]
+                    │
+                    ▼
+          SUCCESS / FAILED
+```
+结果：以后即使浏览器：刷新，断网，关闭，Worker还是能继续运行。这说明的是：工作流的生命周期，已经和浏览器页面、HTTP 请求的生命周期解耦了。浏览器只是“提交者”，不是“执行者”。Worker 以后就是一个持续运行的后台进程。
+开发时可能是2个终端：A:API 进程,B：Worker 进程；生产时更常见是两个 Docker 容器：
+   Container: api
+   Container: worker
+   Container: redis
+   Container: postgres
+### Worker 实现后，WorkflowRun 和 NodeRun 的“写入责任”也分开了
+WorkflowRun、NodeRun 都还是 PostgreSQL 里的记录；真正分离的是“谁在什么时机写它们”。
+WorkflowRun的生命周期被拆成 API 和 Worker 两段，NodeRun 更彻底地迁移到 Worker 了
+### Workflow Engine 共享
+问题：引擎原来在 apps/api 里，并且 import 了 API 的 LlmService、ExecutionTracker（→ Prisma）、Nest 装饰器，没法给 Worker 用。
+解决：把引擎抽成纯 TS 包（packages/workflow-core）。引擎需要、但依赖密钥 / 框架 / 数据库 / 进程资源的能力（LLM、代码执行、执行记录），用接口声明，由 Worker 实现后注入；HTTP 节点直接用 fetch，不抽接口。
+结果：API（校验）和 Worker（执行）共用同一份引擎；引擎不依赖 Worker 也能独立编译和测试
+#### 目录结构
+```
+packages/
+  workflow-core/              ← 引擎：纯 TS，不认识 Nest / Prisma / BullMQ
+    src/
+      engine/                 Graph / Validator / Scheduler / Registry / Engine / Context / 错误类
+      executors/              9 个节点执行器
+      ports/                  引擎对外部的“需求清单”（只有接口）
+        llm-client.ts
+        code-runner.ts
+        execution-observer.ts
+      create-workflow-engine.ts   组装工厂
+      index.ts                    对外公开的 API（唯一入口）
+  shared/                     ← API 和 worker 之间的“约定”：队列名、Job 数据结构、错误归一化
+apps/
+  api/      生产者：建 run、入队、校验画布、查询结果
+  worker/   消费者：实现 ports，组装 engine，消费队列
+```
+
+# 

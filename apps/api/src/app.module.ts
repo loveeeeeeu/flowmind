@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validateEnv } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
+import { LlmModule } from './llm/llm.module.js';
 import { WorkflowModule } from './workflow/workflow.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     }),
     PrismaModule,
     HealthModule,
+    LlmModule,
     WorkflowModule,
   ],
 })

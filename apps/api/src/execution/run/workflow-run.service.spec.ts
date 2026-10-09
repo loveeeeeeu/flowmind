@@ -1,5 +1,4 @@
 import type { PrismaService } from '../../prisma/prisma.service.js';
-import { LlmProviderError } from '../../llm/errors/llm-provider.error.js';
 import { WorkflowRunService } from './workflow-run.service.js';
 
 function createPrisma() {
@@ -29,23 +28,18 @@ describe('WorkflowRunService', () => {
     });
   });
 
-  it('persists a provider error code when a run fails', async () => {
+  it('marks a run failed when it cannot be enqueued', async () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
-    const error = new LlmProviderError({
-      providerId: 'openai',
-      code: 'RATE_LIMIT',
-      message: 'Too many requests',
-    });
 
-    await service.markFailed('run-1', error);
+    await service.markFailed('run-1', new Error('Redis connection refused'));
 
     expect(prisma.workflowRun.update).toHaveBeenCalledWith({
       where: { id: 'run-1' },
       data: {
         status: 'FAILED',
-        errorCode: 'RATE_LIMIT',
-        errorMessage: 'Too many requests',
+        errorCode: 'EXECUTION_ERROR',
+        errorMessage: 'Redis connection refused',
         finishedAt: expect.any(Date),
       },
     });

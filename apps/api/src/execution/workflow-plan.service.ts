@@ -1,19 +1,22 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { WorkflowEngine } from './engine/workflow-engine.js';
-import type { WorkflowCanvas } from './engine/workflow-engine.types.js';
-import { WorkflowValidationError } from './engine/workflow-validation.error.js';
+import {
+  createWorkflowValidator,
+  type WorkflowCanvas,
+  WorkflowGraph,
+  WorkflowValidationError,
+} from '@flowmind/workflow-core';
 
 @Injectable()
 export class WorkflowPlanService {
-  constructor(private readonly engine: WorkflowEngine) {}
+  private readonly validator = createWorkflowValidator();
 
   createExecutionPlan(canvas: WorkflowCanvas) {
     try {
-      const nodes = this.engine.buildExecutionPlan(canvas);
+      const { executionPlan } = this.validator.validate(new WorkflowGraph(canvas));
 
       return {
         valid: true,
-        order: nodes.map((node) => node.id),
+        order: executionPlan.map((node) => node.id),
       };
     } catch (error) {
       if (error instanceof WorkflowValidationError) {

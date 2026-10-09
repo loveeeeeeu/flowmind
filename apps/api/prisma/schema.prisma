@@ -3,6 +3,12 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// The worker reads/writes the same tables; it gets its own generated copy of this schema.
+generator workerClient {
+  provider = "prisma-client"
+  output   = "../../worker/src/generated/prisma"
+}
+
 datasource db {
   provider = "postgresql"
 }
