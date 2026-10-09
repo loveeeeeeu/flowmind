@@ -1,3 +1,4 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { LlmModule } from '../llm/llm.module.js';
 import { CodeRunnerService } from './code/code-runner.service.js';
@@ -16,22 +17,30 @@ import { WorkflowEngine } from './engine/workflow-engine.js';
 import { WorkflowScheduler } from './engine/workflow-scheduler.js';
 import { WorkflowValidator } from './engine/workflow-validator.js';
 import { ExecutionService } from './execution.service.js';
+import { WORKFLOW_EXECUTION_QUEUE } from './queue/execution-queue.constants.js';
+import { ExecutionQueueService } from './queue/execution-queue.service.js';
 import { ExecutionTracker } from './run/execution-tracker.js';
 import { NodeRunService } from './run/node-run.service.js';
 import { RunController } from './run/run.controller.js';
 import { WorkflowRunService } from './run/workflow-run.service.js';
+import { WorkflowPlanService } from './workflow-plan.service.js';
 
 @Module({
-  imports: [LlmModule],
+  imports: [
+    LlmModule,
+    BullModule.registerQueue({ name: WORKFLOW_EXECUTION_QUEUE }),
+  ],
   controllers: [RunController],
   providers: [
     ExecutionService,
+    WorkflowPlanService,
     WorkflowEngine,
     WorkflowValidator,
     WorkflowScheduler,
     ExecutorRegistry,
     VariableResolver,
     CodeRunnerService,
+    ExecutionQueueService,
     WorkflowRunService,
     NodeRunService,
     ExecutionTracker,
@@ -45,6 +54,6 @@ import { WorkflowRunService } from './run/workflow-run.service.js';
     LlmExecutor,
     EndExecutor,
   ],
-  exports: [ExecutionService],
+  exports: [ExecutionService, WorkflowPlanService],
 })
 export class ExecutionModule {}

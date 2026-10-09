@@ -4,9 +4,13 @@ const optionalUrl = z.string().url().optional().or(z.literal(''));
 
 export const envSchema = z
   .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    NODE_ENV: z
+      .enum(['development', 'test', 'production'])
+      .default('development'),
     PORT: z.coerce.number().int().positive().default(3000),
     DATABASE_URL: z.string().min(1),
+    REDIS_HOST: z.string().min(1).default('localhost'),
+    REDIS_PORT: z.coerce.number().int().positive().default(6379),
 
     DEEPSEEK_API_KEY: z.string().optional(),
     DEEPSEEK_BASE_URL: optionalUrl,
@@ -24,7 +28,8 @@ export const envSchema = z
     if (hasCustomKey !== hasCustomUrl) {
       ctx.addIssue({
         code: 'custom',
-        message: 'CUSTOM_LLM_API_KEY and CUSTOM_LLM_BASE_URL must be configured together',
+        message:
+          'CUSTOM_LLM_API_KEY and CUSTOM_LLM_BASE_URL must be configured together',
         path: ['CUSTOM_LLM_API_KEY'],
       });
     }

@@ -12,12 +12,14 @@ import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 import { ExecutionService } from '../execution/execution.service.js';
 import type { WorkflowCanvas } from '../execution/engine/workflow-engine.types.js';
 import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
+import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 
 @Injectable()
 export class WorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly executionService: ExecutionService,
+    private readonly workflowPlanService: WorkflowPlanService,
   ) {}
 
   create(dto: CreateWorkflowDto) {
@@ -113,7 +115,7 @@ export class WorkflowService {
       throw new BadRequestException('Workflow has no canvas');
     }
 
-    return this.executionService.createExecutionPlan(
+    return this.workflowPlanService.createExecutionPlan(
       workflow.canvas as unknown as WorkflowCanvas,
     );
   }
@@ -125,9 +127,8 @@ export class WorkflowService {
       throw new BadRequestException('Workflow has no canvas');
     }
 
-    return this.executionService.execute({
+    return this.executionService.createRun({
       workflowId: workflow.id,
-      canvas: workflow.canvas as unknown as WorkflowCanvas,
       input: dto.input,
     });
   }

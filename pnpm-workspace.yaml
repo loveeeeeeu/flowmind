@@ -4,4 +4,5 @@ packages:
 allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': false
+  msgpackr-extract: false
   prisma: true

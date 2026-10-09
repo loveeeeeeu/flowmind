@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -64,6 +66,7 @@ export class WorkflowController {
   }
   @ApiOperation({ summary: '同步运行工作流' })
   @Post(':id/run')
+  @HttpCode(HttpStatus.ACCEPTED)
   run(@Param('id') id: string, @Body() dto: RunWorkflowDto) {
     return this.workflowService.runWorkflow(id, dto);
   }

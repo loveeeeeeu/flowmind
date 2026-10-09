@@ -285,7 +285,7 @@ worker线程：在同一个进程里再开一个线程，和主线程只能通�
          → 存 output → 按 nextHandle 选边 → 下一个节点
 ```
 
-# 一次 Workflow Execution 应该如何被持久化
+# Sprint 7 一次 Workflow Execution 应该如何被持久化
 问题： 目前工作流能跑，但是不能持久化，需要回答，这次 Run 到底发生了什么？执行到哪个节点？哪个节点失败？一共跑了多久？最终输入输出是什么？等
 ## 核心变化：post run 不再只是"调用一个函数",而是在系统里产生一个真正的执行实例（一次生命周期）
 理解run和workflow是什么关系：workflow描述怎么执行，run表示这张workflow某一次具体执行，所以每次run都是独立版本，workflow:run=1:n
@@ -332,3 +332,25 @@ WorkflowEngine
 
 ExecutionService
 = 怎么把“数据库中的一次 Run”与“Engine 的一次执行”串成完整生命周期
+
+# Redis + BullMQ：把 Run 放进真正的执行队列
+问题： 当前同步状态下，长任务会阻止run返回状态，需要redis异步执行run，马上提交执行状态。将提交run和执行run分开。
+PostgreSQL 和 Redis 分工： PostgreSQL：WorkflowRun / NodeRun，业务真相。Redis + BullMQ：等待执行的 Job。
+## 架构重构：execute()，从API 同步执行工作流”变成了“API 提交任务，队列等待 Worker 执行”。
+```createRun()提交任务
+创建 Run
+↓
+加入 Queue
+↓
+返回状态:PENDING
+```
+```Worker 拿到 Job , 状态：RUNNING（下一节课，暂未实现worker）
+runId
+↓
+PostgreSQL
+↓
+查询 WorkflowRun + Workflow
+↓
+执行
+```
+ExecutionService 也确实重构了。它从“执行工作流的人”变成了“提交工作流任务的人”。真正的执行工作以后会移动到Worker
