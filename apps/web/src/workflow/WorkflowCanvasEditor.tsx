@@ -62,13 +62,13 @@ const defaultNodes: WorkflowNode[] = [
     id: 'start-1',
     type: 'start',
     position: { x: 100, y: 200 },
-    data: { label: 'Start' },
+    data: { label: '开始' },
   },
   {
     id: 'end-1',
     type: 'end',
     position: { x: 600, y: 200 },
-    data: { label: 'End', outputVariable: 'result' },
+    data: { label: '结束', outputVariable: 'result' },
   },
 ];
 
@@ -218,7 +218,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       type: 'template',
       position: { x: 350, y: 300 },
       data: {
-        label: 'Template',
+        label: '模板',
         template: 'Hello {{name}}',
         outputVariable: 'result',
       },
@@ -233,7 +233,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       type: 'variable',
       position: { x: 350, y: 300 },
       data: {
-        label: 'Variable',
+        label: '变量',
         variableName: 'name',
         sourceType: 'literal',
         value: 'FlowMind',
@@ -249,7 +249,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       type: 'http',
       position: { x: 400, y: 300 },
       data: {
-        label: 'HTTP Request',
+        label: 'HTTP 请求',
         method: 'GET',
         url: 'https://jsonplaceholder.typicode.com/users/{{userId}}',
         headers: { Accept: 'application/json' },
@@ -269,7 +269,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       type: 'if',
       position: { x: 400, y: 300 },
       data: {
-        label: 'IF',
+        label: '条件分支',
         variable: 'score',
         operator: 'gte',
         valueType: 'number',
@@ -287,7 +287,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       type: 'loop',
       position: { x: 400, y: 300 },
       data: {
-        label: 'Loop',
+        label: '循环',
         itemsPath: 'items',
         itemVariable: 'item',
         indexVariable: 'index',
@@ -304,7 +304,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       type: 'code',
       position: { x: 400, y: 300 },
       data: {
-        label: 'Code',
+        label: '代码执行',
         inputPath: 'order',
         code: 'return { total: input.price * input.quantity };',
         outputVariable: 'calculation',

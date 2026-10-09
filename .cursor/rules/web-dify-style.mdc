@@ -1,0 +1,31 @@
+---
+description: FlowMind 前端必须保持 Dify 风格（样式集中在 index.css、统一配色、中文文案）。修改 apps/web 下任何页面、组件、画布节点或属性面板时适用；课程给出的前端代码要先按本规则改写再落地。
+globs: apps/web/**
+alwaysApply: false
+---
+
+# 前端保持 Dify 风格
+
+课程里的前端示例代码（`#333`/`#ddd` 内联样式、英文按钮如 "+ Code"）不能照搬，先按下列约定改写，并在偏差说明里列出“风格调整”。
+
+## 样式写法
+- 组件只写 `className`，样式集中在 `apps/web/src/index.css`；不要新增内联颜色、边框、阴影。
+- 不用 `!important`。需要覆盖 React Flow 默认样式时，用 `.canvas-stage .react-flow__xxx` 提高优先级。
+- 先复用现有类：`workspace-page`、`page-title-row`、`primary-button`、`subtle-button`、`error-message`、`app-card`、`modal-card`、`editor-toolbar`、`node-library`、`properties-panel`、`panel-field`、`panel-hint`、`flow-node`。
+
+## 配色与形状
+- 主色 `#3868e9`（悬停 `#2f5dde`，浅底 `#edf3ff`）；页面背景 `#f5f7fb`，画布 `#fbfcff`；边框 `#e2e7f0` 一带。
+- 文字：正文 `#1c2434`，次要 `#7b879d`，弱提示 `#9aa4b6`；错误 `#c63755` / `#fff2f4`；成功 `#398262` / `#ebf9f1`。
+- 圆角：按钮/输入框 7px，卡片 11–12px，弹窗 14px；阴影用很淡的蓝灰色。
+
+## 画布节点
+- 节点用 `NodeCard`（`workflow/nodes/NodeCard.tsx`）：图标 + 标题 + 一行次要信息，选中态由 CSS 的 `.react-flow__node.selected` 控制，组件不再读 `selected`。
+- 新增节点类型时：
+  1. `index.css` 加 `.node-icon.<类型>` 图标色，需要时加 `.react-flow__node-<类型> .flow-node` 边框色；
+  2. 节点库按分组（AI / 流程控制 / 工具 …）放入，图标与 `NodeCard` 一致；
+  3. 属性面板用 `Field` + `panel-hint`，不写内联样式。
+
+## 文案
+- 界面一律中文，用 Dify 的叫法：工作室、知识库、工具、节点、开始、结束、条件分支（IF / ELSE）、循环、代码执行、HTTP 请求、模板、变量、输出变量、发布、运行。
+- 按钮不用 "+ Xxx"；空状态、错误提示也用中文。
+- 代码标识（变量路径、`{{name}}`、HTTP 方法、`input`/`return`）保持原样。

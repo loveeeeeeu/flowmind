@@ -1,25 +1,17 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { TemplateNodeType } from '../types/workflowCanvas';
+import { NodeCard } from './NodeCard';
 
-export function TemplateNode({ data, selected }: NodeProps<TemplateNodeType>) {
+export function TemplateNode({ data }: NodeProps<TemplateNodeType>) {
   return (
-    <div
-      style={{
-        minWidth: 180,
-        padding: 16,
-        borderRadius: 10,
-        border: selected ? '2px solid #333' : '1px solid #ddd',
-        background: '#fff',
-      }}
+    <NodeCard
+      icon="T"
+      iconClassName="template"
+      title={data.label || '模板'}
+      meta={`文本模板 → ${data.outputVariable || '?'}`}
     >
       <Handle type="target" position={Position.Left} />
-
-      <strong>{data.label || 'Template'}</strong>
-      <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>
-        Text Template → {data.outputVariable || '?'}
-      </div>
-
       <Handle type="source" position={Position.Right} />
-    </div>
+    </NodeCard>
   );
 }

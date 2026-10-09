@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { ReactNode } from 'react';
 import type { LlmProviderInfo } from '../../api/llm';
 import {
   CONDITION_OPERATORS,
@@ -19,56 +19,25 @@ interface PropertiesPanelProps {
   onDeleteNode: (nodeId: string) => void;
 }
 
-const panelStyle: CSSProperties = {
-  width: 320,
-  flexShrink: 0,
-  padding: 20,
-  borderLeft: '1px solid #e5e5e5',
-  background: '#fff',
-  overflowY: 'auto',
-};
-
-const fieldStyle: CSSProperties = {
-  display: 'block',
-  marginTop: 16,
-};
-
-const fieldLabelStyle: CSSProperties = {
-  marginBottom: 6,
-  fontSize: 13,
-  color: '#555',
-};
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '6px 8px',
-};
-
-const textareaStyle: CSSProperties = {
-  ...inputStyle,
-  resize: 'vertical',
-  fontFamily: 'inherit',
-};
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="panel-field">
+      <div className="panel-field-label">{label}</div>
+      {children}
+    </label>
+  );
+}
 
 function DeleteNodeButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        marginTop: 24,
-        width: '100%',
-        padding: 8,
-        color: '#b91c1c',
-        border: '1px solid #fca5a5',
-        background: '#fff',
-        cursor: 'pointer',
-      }}
-    >
+    <button type="button" className="panel-delete-button" onClick={onClick}>
       删除节点
     </button>
   );
+}
+
+function toOptionalNumber(value: string) {
+  return value === '' ? undefined : Number(value);
 }
 
 export function PropertiesPanel({
@@ -79,40 +48,39 @@ export function PropertiesPanel({
 }: PropertiesPanelProps) {
   if (!node) {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>节点配置</h3>
-        <p style={{ color: '#777' }}>选择画布中的节点以编辑配置。</p>
+      <aside className="properties-panel">
+        <h3>节点配置</h3>
+        <p className="panel-text">选择画布中的节点以编辑配置。</p>
       </aside>
     );
   }
+
+  const labelField = (
+    <Field label="节点名称">
+      <input
+        value={node.data.label ?? ''}
+        onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
+      />
+    </Field>
+  );
 
   if (node.type === 'llm') {
     const currentProvider = node.data.provider ?? '';
     const isUnknownProvider =
       currentProvider !== '' && !providers.some((provider) => provider.id === currentProvider);
-  
+
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>LLM 调用</h3>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
-          <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Provider</div>
+      <aside className="properties-panel">
+        <h3>LLM 调用</h3>
+        {labelField}
+
+        <Field label="模型供应商">
           <select
-            style={inputStyle}
             value={currentProvider}
             onChange={(event) => onNodeDataChange(node.id, { provider: event.target.value })}
           >
             <option value="" disabled>
-              Select provider
+              选择模型供应商
             </option>
             {providers.map((provider) => (
               <option key={provider.id} value={provider.id}>
@@ -120,71 +88,59 @@ export function PropertiesPanel({
               </option>
             ))}
             {isUnknownProvider && (
-              <option value={currentProvider}>{currentProvider} (not configured)</option>
+              <option value={currentProvider}>{currentProvider}（未配置）</option>
             )}
           </select>
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Model</div>
+        </Field>
+
+        <Field label="模型">
           <input
-            style={inputStyle}
             placeholder="deepseek-flash"
             value={node.data.model ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { model: event.target.value })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>System Prompt</div>
+        </Field>
+
+        <Field label="系统提示词">
           <textarea
             rows={4}
-            style={textareaStyle}
-            placeholder="You are a helpful assistant."
+            placeholder="你是一个乐于助人的助手。"
             value={node.data.systemPrompt ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { systemPrompt: event.target.value })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Prompt</div>
+        </Field>
+
+        <Field label="用户提示词">
           <textarea
             rows={10}
-            style={textareaStyle}
+            placeholder="使用 {{变量名}} 引用变量"
             value={node.data.prompt ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { prompt: event.target.value })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Temperature (0 ~ 2)</div>
+        </Field>
+
+        <Field label="温度（0 ~ 2）">
           <input
             type="number"
             min={0}
             max={2}
             step={0.1}
-            style={inputStyle}
             placeholder="0.7"
             value={node.data.temperature ?? ''}
-            onChange={(event) => {
-              const value = event.target.value;
-              onNodeDataChange(node.id, { temperature: value === '' ? undefined : Number(value) });
-            }}
-          />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Output Variable</div>
-          <input
-            style={inputStyle}
-            placeholder="answer"
-            value={node.data.outputVariable ?? ''}
             onChange={(event) =>
-              onNodeDataChange(node.id, { outputVariable: event.target.value })
+              onNodeDataChange(node.id, { temperature: toOptionalNumber(event.target.value) })
             }
           />
-        </label>
-  
+        </Field>
+
+        <Field label="输出变量">
+          <input
+            placeholder="answer"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { outputVariable: event.target.value })}
+          />
+        </Field>
+
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );
@@ -192,72 +148,53 @@ export function PropertiesPanel({
 
   if (node.type === 'code') {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>代码执行</h3>
+      <aside className="properties-panel">
+        <h3>代码执行</h3>
+        {labelField}
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
+        <Field label="输入变量">
           <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Input Variable Path</div>
-          <input
-            style={inputStyle}
-            placeholder="order or response.data"
+            placeholder="order 或 response.data"
             value={node.data.inputPath ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { inputPath: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>JavaScript</div>
+        <Field label="代码（JavaScript）">
           <textarea
             rows={14}
             spellCheck={false}
-            style={{ ...textareaStyle, fontFamily: 'monospace', fontSize: 13 }}
+            className="code-input"
             value={node.data.code ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { code: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Output Variable</div>
+        <Field label="输出变量">
           <input
-            style={inputStyle}
             placeholder="calculation"
             value={node.data.outputVariable ?? ''}
-            onChange={(event) =>
-              onNodeDataChange(node.id, { outputVariable: event.target.value })
-            }
+            onChange={(event) => onNodeDataChange(node.id, { outputVariable: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Timeout (ms, 50 ~ 5000)</div>
+        <Field label="超时时间（毫秒，50 ~ 5000）">
           <input
             type="number"
             min={50}
             max={5000}
             step={50}
-            style={inputStyle}
             placeholder="1000"
             value={node.data.timeoutMs ?? ''}
-            onChange={(event) => {
-              const value = event.target.value;
-              onNodeDataChange(node.id, { timeoutMs: value === '' ? undefined : Number(value) });
-            }}
+            onChange={(event) =>
+              onNodeDataChange(node.id, { timeoutMs: toOptionalNumber(event.target.value) })
+            }
           />
-        </label>
+        </Field>
 
-        <p style={{ fontSize: 13, color: '#777' }}>
-          Read the input value from <code>input</code> and <code>return</code> a JSON-compatible
-          value. <code>await</code> is supported; Node APIs like require and process are not
-          available.
+        <p className="panel-hint">
+          通过 <code>input</code> 读取输入，用 <code>return</code> 返回可转成 JSON 的值。支持{' '}
+          <code>await</code>，不能使用 require、process 等 Node API。
         </p>
 
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
@@ -267,51 +204,36 @@ export function PropertiesPanel({
 
   if (node.type === 'loop') {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>循环</h3>
+      <aside className="properties-panel">
+        <h3>循环</h3>
+        {labelField}
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
+        <Field label="迭代数组（变量路径）">
           <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Items Variable Path</div>
-          <input
-            style={inputStyle}
-            placeholder="items or response.data.users"
+            placeholder="items 或 response.data.users"
             value={node.data.itemsPath ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { itemsPath: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Item Variable</div>
+        <Field label="当前项变量">
           <input
-            style={inputStyle}
             placeholder="item"
             value={node.data.itemVariable ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { itemVariable: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Index Variable</div>
+        <Field label="索引变量">
           <input
-            style={inputStyle}
             placeholder="index"
             value={node.data.indexVariable ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { indexVariable: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <p style={{ fontSize: 13, color: '#777' }}>
-          Connect "body" to the first body node, and the last body node back to the bottom
-          "loop" handle. Connect "done" to what runs after the loop.
+        <p className="panel-hint">
+          把“循环体”连到循环内的第一个节点，循环内最后一个节点连回底部的“回到循环”；“完成”连到循环结束后要执行的节点。
         </p>
 
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
@@ -321,32 +243,20 @@ export function PropertiesPanel({
 
   if (node.type === 'if') {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>条件分支</h3>
+      <aside className="properties-panel">
+        <h3>条件分支</h3>
+        {labelField}
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
+        <Field label="条件变量">
           <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Variable</div>
-          <input
-            style={inputStyle}
-            placeholder="score or response.data.score"
+            placeholder="score 或 response.data.score"
             value={node.data.variable ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { variable: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Operator</div>
+        <Field label="运算符">
           <select
-            style={inputStyle}
             value={node.data.operator}
             onChange={(event) =>
               onNodeDataChange(node.id, { operator: event.target.value as ConditionOperator })
@@ -358,36 +268,31 @@ export function PropertiesPanel({
               </option>
             ))}
           </select>
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Value Type</div>
+        <Field label="值类型">
           <select
-            style={inputStyle}
             value={node.data.valueType}
             onChange={(event) =>
               onNodeDataChange(node.id, { valueType: event.target.value as ConditionValueType })
             }
           >
-            <option value="string">string</option>
-            <option value="number">number</option>
-            <option value="boolean">boolean</option>
+            <option value="string">字符串</option>
+            <option value="number">数字</option>
+            <option value="boolean">布尔</option>
           </select>
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Value</div>
+        <Field label="比较值">
           <input
-            style={inputStyle}
             placeholder="60"
             value={node.data.value ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { value: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <p style={{ fontSize: 13, color: '#777' }}>
-          &gt; / &gt;= / &lt; / &lt;= require Value Type "number". Connect both the true and
-          false handles before running.
+        <p className="panel-hint">
+          &gt; / &gt;= / &lt; / &lt;= 需要值类型为“数字”。运行前请同时连接 IF 和 ELSE 两个分支。
         </p>
 
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
@@ -397,22 +302,12 @@ export function PropertiesPanel({
 
   if (node.type === 'http') {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>HTTP 请求</h3>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
-          <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Method</div>
+      <aside className="properties-panel">
+        <h3>HTTP 请求</h3>
+        {labelField}
+
+        <Field label="请求方法">
           <select
-            style={inputStyle}
             value={node.data.method}
             onChange={(event) =>
               onNodeDataChange(node.id, { method: event.target.value as HttpMethod })
@@ -424,67 +319,55 @@ export function PropertiesPanel({
               </option>
             ))}
           </select>
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>URL</div>
+        </Field>
+
+        <Field label="请求地址">
           <input
-            style={inputStyle}
             placeholder="https://example.com/users/{{userId}}"
             value={node.data.url ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { url: event.target.value })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Headers (JSON)</div>
+        </Field>
+
+        <Field label="请求头（JSON）">
           <JsonObjectEditor
             key={node.id}
-            style={textareaStyle}
             value={node.data.headers ?? {}}
             onChange={(headers) => onNodeDataChange(node.id, { headers })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Body (only for POST / PUT / PATCH)</div>
+        </Field>
+
+        <Field label="请求体（仅 POST / PUT / PATCH）">
           <textarea
             rows={8}
-            style={textareaStyle}
+            spellCheck={false}
             placeholder={'{"message": "{{prompt}}"}'}
             value={node.data.body ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { body: event.target.value })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Timeout (ms, max 60000)</div>
+        </Field>
+
+        <Field label="超时时间（毫秒，最大 60000）">
           <input
             type="number"
             min={1}
             max={60000}
-            style={inputStyle}
             placeholder="10000"
             value={node.data.timeoutMs ?? ''}
-            onChange={(event) => {
-              const value = event.target.value;
-              onNodeDataChange(node.id, { timeoutMs: value === '' ? undefined : Number(value) });
-            }}
-          />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Output Variable</div>
-          <input
-            style={inputStyle}
-            placeholder="response"
-            value={node.data.outputVariable ?? ''}
             onChange={(event) =>
-              onNodeDataChange(node.id, { outputVariable: event.target.value })
+              onNodeDataChange(node.id, { timeoutMs: toOptionalNumber(event.target.value) })
             }
           />
-        </label>
-  
+        </Field>
+
+        <Field label="输出变量">
+          <input
+            placeholder="response"
+            value={node.data.outputVariable ?? ''}
+            onChange={(event) => onNodeDataChange(node.id, { outputVariable: event.target.value })}
+          />
+        </Field>
+
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );
@@ -492,40 +375,26 @@ export function PropertiesPanel({
 
   if (node.type === 'template') {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>模板</h3>
+      <aside className="properties-panel">
+        <h3>模板</h3>
+        {labelField}
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
-          <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Template</div>
+        <Field label="模板内容">
           <textarea
             rows={8}
-            style={textareaStyle}
-            placeholder="Hello {{name}}"
+            placeholder="你好 {{name}}"
             value={node.data.template ?? ''}
             onChange={(event) => onNodeDataChange(node.id, { template: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Output Variable</div>
+        <Field label="输出变量">
           <input
-            style={inputStyle}
             placeholder="result"
             value={node.data.outputVariable ?? ''}
-            onChange={(event) =>
-              onNodeDataChange(node.id, { outputVariable: event.target.value })
-            }
+            onChange={(event) => onNodeDataChange(node.id, { outputVariable: event.target.value })}
           />
-        </label>
+        </Field>
 
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
@@ -534,96 +403,73 @@ export function PropertiesPanel({
 
   if (node.type === 'variable') {
     const isReference = node.data.sourceType === 'reference';
-  
+
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>变量</h3>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Name</div>
+      <aside className="properties-panel">
+        <h3>变量</h3>
+        {labelField}
+
+        <Field label="变量名">
           <input
-            style={inputStyle}
-            value={node.data.label ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { label: event.target.value })}
-          />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Variable Name</div>
-          <input
-            style={inputStyle}
             value={node.data.variableName ?? ''}
-            onChange={(event) =>
-              onNodeDataChange(node.id, { variableName: event.target.value })
-            }
+            onChange={(event) => onNodeDataChange(node.id, { variableName: event.target.value })}
           />
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Source Type</div>
+        </Field>
+
+        <Field label="赋值方式">
           <select
-            style={inputStyle}
             value={node.data.sourceType ?? 'literal'}
             onChange={(event) =>
-              onNodeDataChange(node.id, {
-                sourceType: event.target.value as VariableSourceType,
-              })
+              onNodeDataChange(node.id, { sourceType: event.target.value as VariableSourceType })
             }
           >
-            <option value="literal">Literal</option>
-            <option value="reference">Variable Reference</option>
+            <option value="literal">固定值</option>
+            <option value="reference">引用变量</option>
           </select>
-        </label>
-  
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>{isReference ? 'Variable Path' : 'Value'}</div>
+        </Field>
+
+        <Field label={isReference ? '变量路径' : '值'}>
           <input
-            style={inputStyle}
             placeholder={isReference ? 'response.data.user.name' : 'FlowMind'}
             value={String(node.data.value ?? '')}
             onChange={(event) => onNodeDataChange(node.id, { value: event.target.value })}
           />
-        </label>
-  
+        </Field>
+
         {isReference && (
-          <p style={{ fontSize: 13, color: '#777' }}>
-            Path only, without {'{{ }}'}. Use users.0.name for arrays.
+          <p className="panel-hint">
+            只填路径，不需要 <code>{'{{ }}'}</code>。数组元素用 <code>users.0.name</code> 这种写法。
           </p>
         )}
-  
+
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );
   }
-  
+
   if (node.type === 'end') {
     return (
-      <aside className="properties-panel" style={panelStyle}>
-        <h3 style={{ marginTop: 0 }}>结束</h3>
+      <aside className="properties-panel">
+        <h3>结束</h3>
 
-        <label style={fieldStyle}>
-          <div style={fieldLabelStyle}>Output Variable</div>
+        <Field label="输出变量">
           <input
-            style={inputStyle}
             placeholder="result"
             value={node.data.outputVariable ?? ''}
-            onChange={(event) =>
-              onNodeDataChange(node.id, { outputVariable: event.target.value })
-            }
+            onChange={(event) => onNodeDataChange(node.id, { outputVariable: event.target.value })}
           />
-        </label>
+        </Field>
 
-        <p style={{ fontSize: 13, color: '#777' }}>End node cannot be deleted.</p>
+        <p className="panel-hint">结束节点不能删除。</p>
       </aside>
     );
   }
 
   return (
-    <aside className="properties-panel" style={panelStyle}>
-      <h3 style={{ marginTop: 0 }}>节点配置</h3>
-      <p>Name: {node.data.label}</p>
-      <p>Type: {node.type}</p>
-      <p style={{ fontSize: 13, color: '#777' }}>Start node cannot be deleted.</p>
+    <aside className="properties-panel">
+      <h3>开始</h3>
+      <p className="panel-text">节点名称：{node.data.label}</p>
+      <p className="panel-hint">开始节点不能删除。运行时填写的输入会作为变量传给后续节点。</p>
     </aside>
   );
 }

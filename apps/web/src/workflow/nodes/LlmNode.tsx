@@ -1,25 +1,17 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { LlmNodeType } from '../types/workflowCanvas';
+import { NodeCard } from './NodeCard';
 
-export function LlmNode({ data, selected }: NodeProps<LlmNodeType>) {
+export function LlmNode({ data }: NodeProps<LlmNodeType>) {
   return (
-    <div
-      style={{
-        minWidth: 180,
-        padding: 16,
-        borderRadius: 10,
-        border: selected ? '2px solid #333' : '1px solid #ddd',
-        background: '#fff',
-      }}
+    <NodeCard
+      icon="✦"
+      iconClassName="ai"
+      title={data.label || 'LLM'}
+      meta={`${data.provider || '未选择供应商'} / ${data.model || '未设置模型'}`}
     >
       <Handle type="target" position={Position.Left} />
-
-      <strong>{data.label || 'LLM'}</strong>
-      <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>
-        {data.provider || '?'} / {data.model || 'No model'}
-      </div>
-
       <Handle type="source" position={Position.Right} />
-    </div>
+    </NodeCard>
   );
 }

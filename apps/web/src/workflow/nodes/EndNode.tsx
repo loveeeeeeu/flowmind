@@ -1,21 +1,16 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { EndNodeType } from '../types/workflowCanvas';
+import { NodeCard } from './NodeCard';
 
 export function EndNode({ data }: NodeProps<EndNodeType>) {
   return (
-    <div
-      style={{
-        minWidth: 140,
-        padding: 16,
-        borderRadius: 10,
-        border: '1px solid #ddd',
-        background: '#fff',
-      }}
+    <NodeCard
+      icon="■"
+      iconClassName="end"
+      title={data.label || '结束'}
+      meta={`输出变量 · ${data.outputVariable || '未设置'}`}
     >
       <Handle type="target" position={Position.Left} />
-
-      <strong>{data.label}</strong>
-      <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>Workflow output</div>
-    </div>
+    </NodeCard>
   );
 }

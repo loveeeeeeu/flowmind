@@ -1,35 +1,17 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { HttpNodeType } from '../types/workflowCanvas';
+import { NodeCard } from './NodeCard';
 
-export function HttpNode({ data, selected }: NodeProps<HttpNodeType>) {
+export function HttpNode({ data }: NodeProps<HttpNodeType>) {
   return (
-    <div
-      style={{
-        minWidth: 190,
-        maxWidth: 260,
-        padding: 16,
-        borderRadius: 10,
-        border: selected ? '2px solid #333' : '1px solid #ddd',
-        background: '#fff',
-      }}
+    <NodeCard
+      icon="↗"
+      iconClassName="http"
+      title={data.label || 'HTTP 请求'}
+      meta={`${data.method} ${data.url || '未设置 URL'}`}
     >
       <Handle type="target" position={Position.Left} />
-
-      <strong>{data.label || 'HTTP'}</strong>
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: 12,
-          color: '#777',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {data.method} {data.url || 'No URL'}
-      </div>
-
       <Handle type="source" position={Position.Right} />
-    </div>
+    </NodeCard>
   );
 }

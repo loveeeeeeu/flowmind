@@ -1,26 +1,15 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { VariableNodeType } from '../types/workflowCanvas';
+import { NodeCard } from './NodeCard';
 
-export function VariableNode({ data, selected }: NodeProps<VariableNodeType>) {
+export function VariableNode({ data }: NodeProps<VariableNodeType>) {
+  const name = data.variableName || '未命名变量';
+  const meta = data.sourceType === 'reference' ? `${name} ← ${String(data.value ?? '')}` : name;
+
   return (
-    <div
-      style={{
-        minWidth: 180,
-        padding: 16,
-        borderRadius: 10,
-        border: selected ? '2px solid #333' : '1px solid #ddd',
-        background: '#fff',
-      }}
-    >
+    <NodeCard icon="{}" iconClassName="variable" title={data.label || '变量'} meta={meta}>
       <Handle type="target" position={Position.Left} />
-
-      <strong>{data.label || 'Variable'}</strong>
-      <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>
-        {data.variableName || 'No variable'}
-        {data.sourceType === 'reference' && ` ← ${String(data.value ?? '')}`}
-      </div>
-
       <Handle type="source" position={Position.Right} />
-    </div>
+    </NodeCard>
   );
 }
