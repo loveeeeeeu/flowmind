@@ -127,6 +127,10 @@ export class WorkflowService {
       throw new BadRequestException('Workflow has no canvas');
     }
 
+    // Structural errors return 400 before a run exists; the worker still re-validates
+    // because the canvas may change between enqueue and execution.
+    this.workflowPlanService.createExecutionPlan(workflow.canvas as unknown as WorkflowCanvas);
+
     return this.executionService.createRun({
       workflowId: workflow.id,
       input: dto.input,
