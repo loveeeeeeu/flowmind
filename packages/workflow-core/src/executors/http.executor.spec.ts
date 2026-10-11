@@ -87,12 +87,44 @@ describe('HttpExecutor', () => {
     expect(context.getVariable('response')).toBe('pong');
   });
 
-  it('throws when response status is not ok', async () => {
+  it('throws a non-retryable HTTP_4XX error for client errors', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ error: 'not found' }, 404));
 
     await expect(
       executor.execute(httpNode({ method: 'GET', url: 'https://example.com/x' }), new ExecutionContext({})),
-    ).rejects.toThrow('HTTP node http-1 received 404');
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('HTTP node http-1 received 404') as string,
+      code: 'HTTP_4XX',
+      retryable: false,
+    });
+  });
+
+  it.each([
+    [503, 'HTTP_5XX'],
+    [429, 'HTTP_4XX'],
+  ])('marks status %i as retryable %s without writing the context', async (status, code) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ error: 'busy' }, status));
+    const context = new ExecutionContext({});
+
+    await expect(
+      executor.execute(httpNode({ method: 'GET', url: 'https://example.com/x' }), context),
+    ).rejects.toMatchObject({ code, retryable: true });
+    expect(context.getVariables()).not.toHaveProperty('response');
+  });
+
+  it('marks network failures as retryable', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+
+    await expect(
+      executor.execute(httpNode({ method: 'GET', url: 'https://example.com/x' }), new ExecutionContext({})),
+    ).rejects.toMatchObject({ code: 'HTTP_NETWORK_ERROR', retryable: true });
+  });
+
+  it('only allows automatic retry for GET', () => {
+    expect(executor.getRetryMode(httpNode({ method: 'get' }))).toBe('transient');
+    expect(executor.getRetryMode(httpNode({ method: 'POST' }))).toBe('none');
+    expect(executor.getRetryMode(httpNode({ method: 'PUT' }))).toBe('none');
+    expect(executor.getRetryMode(httpNode({ method: 'DELETE' }))).toBe('none');
   });
 
   it('passes timeout signal and maps timeout error', async () => {
@@ -105,7 +137,11 @@ describe('HttpExecutor', () => {
         httpNode({ method: 'GET', url: 'https://example.com/slow', timeoutMs: 5000 }),
         new ExecutionContext({}),
       ),
-    ).rejects.toThrow('HTTP node http-1 timed out after 5000ms');
+    ).rejects.toMatchObject({
+      message: 'HTTP node http-1 timed out after 5000ms',
+      code: 'HTTP_TIMEOUT',
+      retryable: true,
+    });
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.signal).toBeInstanceOf(AbortSignal);
@@ -116,7 +152,10 @@ describe('HttpExecutor', () => {
 
     await expect(
       executor.execute(httpNode({ method: 'GET', url: 'file:///etc/passwd' }), new ExecutionContext({})),
-    ).rejects.toThrow('Only HTTP and HTTPS URLs are allowed');
+    ).rejects.toMatchObject({
+      message: 'Only HTTP and HTTPS URLs are allowed',
+      retryable: false,
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

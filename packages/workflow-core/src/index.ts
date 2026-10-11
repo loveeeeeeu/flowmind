@@ -2,6 +2,7 @@ export * from './create-workflow-engine.js';
 
 export * from './engine/execution-context.js';
 export * from './engine/executor-registry.js';
+export * from './engine/node-retry-policy.js';
 export * from './engine/variable-resolver.js';
 export * from './engine/workflow-engine.js';
 export * from './engine/workflow-engine.types.js';

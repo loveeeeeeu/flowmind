@@ -3,7 +3,7 @@ import type { VariableResolver } from '../engine/variable-resolver.js';
 import type { WorkflowNode } from '../engine/workflow-engine.types.js';
 import { WorkflowExecutionError } from '../engine/workflow-execution.error.js';
 import type { LlmClient } from '../ports/llm-client.js';
-import type { NodeExecutor } from './node-executor.js';
+import type { NodeExecutor, NodeRetryMode } from './node-executor.js';
 
 const MIN_TEMPERATURE = 0;
 const MAX_TEMPERATURE = 2;
@@ -15,6 +15,11 @@ export class LlmExecutor implements NodeExecutor {
     private readonly llmClient: LlmClient,
     private readonly resolver: VariableResolver,
   ) {}
+
+  // Retried only when the provider error says so (429 / 5xx / timeout / network), never on auth or balance errors.
+  getRetryMode(): NodeRetryMode {
+    return 'transient';
+  }
 
   async execute(node: WorkflowNode, context: ExecutionContext) {
     const { provider, model, systemPrompt, prompt, temperature, outputVariable } = node.data;

@@ -1,4 +1,5 @@
 import { ExecutorRegistry } from './engine/executor-registry.js';
+import type { NodeRetryPolicy } from './engine/node-retry-policy.js';
 import { VariableResolver } from './engine/variable-resolver.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
 import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
@@ -19,9 +20,11 @@ import type { LlmClient } from './ports/llm-client.js';
 export interface CreateWorkflowEngineOptions {
   llmClient: LlmClient;
   codeRunner: CodeRunner;
+  /** Defaults to DEFAULT_NODE_RETRY_POLICY; tests pass a zero backoff. */
+  retryPolicy?: NodeRetryPolicy;
 }
 
-function createExecutorRegistry(options: CreateWorkflowEngineOptions) {
+function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retryPolicy'>) {
   const resolver = new VariableResolver();
 
   return new ExecutorRegistry([
@@ -40,7 +43,10 @@ function createExecutorRegistry(options: CreateWorkflowEngineOptions) {
 export function createWorkflowEngine(options: CreateWorkflowEngineOptions): WorkflowEngine {
   const registry = createExecutorRegistry(options);
 
-  return new WorkflowEngine(new WorkflowValidator(registry), new WorkflowScheduler(registry));
+  return new WorkflowEngine(
+    new WorkflowValidator(registry),
+    new WorkflowScheduler(registry, options.retryPolicy),
+  );
 }
 
 function unavailable(capability: string): never {

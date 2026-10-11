@@ -151,6 +151,7 @@ a { color: inherit; }
 .node-run-sequence { width:28px; flex-shrink:0; color:#9aa4b6; font-size:12px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .node-run-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1c2434; font-size:13px; font-weight:600; }
 .node-run-type { flex-shrink:0; padding:1px 6px; border-radius:5px; background:#f1f3f7; color:#7b879d; font-size:11px; }
+.node-run-attempt { flex-shrink:0; padding:1px 6px; border-radius:5px; background:#fff6e8; color:#c9852a; font-size:11px; font-weight:600; }
 .node-run-duration { margin-left:auto; flex-shrink:0; color:#7b879d; font-size:12px; }
 .node-run-error { margin:8px 0 0; padding:7px 10px; border-radius:7px; background:#fff2f4; color:#c63755; font-size:12px; line-height:1.5; word-break:break-word; }
 .node-run-error code { margin-right:6px; font-weight:600; }

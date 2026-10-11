@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import {
   EXECUTE_WORKFLOW_JOB,
@@ -23,5 +23,22 @@ export class WorkflowRunProcessor extends WorkerHost {
 
     this.logger.log(`Processing run ${job.data.runId}`);
     await this.execution.executeRun(job.data.runId);
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job<ExecuteWorkflowJobData>) {
+    this.logger.log(`Job for run ${job.data.runId} completed`);
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job<ExecuteWorkflowJobData> | undefined, error: Error) {
+    this.logger.warn(`Job for run ${job?.data.runId ?? 'unknown'} failed: ${error.message}`);
+  }
+
+  // Stalled = the lock holder stopped renewing (crash, kill, blocked event loop); BullMQ will
+  // hand the job out again, so the same run may arrive twice.
+  @OnWorkerEvent('stalled')
+  onStalled(jobId: string) {
+    this.logger.warn(`Job ${jobId} stalled and will be redelivered`);
   }
 }

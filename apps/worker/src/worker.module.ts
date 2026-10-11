@@ -6,6 +6,9 @@ import { createWorkflowEngine, WorkflowEngine } from '@flowmind/workflow-core';
 import { fileURLToPath } from 'node:url';
 import { CodeRunnerService } from './code/code-runner.service.js';
 import { validateEnv } from './config/env.schema.js';
+import { RunRecoveryScheduler } from './execution/run-recovery.scheduler.js';
+import { RunRecoveryService } from './execution/run-recovery.service.js';
+import { RunStateService } from './execution/run-state.service.js';
 import { WorkflowExecutionService } from './execution/workflow-execution.service.js';
 import { WorkflowRunProcessor } from './execution/workflow-run.processor.js';
 import { ProviderRegistry } from './llm/provider-registry.js';
@@ -44,6 +47,9 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
       useFactory: (llmClient: WorkerLlmClient, codeRunner: CodeRunnerService) =>
         createWorkflowEngine({ llmClient, codeRunner }),
     },
+    RunStateService,
+    RunRecoveryService,
+    RunRecoveryScheduler,
     WorkflowExecutionService,
     WorkflowRunProcessor,
   ],

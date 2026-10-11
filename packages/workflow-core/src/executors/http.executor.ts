@@ -2,7 +2,7 @@ import type { ExecutionContext } from '../engine/execution-context.js';
 import { VariableResolver } from '../engine/variable-resolver.js';
 import type { WorkflowNode } from '../engine/workflow-engine.types.js';
 import { WorkflowExecutionError } from '../engine/workflow-execution.error.js';
-import type { NodeExecutor } from './node-executor.js';
+import type { NodeExecutor, NodeRetryMode } from './node-executor.js';
 
 const SUPPORTED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type HttpMethod = (typeof SUPPORTED_METHODS)[number];
@@ -10,6 +10,7 @@ type HttpMethod = (typeof SUPPORTED_METHODS)[number];
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_ERROR_BODY_LENGTH = 500;
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
 function isHttpMethod(value: string): value is HttpMethod {
   return (SUPPORTED_METHODS as readonly string[]).includes(value);
@@ -28,6 +29,12 @@ export class HttpExecutor implements NodeExecutor {
   readonly type = 'http';
 
   constructor(private readonly resolver: VariableResolver) {}
+
+  // Only GET is safe to repeat: a retried POST/PUT/PATCH/DELETE may duplicate an external side
+  // effect (e.g. create a second order) even when the error itself looks transient.
+  getRetryMode(node: WorkflowNode): NodeRetryMode {
+    return String(node.data.method ?? '').toUpperCase() === 'GET' ? 'transient' : 'none';
+  }
 
   async execute(node: WorkflowNode, context: ExecutionContext) {
     const { method, url, headers, body, timeoutMs, outputVariable } = node.data;
@@ -74,17 +81,23 @@ export class HttpExecutor implements NodeExecutor {
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         throw new WorkflowExecutionError(
           `HTTP node ${node.id} timed out after ${finalTimeoutMs}ms`,
+          { code: 'HTTP_TIMEOUT', retryable: true, cause: error },
         );
       }
 
       throw new WorkflowExecutionError(
         `HTTP node ${node.id} request failed: ${describeError(error)}`,
+        { code: 'HTTP_NETWORK_ERROR', retryable: true, cause: error },
       );
     }
 
     if (!response.ok) {
       throw new WorkflowExecutionError(
         `HTTP node ${node.id} received ${response.status}: ${this.summarize(result)}`,
+        {
+          code: response.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX',
+          retryable: RETRYABLE_STATUSES.has(response.status),
+        },
       );
     }
 

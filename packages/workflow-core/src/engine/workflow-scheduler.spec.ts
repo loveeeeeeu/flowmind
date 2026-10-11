@@ -8,6 +8,7 @@ import type {
 } from '../ports/execution-observer.js';
 import { ExecutionContext } from './execution-context.js';
 import type { ExecutorRegistry } from './executor-registry.js';
+import { DEFAULT_NODE_RETRY_POLICY, type NodeRetryPolicy } from './node-retry-policy.js';
 import { VariableResolver } from './variable-resolver.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
@@ -17,13 +18,13 @@ function fakeExecutor(type: string, result: NodeExecutionResult = {}) {
   return { type, execute: vi.fn(async () => result) } satisfies NodeExecutor;
 }
 
-function createScheduler(executors: NodeExecutor[]) {
+function createScheduler(executors: NodeExecutor[], retryPolicy?: NodeRetryPolicy) {
   const map = new Map(executors.map((executor) => [executor.type, executor]));
   const registry = {
     get: (type: string) => map.get(type)!,
   } as unknown as ExecutorRegistry;
 
-  return new WorkflowScheduler(registry);
+  return new WorkflowScheduler(registry, retryPolicy);
 }
 
 function createObserver() {
@@ -148,6 +149,117 @@ describe('WorkflowScheduler', () => {
     const { run } = setup('maybe');
 
     await expect(run()).rejects.toThrow('Node if has no edge for handle "maybe"');
+  });
+});
+
+describe('WorkflowScheduler node retry', () => {
+  const linearCanvas: WorkflowCanvas = {
+    nodes: [
+      { id: 'start', type: 'start', data: {} },
+      { id: 'work', type: 'work', data: {} },
+      { id: 'end', type: 'end', data: {} },
+    ],
+    edges: [
+      { source: 'start', target: 'work' },
+      { source: 'work', target: 'end' },
+    ],
+  };
+
+  function transientError(message = 'Rate limit') {
+    return Object.assign(new Error(message), { code: 'RATE_LIMIT', retryable: true });
+  }
+
+  function setup(work: NodeExecutor, backoffMs = vi.fn(() => 0)) {
+    const graph = new WorkflowGraph(linearCanvas);
+    const { observer, onNodeStart, onNodeSuccess, onNodeFailure } = createObserver();
+    const scheduler = createScheduler(
+      [fakeExecutor('start'), work, fakeExecutor('end', { output: 'done' })],
+      { maxAttempts: 3, backoffMs },
+    );
+    const run = () =>
+      scheduler.run(graph, graph.getNode('start')!, new ExecutionContext({}), { observer });
+
+    return { run, backoffMs, onNodeStart, onNodeSuccess, onNodeFailure };
+  }
+
+  it('retries a transient node on retryable errors and records every attempt', async () => {
+    const execute = vi
+      .fn<NodeExecutor['execute']>()
+      .mockRejectedValueOnce(transientError())
+      .mockResolvedValueOnce({ output: 'ok' });
+    const { run, backoffMs, onNodeStart, onNodeSuccess, onNodeFailure } = setup({
+      type: 'work',
+      getRetryMode: () => 'transient',
+      execute,
+    });
+
+    await expect(run()).resolves.toMatchObject({ result: 'done' });
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(backoffMs).toHaveBeenCalledWith(1);
+    expect(
+      onNodeStart.mock.calls.map(([event]) => [event.node.id, event.sequence, event.attempt]),
+    ).toEqual([
+      ['start', 0, 1],
+      ['work', 1, 1],
+      ['work', 1, 2],
+      ['end', 2, 1],
+    ]);
+    expect(onNodeFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ sequence: 1, attempt: 1, willRetry: true }),
+    );
+    expect(onNodeSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({ sequence: 1, attempt: 2, output: 'ok' }),
+    );
+  });
+
+  it('fails the run after maxAttempts with the last attempt marked as final', async () => {
+    const execute = vi.fn(async () => {
+      throw transientError('still limited');
+    });
+    const { run, backoffMs, onNodeFailure } = setup({
+      type: 'work',
+      getRetryMode: () => 'transient',
+      execute,
+    });
+
+    await expect(run()).rejects.toThrow('still limited');
+
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(backoffMs.mock.calls).toEqual([[1], [2]]);
+    expect(onNodeFailure.mock.calls.map(([event]) => [event.attempt, event.willRetry])).toEqual([
+      [1, true],
+      [2, true],
+      [3, false],
+    ]);
+  });
+
+  it('does not retry non-retryable errors', async () => {
+    const execute = vi.fn(async () => {
+      throw Object.assign(new Error('Auth failed'), { code: 'AUTH_ERROR', retryable: false });
+    });
+    const { run, onNodeFailure } = setup({ type: 'work', getRetryMode: () => 'transient', execute });
+
+    await expect(run()).rejects.toThrow('Auth failed');
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(onNodeFailure).toHaveBeenCalledWith(expect.objectContaining({ willRetry: false }));
+  });
+
+  it('does not retry nodes without a transient retry mode even for retryable errors', async () => {
+    const execute = vi.fn(async () => {
+      throw transientError('503');
+    });
+    const { run } = setup({ type: 'work', execute });
+
+    await expect(run()).rejects.toThrow('503');
+
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses exponential backoff by default: 500ms then 1000ms', () => {
+    expect(DEFAULT_NODE_RETRY_POLICY.maxAttempts).toBe(3);
+    expect([1, 2].map(DEFAULT_NODE_RETRY_POLICY.backoffMs)).toEqual([500, 1000]);
   });
 });
 

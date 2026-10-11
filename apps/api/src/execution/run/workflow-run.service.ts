@@ -40,7 +40,8 @@ export class WorkflowRunService {
       where: { id: runId },
       include: {
         nodeRuns: {
-          orderBy: { sequence: 'asc' },
+          // Retries share a sequence, so attempt keeps them in execution order.
+          orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }],
         },
       },
     });

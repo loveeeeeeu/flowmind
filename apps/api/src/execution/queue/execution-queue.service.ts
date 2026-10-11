@@ -15,6 +15,8 @@ export class ExecutionQueueService {
   ) {}
 
   enqueueRun(runId: string) {
-    return this.queue.add(EXECUTE_WORKFLOW_JOB, { runId }, { jobId: runId });
+    // attempts: 1 — a whole-job retry restarts from Start and would repeat side effects of
+    // nodes that already succeeded (e.g. an HTTP POST); retries happen per node instead.
+    return this.queue.add(EXECUTE_WORKFLOW_JOB, { runId }, { jobId: runId, attempts: 1 });
   }
 }

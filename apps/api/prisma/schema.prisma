@@ -65,6 +65,8 @@ model WorkflowRun {
 
   startedAt  DateTime?
   finishedAt DateTime?
+  // Refreshed by the worker while RUNNING; a stale value means the worker died mid-run.
+  heartbeatAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

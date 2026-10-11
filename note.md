@@ -480,4 +480,46 @@ Run PENDING
 Worker 才消费旧 Run
 ```
 
-#
+# workflow retry and recovery safeguards（不知道怎么翻译）
+一句话：工作流跑在异步 worker 里，失败分三类：节点临时出错、worker 崩溃、整个 run 失败。我的做法是只在节点级别、对安全的节点自动重试；worker 崩溃靠心跳和恢复扫描把卡住的 run 收尾成失败，不盲目重跑；整个 run 重来就创建新的 run。底层用 jobId 加数据库条件更新保证“一个 run 最多执行一次”。
+## 把“重试”拆成三件不同的事
+节点重试：只重试安全的（幂等）、临时的错误
+   重试的实现位置：重试放在 Scheduler 的 executeNodeWithRetry 里，不写进每个执行器，避免重复代码
+   不破坏 Context：成功之后才写：Scheduler 也只在成功后记录节点输出。所以失败的尝试不会改动 Context，重试时看到的是干净的状态。
+基础设施恢复：
+   1. RUNNING 卡死：worker 执行中途死了
+      --心跳：worker 执行期间每 10 秒更新 heartbeatAt
+      --判断：超过 60 秒没更新，就认为 worker 已经失联。
+   2. PENDING 卡死：数据库有记录，队列里没 Job
+      --API 先插入 run（PENDING），再放进队列。如果在两步之间崩溃，就会留下 PENDING 孤儿，这是典型的双写问题。
+      --判断条件是：超过 5 分钟，而且 BullMQ 里没有还活着的 Job。满足就标成失败
+      --重启恢复扫描：启动时扫一次，之后每 60 秒扫一次（需要定时检查，保证最多一个扫描周期之后一定能发现）
+手动重跑：整个 run 失败了，用户想重来，创建一条新的 run
+## 总流程
+```
+worker 取到 Job
+（首次：从 waiting 正常取出；重复：BullyMQ锁过期,worker没续锁，重新投递）
+        │
+        ▼
+查 run 状态 ── 已结束 ────────────────▶ 跳过            ← 只有重复投递会遇到
+        │
+        ├── RUNNING ── 心跳新鲜 ──────▶ 跳过            ← 只有重复投递会遇到
+        │          └── 心跳过期 ──────▶ 失败：WORKER_INTERRUPTED
+        │
+        └── PENDING ── 条件领取 ── count=0 ─▶ 跳过      ← 首次投递的正常入口
+                         │ count=1
+                         ▼
+                 RUNNING + 开始心跳
+                         │
+                 Scheduler 逐个执行节点
+                         │
+                  节点出错？── 允许重试且错误可重试且未满 3 次 ──▶ 退避后重试同一节点
+                         │ 否
+                         ▼
+         SUCCESS / FAILED（仅当状态还是 RUNNING 才写入）
+
+恢复扫描：启动时一次 + 每 60 秒
+  · RUNNING 且心跳过期                 → 失败：WORKER_INTERRUPTED
+  · PENDING 超过 5 分钟且队列里没有 Job → 失败：QUEUE_SUBMISSION_TIMEOUT
+worker 不区分这是第几次投递，每次都先看数据库状态再决定做什么，所以重复投递天然无害
+```

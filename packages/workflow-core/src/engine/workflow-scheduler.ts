@@ -1,7 +1,12 @@
-import type { NodeExecutionResult } from '../executors/node-executor.js';
+import type { NodeExecutionResult, NodeExecutor } from '../executors/node-executor.js';
 import type { ExecutionObserver } from '../ports/execution-observer.js';
 import type { ExecutionContext } from './execution-context.js';
 import type { ExecutorRegistry } from './executor-registry.js';
+import {
+  DEFAULT_NODE_RETRY_POLICY,
+  isRetryableError,
+  type NodeRetryPolicy,
+} from './node-retry-policy.js';
 import type { WorkflowEdge, WorkflowNode } from './workflow-engine.types.js';
 import { WorkflowExecutionError } from './workflow-execution.error.js';
 import type { WorkflowGraph } from './workflow-graph.js';
@@ -12,8 +17,15 @@ export interface SchedulerOptions {
   observer?: ExecutionObserver;
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 export class WorkflowScheduler {
-  constructor(private readonly registry: ExecutorRegistry) {}
+  constructor(
+    private readonly registry: ExecutorRegistry,
+    private readonly retryPolicy: NodeRetryPolicy = DEFAULT_NODE_RETRY_POLICY,
+  ) {}
 
   async run(
     graph: WorkflowGraph,
@@ -37,20 +49,13 @@ export class WorkflowScheduler {
       }
 
       const executor = this.registry.get(current.type);
-
-      await observer?.onNodeStart?.({ node: current, sequence });
-
-      let executionResult: NodeExecutionResult;
-
-      try {
-        executionResult = await executor.execute(current, context);
-      } catch (error) {
-        await observer?.onNodeFailure?.({ node: current, sequence, error });
-        throw error;
-      }
-
-      context.setNodeOutput(current.id, executionResult.output);
-      await observer?.onNodeSuccess?.({ node: current, sequence, output: executionResult.output });
+      const executionResult = await this.executeNodeWithRetry(
+        current,
+        executor,
+        context,
+        sequence,
+        observer,
+      );
 
       executedNodeIds.push(current.id);
       sequence += 1;
@@ -63,6 +68,46 @@ export class WorkflowScheduler {
     }
 
     throw new WorkflowExecutionError('Workflow finished without reaching end node');
+  }
+
+  /**
+   * Every attempt is reported separately (same sequence, increasing attempt), so a step that
+   * failed once and then succeeded leaves both facts in the trace. Only the final failure
+   * propagates and fails the run.
+   */
+  private async executeNodeWithRetry(
+    node: WorkflowNode,
+    executor: NodeExecutor,
+    context: ExecutionContext,
+    sequence: number,
+    observer: ExecutionObserver | undefined,
+  ): Promise<NodeExecutionResult> {
+    const retryMode = executor.getRetryMode?.(node) ?? 'none';
+    const { maxAttempts } = this.retryPolicy;
+
+    for (let attempt = 1; ; attempt += 1) {
+      await observer?.onNodeStart?.({ node, sequence, attempt });
+
+      try {
+        const result = await executor.execute(node, context);
+
+        context.setNodeOutput(node.id, result.output);
+        await observer?.onNodeSuccess?.({ node, sequence, attempt, output: result.output });
+
+        return result;
+      } catch (error) {
+        const willRetry =
+          retryMode === 'transient' && isRetryableError(error) && attempt < maxAttempts;
+
+        await observer?.onNodeFailure?.({ node, sequence, attempt, error, willRetry });
+
+        if (!willRetry) {
+          throw error;
+        }
+
+        await sleep(this.retryPolicy.backoffMs(attempt));
+      }
+    }
   }
 
   private findNextNode(graph: WorkflowGraph, node: WorkflowNode, nextHandle?: string) {

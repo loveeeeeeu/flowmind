@@ -32,7 +32,8 @@ export function RunDetail({
     return <p className="execution-empty">暂无运行记录</p>;
   }
 
-  const failedNodeRun = run.nodeRuns.find((nodeRun) => nodeRun.status === 'FAILED');
+  // Earlier attempts of a retried step can be FAILED too; the run failed on the last one.
+  const failedNodeRun = [...run.nodeRuns].reverse().find((nodeRun) => nodeRun.status === 'FAILED');
 
   return (
     <div className="run-detail">

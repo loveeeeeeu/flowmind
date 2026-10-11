@@ -2,7 +2,10 @@ import type { WorkflowNode } from '../engine/workflow-engine.types.js';
 
 export interface NodeExecutionEvent {
   node: WorkflowNode;
+  /** Logical execution step; retries of the same step share it. */
   sequence: number;
+  /** 1-based try counter within the step. */
+  attempt: number;
 }
 
 export interface NodeSuccessEvent extends NodeExecutionEvent {
@@ -11,6 +14,7 @@ export interface NodeSuccessEvent extends NodeExecutionEvent {
 
 export interface NodeFailureEvent extends NodeExecutionEvent {
   error: unknown;
+  willRetry: boolean;
 }
 
 export interface ExecutionObserver {

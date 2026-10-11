@@ -19,6 +19,10 @@ export function NodeRunList({
     return <p className="execution-empty">暂无节点执行记录</p>;
   }
 
+  const retriedSequences = new Set(
+    nodeRuns.filter((nodeRun) => nodeRun.attempt > 1).map((nodeRun) => nodeRun.sequence),
+  );
+
   return (
     <ol className="node-run-list">
       {nodeRuns.map((nodeRun) => (
@@ -37,6 +41,9 @@ export function NodeRunList({
             <span className="node-run-type">{nodeRun.nodeType}</span>
             {nodeRun.iteration !== null && (
               <span className="node-run-type">迭代 {nodeRun.iteration}</span>
+            )}
+            {retriedSequences.has(nodeRun.sequence) && (
+              <span className="node-run-attempt">第 {nodeRun.attempt} 次尝试</span>
             )}
             <span className="node-run-duration">
               {formatDuration(getDurationMs(nodeRun.startedAt, nodeRun.finishedAt))}
