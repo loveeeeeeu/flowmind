@@ -56,4 +56,27 @@ describe('WorkflowRunService', () => {
       include: { nodeRuns: { orderBy: { sequence: 'asc' } } },
     });
   });
+
+  it('lists the latest 50 run summaries of a workflow', async () => {
+    const prisma = createPrisma();
+    const service = new WorkflowRunService(prisma as unknown as PrismaService);
+
+    await service.findByWorkflow('workflow-1');
+
+    expect(prisma.workflowRun.findMany).toHaveBeenCalledWith({
+      where: { workflowId: 'workflow-1' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        workflowId: true,
+        status: true,
+        errorCode: true,
+        errorMessage: true,
+        startedAt: true,
+        finishedAt: true,
+        createdAt: true,
+      },
+    });
+  });
 });

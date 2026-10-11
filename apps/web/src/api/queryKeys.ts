@@ -9,4 +9,9 @@ export const queryKeys = {
   llm: {
     providers: ['llm', 'providers'] as const,
   },
+  runs: {
+    all: ['runs'] as const,
+    detail: (runId: string) => ['runs', 'detail', runId] as const,
+    workflowHistory: (workflowId: string) => ['runs', 'workflow', workflowId] as const,
+  },
 };

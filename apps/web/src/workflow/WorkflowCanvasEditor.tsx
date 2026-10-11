@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Background,
   Controls,
@@ -44,6 +44,7 @@ import { HttpNode } from './nodes/HttpNode';
 import { IfNode } from './nodes/IfNode';
 import { LoopNode } from './nodes/LoopNode';
 import { CodeNode } from './nodes/CodeNode';
+import { ExecutionPanel } from './execution/ExecutionPanel';
 
 const nodeTypes = {
   start: StartNode,
@@ -106,6 +107,21 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const [isDirty, setIsDirty] = useState(false);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const nodeLabels = useMemo(
+    () => Object.fromEntries(nodes.map((node) => [node.id, node.data.label])),
+    [nodes],
+  );
+
+  // Selection is not persisted by toPersistedCanvas, so focusing a node never marks the canvas dirty.
+  const focusNode = useCallback(
+    (nodeId: string) => {
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => ({ ...node, selected: node.id === nodeId })),
+      );
+      setSelectedNodeId(nodeId);
+    },
+    [setNodes],
+  );
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<WorkflowNode>[]) => {
@@ -451,6 +467,15 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
           onDeleteNode={deleteNode}
         />
       </div>
+
+      <ExecutionPanel
+        workflowId={workflow.id}
+        isDirty={isDirty}
+        isSaving={saveCanvasMutation.isPending}
+        nodeLabels={nodeLabels}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={focusNode}
+      />
     </div>
   );
 }

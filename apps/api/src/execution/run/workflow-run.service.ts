@@ -51,6 +51,16 @@ export class WorkflowRunService {
       where: { workflowId },
       orderBy: { createdAt: 'desc' },
       take: 50,
+      select: {
+        id: true,
+        workflowId: true,
+        status: true,
+        errorCode: true,
+        errorMessage: true,
+        startedAt: true,
+        finishedAt: true,
+        createdAt: true,
+      },
     });
   }
 }
