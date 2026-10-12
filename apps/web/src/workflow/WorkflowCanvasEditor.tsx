@@ -103,9 +103,11 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   });
 
   const [nodes, setNodes] = useNodesState<WorkflowNode>(
-    withDeleteRules(workflow.canvas?.nodes ?? defaultNodes),
+    withDeleteRules(workflow.draftCanvas?.nodes ?? defaultNodes),
   );
-  const [edges, setEdges] = useEdgesState<WorkflowEdge>(workflow.canvas?.edges ?? defaultEdges);
+  const [edges, setEdges] = useEdgesState<WorkflowEdge>(
+    workflow.draftCanvas?.edges ?? defaultEdges,
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [flow, setFlow] = useState<ReactFlowInstance<WorkflowNode, WorkflowEdge> | null>(null);
@@ -433,7 +435,15 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
           </Link>
           <span className="editor-workflow-icon">⌘</span>
           <div>
-            <strong className="editor-name">{workflow.name}</strong>
+            <span className="editor-title-row">
+              <strong className="editor-name">{workflow.name}</strong>
+              <span
+                className="editor-draft-badge"
+                title="当前编辑的是草稿，发布后才会生成不可修改的版本"
+              >
+                草稿
+              </span>
+            </span>
             <span className={`editor-save-state ${isDirty ? 'dirty' : ''}`}>
               {isDirty ? '未保存的更改' : '已自动保存'}
             </span>

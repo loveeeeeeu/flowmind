@@ -97,13 +97,14 @@ export class WorkflowService {
     });
   }
 
+  /** Saving only touches the mutable draft; published versions are never rewritten. */
   async updateCanvas(id: string, dto: UpdateWorkflowCanvasDto) {
     await this.findOne(id);
 
     return this.prisma.workflow.update({
       where: { id },
       data: {
-        canvas: { nodes: dto.nodes, edges: dto.edges } as Prisma.InputJsonValue,
+        draftCanvas: { nodes: dto.nodes, edges: dto.edges } as Prisma.InputJsonValue,
       },
     });
   }
@@ -111,25 +112,28 @@ export class WorkflowService {
   async validateWorkflow(id: string) {
     const workflow = await this.findOne(id);
 
-    if (!workflow.canvas) {
-      throw new BadRequestException('Workflow has no canvas');
+    if (!workflow.draftCanvas) {
+      throw new BadRequestException('Workflow has no draft canvas');
     }
 
     return this.workflowPlanService.createExecutionPlan(
-      workflow.canvas as unknown as WorkflowCanvas,
+      workflow.draftCanvas as unknown as WorkflowCanvas,
     );
   }
 
+  // Still runs the draft until publishing exists (Sprint 8 Lesson 2 switches runs to versions).
   async runWorkflow(id: string, dto: RunWorkflowDto) {
     const workflow = await this.findOne(id);
 
-    if (!workflow.canvas) {
-      throw new BadRequestException('Workflow has no canvas');
+    if (!workflow.draftCanvas) {
+      throw new BadRequestException('Workflow has no draft canvas');
     }
 
     // Structural errors return 400 before a run exists; the worker still re-validates
-    // because the canvas may change between enqueue and execution.
-    this.workflowPlanService.createExecutionPlan(workflow.canvas as unknown as WorkflowCanvas);
+    // because the draft may change between enqueue and execution.
+    this.workflowPlanService.createExecutionPlan(
+      workflow.draftCanvas as unknown as WorkflowCanvas,
+    );
 
     return this.executionService.createRun({
       workflowId: workflow.id,

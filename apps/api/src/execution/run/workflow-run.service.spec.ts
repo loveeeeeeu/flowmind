@@ -48,7 +48,7 @@ describe('WorkflowRunService', () => {
     });
   });
 
-  it('loads node runs in execution order, retries of a step by attempt', async () => {
+  it('loads the version summary and node runs in execution order, retries of a step by attempt', async () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
@@ -56,7 +56,10 @@ describe('WorkflowRunService', () => {
 
     expect(prisma.workflowRun.findUnique).toHaveBeenCalledWith({
       where: { id: 'run-1' },
-      include: { nodeRuns: { orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }] } },
+      include: {
+        workflowVersion: { select: { id: true, version: true, createdAt: true } },
+        nodeRuns: { orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }] },
+      },
     });
   });
 

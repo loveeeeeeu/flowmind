@@ -12,10 +12,10 @@ const validCanvas = {
   edges: [{ source: 'start', target: 'end' }],
 };
 
-function createService(canvas: unknown) {
+function createService(draftCanvas: unknown) {
   const prisma = {
     workflow: {
-      findUnique: vi.fn(async () => ({ id: 'workflow-1', canvas })),
+      findUnique: vi.fn(async () => ({ id: 'workflow-1', draftCanvas })),
     },
   };
   const createRun = vi.fn(async () => ({ id: 'run-1', status: 'PENDING' }));
@@ -48,6 +48,15 @@ describe('WorkflowService.runWorkflow', () => {
 
     await expect(service.runWorkflow('workflow-1', { input: {} })).rejects.toThrow(
       new BadRequestException('Workflow must have exactly one end node'),
+    );
+    expect(createRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects a workflow whose draft was never saved', async () => {
+    const { service, createRun } = createService(null);
+
+    await expect(service.runWorkflow('workflow-1', { input: {} })).rejects.toThrow(
+      new BadRequestException('Workflow has no draft canvas'),
     );
     expect(createRun).not.toHaveBeenCalled();
   });

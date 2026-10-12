@@ -7,7 +7,8 @@ export interface Workflow {
     name: string;
     description: string | null;
     status: WorkflowStatus;
-    canvas: WorkflowCanvas | null;
+    /** The editable draft; published versions are separate immutable snapshots. */
+    draftCanvas: WorkflowCanvas | null;
     createdAt: string;
     updatedAt: string;
 }

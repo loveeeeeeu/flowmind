@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service.js';
+import { WorkflowVersionService } from './workflow-version.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
@@ -21,7 +22,10 @@ import { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 @ApiTags('Workflows')
 @Controller('workflows')
 export class WorkflowController {
-  constructor(private readonly workflowService: WorkflowService) {}
+  constructor(
+    private readonly workflowService: WorkflowService,
+    private readonly workflowVersionService: WorkflowVersionService,
+  ) {}
 
   @ApiOperation({ summary: '创建工作流' })
   @Post()
@@ -53,7 +57,7 @@ export class WorkflowController {
     return this.workflowService.remove(id);
   }
 
-  @ApiOperation({ summary: '保存工作流画布' })
+  @ApiOperation({ summary: '保存工作流草稿画布' })
   @Patch(':id/canvas')
   updateCanvas(@Param('id') id: string, @Body() dto: UpdateWorkflowCanvasDto) {
     return this.workflowService.updateCanvas(id, dto);
@@ -75,5 +79,14 @@ export class WorkflowController {
   @Get(':id/runs')
   findRuns(@Param('id') id: string) {
     return this.workflowService.findRuns(id);
+  }
+
+  // Read-only on purpose: versions are immutable, so there is no PATCH or DELETE route.
+  @ApiOperation({ summary: '查询工作流的发布版本（新版本在前）' })
+  @Get(':id/versions')
+  async findVersions(@Param('id') id: string) {
+    await this.workflowService.findOne(id);
+
+    return this.workflowVersionService.findByWorkflow(id);
   }
 }

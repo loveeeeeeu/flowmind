@@ -46,21 +46,49 @@ model Workflow {
   id          String         @id @default(cuid())
   name        String
   description String?
+  // PUBLISHED means "at least one version exists"; the draft can still have unpublished edits.
   status      WorkflowStatus @default(DRAFT)
 
-  canvas Json?
+  // Mutable working copy edited in the canvas editor. Never executed by published runs.
+  draftCanvas Json?
 
-  runs WorkflowRun[]
+  versions WorkflowVersion[]
+  runs     WorkflowRun[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model WorkflowRun {
+// Immutable snapshot created by publishing. No update or delete API: runs must stay reproducible.
+model WorkflowVersion {
   id String @id @default(cuid())
 
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  // Per-workflow sequence: 1, 2, 3...
+  version Int
+
+  canvas Json
+
+  createdAt DateTime @default(now())
+
+  runs WorkflowRun[]
+
+  @@unique([workflowId, version])
+  @@index([workflowId])
+}
+
+model WorkflowRun {
+  id String @id @default(cuid())
+
+  // Kept alongside the version for direct history queries and for runs created before versions.
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  // Null for legacy runs created before versioning; never guessed after the fact.
+  workflowVersionId String?
+  workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)
 
   status RunStatus @default(PENDING)
 
@@ -82,6 +110,7 @@ model WorkflowRun {
   logs     ExecutionLog[]
 
   @@index([workflowId])
+  @@index([workflowVersionId])
   @@index([status])
   @@index([createdAt])
 }

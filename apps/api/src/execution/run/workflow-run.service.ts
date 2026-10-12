@@ -39,6 +39,8 @@ export class WorkflowRunService {
     return this.prisma.workflowRun.findUnique({
       where: { id: runId },
       include: {
+        // null for legacy runs created before versioning.
+        workflowVersion: { select: { id: true, version: true, createdAt: true } },
         nodeRuns: {
           // Retries share a sequence, so attempt keeps them in execution order.
           orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }],

@@ -25,8 +25,9 @@ export class WorkflowExecutionService {
       return;
     }
 
-    // Known limitation: reads the workflow's latest canvas; WorkflowVersion snapshots fix this later.
-    const canvas = run.workflow.canvas as unknown as WorkflowCanvas;
+    // Transitional: still executes the mutable draft, so edits saved while a run is PENDING leak
+    // into it. Runs switch to their immutable WorkflowVersion once publishing exists.
+    const canvas = run.workflow.draftCanvas as unknown as WorkflowCanvas;
     const input = (run.input ?? {}) as Record<string, unknown>;
     const stopHeartbeat = this.runState.startHeartbeat(runId);
     let result: WorkflowExecutionResult;

@@ -44,7 +44,15 @@ export interface ExecutionLog {
   createdAt: string;
 }
 
+export interface WorkflowVersionSummary {
+  id: string;
+  version: number;
+  createdAt: string;
+}
+
 export interface WorkflowRunDetail extends WorkflowRunSummary {
+  /** null for legacy runs created before versioning. */
+  workflowVersion: WorkflowVersionSummary | null;
   input: unknown;
   output: unknown;
   updatedAt: string;

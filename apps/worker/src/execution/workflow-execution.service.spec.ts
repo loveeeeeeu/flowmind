@@ -11,7 +11,7 @@ const run = {
   status: 'PENDING',
   heartbeatAt: null,
   input: { name: 'FlowMind' },
-  workflow: { canvas },
+  workflow: { draftCanvas: canvas },
 };
 
 function createRunState(decision: RunExecutionDecision = 'execute') {
