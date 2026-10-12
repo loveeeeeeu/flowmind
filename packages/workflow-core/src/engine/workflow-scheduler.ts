@@ -99,13 +99,15 @@ export class WorkflowScheduler {
         const willRetry =
           retryMode === 'transient' && isRetryableError(error) && attempt < maxAttempts;
 
-        await observer?.onNodeFailure?.({ node, sequence, attempt, error, willRetry });
-
         if (!willRetry) {
+          await observer?.onNodeFailure?.({ node, sequence, attempt, error, willRetry });
           throw error;
         }
 
-        await sleep(this.retryPolicy.backoffMs(attempt));
+        const retryDelayMs = this.retryPolicy.backoffMs(attempt);
+
+        await observer?.onNodeFailure?.({ node, sequence, attempt, error, willRetry, retryDelayMs });
+        await sleep(retryDelayMs);
       }
     }
   }

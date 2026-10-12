@@ -15,6 +15,8 @@ export interface NodeSuccessEvent extends NodeExecutionEvent {
 export interface NodeFailureEvent extends NodeExecutionEvent {
   error: unknown;
   willRetry: boolean;
+  /** Backoff before the next attempt; only set when willRetry is true. */
+  retryDelayMs?: number;
 }
 
 export interface ExecutionObserver {

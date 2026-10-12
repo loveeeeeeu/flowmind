@@ -12,6 +12,7 @@ import {
   type Connection,
   type EdgeChange,
   type NodeChange,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Link } from 'react-router';
@@ -45,6 +46,8 @@ import { IfNode } from './nodes/IfNode';
 import { LoopNode } from './nodes/LoopNode';
 import { CodeNode } from './nodes/CodeNode';
 import { ExecutionPanel } from './execution/ExecutionPanel';
+import { buildNodeStatusMap } from './execution/runUtils';
+import { useExecutionState } from './execution/useExecutionState';
 
 const nodeTypes = {
   start: StartNode,
@@ -105,6 +108,8 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const [edges, setEdges] = useEdgesState<WorkflowEdge>(workflow.canvas?.edges ?? defaultEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [flow, setFlow] = useState<ReactFlowInstance<WorkflowNode, WorkflowEdge> | null>(null);
+  const execution = useExecutionState(workflow.id);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const nodeLabels = useMemo(
@@ -112,15 +117,36 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     [nodes],
   );
 
+  const overlayRun = execution.isOpen ? execution.viewedRunQuery.data : undefined;
+  // Execution status is a render-only className: `nodes` (what gets saved) never contains it.
+  const renderedNodes = useMemo(() => {
+    if (!overlayRun) {
+      return nodes;
+    }
+
+    const statusByNode = buildNodeStatusMap(overlayRun.nodeRuns);
+
+    return nodes.map((node) => ({
+      ...node,
+      className: `run-node-${statusByNode.get(node.id) ?? 'idle'}`,
+    }));
+  }, [nodes, overlayRun]);
+
   // Selection is not persisted by toPersistedCanvas, so focusing a node never marks the canvas dirty.
   const focusNode = useCallback(
     (nodeId: string) => {
+      // A historical run can reference a node that has since been deleted.
+      if (!nodes.some((node) => node.id === nodeId)) {
+        return;
+      }
+
       setNodes((currentNodes) =>
         currentNodes.map((node) => ({ ...node, selected: node.id === nodeId })),
       );
       setSelectedNodeId(nodeId);
+      void flow?.fitView({ nodes: [{ id: nodeId }], duration: 300, maxZoom: 1.2 });
     },
-    [setNodes],
+    [nodes, setNodes, flow],
   );
 
   const handleNodesChange = useCallback(
@@ -442,9 +468,10 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
 
         <div className="canvas-stage">
           <ReactFlow
-            nodes={nodes}
+            nodes={renderedNodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            onInit={setFlow}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
@@ -469,7 +496,8 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       </div>
 
       <ExecutionPanel
-        workflowId={workflow.id}
+        execution={execution}
+        workflowUpdatedAt={workflow.updatedAt}
         isDirty={isDirty}
         isSaving={saveCanvasMutation.isPending}
         nodeLabels={nodeLabels}

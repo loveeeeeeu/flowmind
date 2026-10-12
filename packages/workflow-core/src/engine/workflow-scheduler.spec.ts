@@ -206,7 +206,7 @@ describe('WorkflowScheduler node retry', () => {
       ['end', 2, 1],
     ]);
     expect(onNodeFailure).toHaveBeenCalledWith(
-      expect.objectContaining({ sequence: 1, attempt: 1, willRetry: true }),
+      expect.objectContaining({ sequence: 1, attempt: 1, willRetry: true, retryDelayMs: 0 }),
     );
     expect(onNodeSuccess).toHaveBeenCalledWith(
       expect.objectContaining({ sequence: 1, attempt: 2, output: 'ok' }),
@@ -227,10 +227,12 @@ describe('WorkflowScheduler node retry', () => {
 
     expect(execute).toHaveBeenCalledTimes(3);
     expect(backoffMs.mock.calls).toEqual([[1], [2]]);
-    expect(onNodeFailure.mock.calls.map(([event]) => [event.attempt, event.willRetry])).toEqual([
-      [1, true],
-      [2, true],
-      [3, false],
+    expect(
+      onNodeFailure.mock.calls.map(([event]) => [event.attempt, event.willRetry, event.retryDelayMs]),
+    ).toEqual([
+      [1, true, 0],
+      [2, true, 0],
+      [3, false, undefined],
     ]);
   });
 

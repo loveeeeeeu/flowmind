@@ -5,6 +5,7 @@ import {
   type WorkflowExecutionResult,
 } from '@flowmind/workflow-core';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ExecutionLogService } from './execution-log.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 import { RunStateService } from './run-state.service.js';
 
@@ -14,6 +15,7 @@ export class WorkflowExecutionService {
     private readonly prisma: PrismaService,
     private readonly engine: WorkflowEngine,
     private readonly runState: RunStateService,
+    private readonly logs: ExecutionLogService,
   ) {}
 
   async executeRun(runId: string) {
@@ -31,7 +33,7 @@ export class WorkflowExecutionService {
 
     try {
       result = await this.engine.execute(canvas, input, {
-        observer: new PrismaExecutionObserver(this.prisma, runId),
+        observer: new PrismaExecutionObserver(this.prisma, this.logs, runId),
       });
     } catch (error) {
       await this.runState.markFailed(runId, error);

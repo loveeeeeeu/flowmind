@@ -31,6 +31,19 @@ export interface NodeRun {
   createdAt: string;
 }
 
+export type ExecutionLogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
+export interface ExecutionLog {
+  id: string;
+  workflowRunId: string;
+  /** null for run-level events (started, completed, recovered). */
+  nodeRunId: string | null;
+  level: ExecutionLogLevel;
+  message: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface WorkflowRunDetail extends WorkflowRunSummary {
   input: unknown;
   output: unknown;

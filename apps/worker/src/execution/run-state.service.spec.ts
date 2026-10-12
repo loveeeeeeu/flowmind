@@ -1,4 +1,5 @@
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { ExecutionLogService } from './execution-log.service.js';
 import {
   RUN_HEARTBEAT_INTERVAL_MS,
   RUN_STALE_AFTER_MS,
@@ -15,7 +16,13 @@ function createPrisma(claimCount = 1) {
 }
 
 function createService(prisma = createPrisma()) {
-  return { prisma, service: new RunStateService(prisma as unknown as PrismaService) };
+  const logs = { log: vi.fn(async () => undefined) };
+  const service = new RunStateService(
+    prisma as unknown as PrismaService,
+    logs as unknown as ExecutionLogService,
+  );
+
+  return { prisma, logs, service };
 }
 
 function secondsAgo(seconds: number) {
@@ -24,8 +31,8 @@ function secondsAgo(seconds: number) {
 
 describe('RunStateService', () => {
   describe('prepareForExecution', () => {
-    it('claims a PENDING run with a conditional update and starts its heartbeat clock', async () => {
-      const { prisma, service } = createService();
+    it('claims a PENDING run with a conditional update and logs the start', async () => {
+      const { prisma, logs, service } = createService();
 
       await expect(
         service.prepareForExecution({ id: 'run-1', status: 'PENDING', heartbeatAt: null }),
@@ -35,14 +42,21 @@ describe('RunStateService', () => {
         where: { id: 'run-1', status: 'PENDING' },
         data: { status: 'RUNNING', startedAt: expect.any(Date), heartbeatAt: expect.any(Date) },
       });
+      expect(logs.log).toHaveBeenCalledWith({
+        workflowRunId: 'run-1',
+        message: '开始运行',
+        metadata: { workerPid: process.pid },
+      });
     });
 
     it('skips when another worker won the claim (count = 0)', async () => {
-      const { service } = createService(createPrisma(0));
+      const { logs, service } = createService(createPrisma(0));
 
       await expect(
         service.prepareForExecution({ id: 'run-1', status: 'PENDING', heartbeatAt: null }),
       ).resolves.toBe('skip');
+      expect(logs.log).toHaveBeenCalledWith(expect.objectContaining({ level: 'WARN' }));
+      expect(logs.log).not.toHaveBeenCalledWith(expect.objectContaining({ message: '开始运行' }));
     });
 
     it.each(['SUCCESS', 'FAILED', 'CANCELLED'])('skips a run that is already %s', async (status) => {
@@ -64,7 +78,7 @@ describe('RunStateService', () => {
     });
 
     it('fails a stale RUNNING run as WORKER_INTERRUPTED instead of re-executing it', async () => {
-      const { prisma, service } = createService();
+      const { prisma, logs, service } = createService();
 
       await expect(
         service.prepareForExecution({ id: 'run-1', status: 'RUNNING', heartbeatAt: secondsAgo(120) }),
@@ -79,6 +93,12 @@ describe('RunStateService', () => {
           finishedAt: expect.any(Date),
         },
       });
+      expect(logs.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          level: 'ERROR',
+          metadata: { code: 'WORKER_INTERRUPTED', detectedBy: 'redelivery' },
+        }),
+      );
     });
   });
 
@@ -112,8 +132,8 @@ describe('RunStateService', () => {
     }
   });
 
-  it('only finishes runs that are still RUNNING', async () => {
-    const { prisma, service } = createService();
+  it('only finishes runs that are still RUNNING, and logs the outcome', async () => {
+    const { prisma, logs, service } = createService();
 
     await service.markSuccess('run-1', { result: 'Hello' });
     await service.markFailed(
@@ -134,5 +154,21 @@ describe('RunStateService', () => {
         finishedAt: expect.any(Date),
       },
     });
+    expect(logs.log).toHaveBeenNthCalledWith(1, { workflowRunId: 'run-1', message: '运行成功' });
+    expect(logs.log).toHaveBeenNthCalledWith(2, {
+      workflowRunId: 'run-1',
+      level: 'ERROR',
+      message: '运行失败',
+      metadata: { code: 'RATE_LIMIT', message: 'Rate limit' },
+    });
+  });
+
+  it('does not log an outcome that lost the race (run no longer RUNNING)', async () => {
+    const { logs, service } = createService(createPrisma(0));
+
+    await service.markSuccess('run-1', 'late');
+    await service.markFailed('run-1', new Error('late'));
+
+    expect(logs.log).not.toHaveBeenCalled();
   });
 });

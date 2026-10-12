@@ -3,7 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { type ExecuteWorkflowJobData, WORKFLOW_EXECUTION_QUEUE } from '@flowmind/shared';
 import type { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { RUN_STALE_AFTER_MS, WORKER_INTERRUPTED_FAILURE } from './run-state.service.js';
+import { ExecutionLogService } from './execution-log.service.js';
+import { RUN_STALE_AFTER_MS, RunStateService } from './run-state.service.js';
 
 /** Leaves the API enough time to enqueue right after creating the run. */
 export const PENDING_SUBMISSION_TIMEOUT_MS = 5 * 60_000;
@@ -25,6 +26,8 @@ export class RunRecoveryService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly runState: RunStateService,
+    private readonly logs: ExecutionLogService,
     @InjectQueue(WORKFLOW_EXECUTION_QUEUE)
     private readonly queue: Queue<ExecuteWorkflowJobData>,
   ) {}
@@ -46,13 +49,20 @@ export class RunRecoveryService {
 
   private async failStaleRunning(now: Date) {
     const threshold = new Date(now.getTime() - RUN_STALE_AFTER_MS);
-    const { count } = await this.prisma.workflowRun.updateMany({
+    const candidates = await this.prisma.workflowRun.findMany({
       where: {
         status: 'RUNNING',
         OR: [{ heartbeatAt: null }, { heartbeatAt: { lt: threshold } }],
       },
-      data: { status: 'FAILED', ...WORKER_INTERRUPTED_FAILURE, finishedAt: now },
+      select: { id: true },
     });
+    let count = 0;
+
+    for (const { id } of candidates) {
+      if (await this.runState.markInterrupted(id, 'recovery-scan')) {
+        count += 1;
+      }
+    }
 
     return count;
   }
@@ -83,7 +93,16 @@ export class RunRecoveryService {
           finishedAt: now,
         },
       });
-      count += result.count;
+
+      if (result.count === 1) {
+        count += 1;
+        await this.logs.log({
+          workflowRunId: id,
+          level: 'ERROR',
+          message: '恢复扫描：运行未进入执行队列，已标记为失败',
+          metadata: { code: 'QUEUE_SUBMISSION_TIMEOUT' },
+        });
+      }
     }
 
     return count;

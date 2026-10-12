@@ -47,6 +47,25 @@ export class WorkflowRunService {
     });
   }
 
+  /** Kept out of findOne: logs grow much faster than node runs and are loaded on demand. */
+  async findLogs(runId: string) {
+    const run = await this.prisma.workflowRun.findUnique({
+      where: { id: runId },
+      select: { id: true },
+    });
+
+    if (!run) {
+      return null;
+    }
+
+    return this.prisma.executionLog.findMany({
+      where: { workflowRunId: runId },
+      // Several logs can share a millisecond; the id keeps the order stable between polls.
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 500,
+    });
+  }
+
   findByWorkflow(workflowId: string) {
     return this.prisma.workflowRun.findMany({
       where: { workflowId },

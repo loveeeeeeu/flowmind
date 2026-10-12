@@ -18,4 +18,16 @@ export class RunController {
 
     return run;
   }
+
+  @ApiOperation({ summary: 'Get the execution logs of a workflow run (oldest first, max 500)' })
+  @Get(':id/logs')
+  async findLogs(@Param('id') id: string) {
+    const logs = await this.runs.findLogs(id);
+
+    if (!logs) {
+      throw new NotFoundException(`Run ${id} not found`);
+    }
+
+    return logs;
+  }
 }

@@ -1,25 +1,36 @@
 import type { WorkflowNode } from '@flowmind/workflow-core';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { ExecutionLogService } from './execution-log.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 
-function createPrisma() {
+function setup() {
   let created = 0;
-
-  return {
+  const prisma = {
     nodeRun: {
       create: vi.fn(async () => ({ id: `node-run-${created++}` })),
       update: vi.fn(async () => undefined),
     },
   };
+  const logs = { log: vi.fn(async () => undefined) };
+  const observer = new PrismaExecutionObserver(
+    prisma as unknown as PrismaService,
+    logs as unknown as ExecutionLogService,
+    'run-1',
+  );
+
+  return { prisma, logs, observer };
 }
 
-const body: WorkflowNode = { id: 'body', type: 'template', data: {} };
-const llm: WorkflowNode = { id: 'llm', type: 'llm', data: {} };
+const body: WorkflowNode = { id: 'body', type: 'template', data: { template: 'secret {{x}}' } };
+const llm: WorkflowNode = {
+  id: 'llm',
+  type: 'llm',
+  data: { provider: 'deepseek', model: 'deepseek-chat', prompt: 'private user text' },
+};
 
 describe('PrismaExecutionObserver', () => {
   it('creates a running node run and completes the matching one by sequence', async () => {
-    const prisma = createPrisma();
-    const observer = new PrismaExecutionObserver(prisma as unknown as PrismaService, 'run-1');
+    const { prisma, observer } = setup();
 
     // The same node twice, as inside a loop body.
     await observer.onNodeStart({ node: body, sequence: 2, attempt: 1 });
@@ -48,10 +59,30 @@ describe('PrismaExecutionObserver', () => {
     });
   });
 
-  it('records each retry attempt of the same step as its own node run', async () => {
-    const prisma = createPrisma();
-    const observer = new PrismaExecutionObserver(prisma as unknown as PrismaService, 'run-1');
-    const rateLimit = Object.assign(new Error('Rate limit'), { code: 'RATE_LIMIT' });
+  it('logs node start with safe node facts only, linked to its node run', async () => {
+    const { logs, observer } = setup();
+
+    await observer.onNodeStart({ node: llm, sequence: 1, attempt: 1 });
+
+    expect(logs.log).toHaveBeenCalledWith({
+      workflowRunId: 'run-1',
+      nodeRunId: 'node-run-0',
+      message: '节点开始执行',
+      metadata: {
+        nodeId: 'llm',
+        nodeType: 'llm',
+        sequence: 1,
+        attempt: 1,
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+      },
+    });
+    expect(JSON.stringify(logs.log.mock.calls)).not.toContain('private user text');
+  });
+
+  it('records each retry attempt as its own node run, WARN while retrying, INFO on success', async () => {
+    const { prisma, logs, observer } = setup();
+    const rateLimit = Object.assign(new Error('Rate limit'), { code: 'RATE_LIMIT', retryable: true });
 
     await observer.onNodeStart({ node: llm, sequence: 2, attempt: 1 });
     await observer.onNodeFailure({
@@ -60,14 +91,11 @@ describe('PrismaExecutionObserver', () => {
       attempt: 1,
       error: rateLimit,
       willRetry: true,
+      retryDelayMs: 500,
     });
     await observer.onNodeStart({ node: llm, sequence: 2, attempt: 2 });
     await observer.onNodeSuccess({ node: llm, sequence: 2, attempt: 2, output: 'ok' });
 
-    expect(prisma.nodeRun.create).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ data: expect.objectContaining({ sequence: 2, attempt: 2 }) }),
-    );
     expect(prisma.nodeRun.update).toHaveBeenNthCalledWith(1, {
       where: { id: 'node-run-0' },
       data: {
@@ -81,11 +109,31 @@ describe('PrismaExecutionObserver', () => {
       where: { id: 'node-run-1' },
       data: { status: 'SUCCESS', output: 'ok', finishedAt: expect.any(Date) },
     });
+    expect(logs.log).toHaveBeenCalledWith({
+      workflowRunId: 'run-1',
+      nodeRunId: 'node-run-0',
+      level: 'WARN',
+      message: '节点执行失败，500ms 后重试',
+      metadata: {
+        nodeId: 'llm',
+        sequence: 2,
+        attempt: 1,
+        code: 'RATE_LIMIT',
+        retryable: true,
+        willRetry: true,
+        retryDelayMs: 500,
+      },
+    });
+    expect(logs.log).toHaveBeenLastCalledWith({
+      workflowRunId: 'run-1',
+      nodeRunId: 'node-run-1',
+      message: '节点执行成功',
+      metadata: { nodeId: 'llm', sequence: 2, attempt: 2 },
+    });
   });
 
-  it('records error code and message on failure', async () => {
-    const prisma = createPrisma();
-    const observer = new PrismaExecutionObserver(prisma as unknown as PrismaService, 'run-1');
+  it('records the final failure as ERROR', async () => {
+    const { prisma, logs, observer } = setup();
 
     await observer.onNodeStart({ node: body, sequence: 0, attempt: 1 });
     await observer.onNodeFailure({
@@ -105,5 +153,12 @@ describe('PrismaExecutionObserver', () => {
         finishedAt: expect.any(Date),
       },
     });
+    expect(logs.log).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        level: 'ERROR',
+        message: '节点执行失败',
+        metadata: expect.objectContaining({ code: 'NODE_EXECUTION_ERROR', willRetry: false }),
+      }),
+    );
   });
 });

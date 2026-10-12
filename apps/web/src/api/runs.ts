@@ -1,4 +1,4 @@
-import type { WorkflowRunDetail, WorkflowRunSummary } from '../types/run';
+import type { ExecutionLog, WorkflowRunDetail, WorkflowRunSummary } from '../types/run';
 import { request } from './client';
 
 export function createWorkflowRun(
@@ -14,6 +14,10 @@ export function createWorkflowRun(
 
 export function getWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
   return request<WorkflowRunDetail>(`/runs/${runId}`);
+}
+
+export function getWorkflowRunLogs(runId: string): Promise<ExecutionLog[]> {
+  return request<ExecutionLog[]>(`/runs/${runId}/logs`);
 }
 
 export function getWorkflowRuns(workflowId: string): Promise<WorkflowRunSummary[]> {

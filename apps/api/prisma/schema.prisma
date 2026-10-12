@@ -35,6 +35,13 @@ enum NodeRunStatus {
   SKIPPED
 }
 
+enum ExecutionLogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
 model Workflow {
   id          String         @id @default(cuid())
   name        String
@@ -72,6 +79,7 @@ model WorkflowRun {
   updatedAt DateTime @updatedAt
 
   nodeRuns NodeRun[]
+  logs     ExecutionLog[]
 
   @@index([workflowId])
   @@index([status])
@@ -105,7 +113,30 @@ model NodeRun {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  logs ExecutionLog[]
+
   @@index([workflowRunId])
   @@index([workflowRunId, sequence])
   @@index([nodeId])
+}
+
+// Append-only events of a run. Run-level events (claimed, completed, recovered) have no nodeRunId.
+model ExecutionLog {
+  id String @id @default(cuid())
+
+  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  nodeRunId String?
+  nodeRun   NodeRun? @relation(fields: [nodeRunId], references: [id], onDelete: Cascade)
+
+  level   ExecutionLogLevel @default(INFO)
+  message String
+  // IDs and codes only, never secrets, prompts or full URLs.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([workflowRunId, createdAt])
+  @@index([nodeRunId, createdAt])
 }

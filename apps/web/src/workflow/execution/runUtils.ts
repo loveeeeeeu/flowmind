@@ -1,4 +1,10 @@
-import type { NodeRunStatus, RunStatus, WorkflowRunSummary } from '../../types/run';
+import type {
+  ExecutionLogLevel,
+  NodeRun,
+  NodeRunStatus,
+  RunStatus,
+  WorkflowRunSummary,
+} from '../../types/run';
 
 const TERMINAL_RUN_STATUSES: RunStatus[] = ['SUCCESS', 'FAILED', 'CANCELLED'];
 
@@ -18,6 +24,13 @@ export const NODE_RUN_STATUS_LABELS: Record<NodeRunStatus, string> = {
   SKIPPED: '已跳过',
 };
 
+export const LOG_LEVEL_LABELS: Record<ExecutionLogLevel, string> = {
+  DEBUG: '调试',
+  INFO: '信息',
+  WARN: '警告',
+  ERROR: '错误',
+};
+
 export function isTerminalRunStatus(status: RunStatus | undefined): boolean {
   return status !== undefined && TERMINAL_RUN_STATUSES.includes(status);
 }
@@ -35,6 +48,22 @@ export function getDurationMs(
   }
 
   return new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+}
+
+/**
+ * Like getDurationMs, but an unfinished span counts up to `now` when one is given.
+ * `now` comes from the polling query's dataUpdatedAt, so render stays pure.
+ */
+export function getElapsedMs(
+  startedAt: string | null,
+  finishedAt: string | null,
+  now: number | null,
+): number | null {
+  if (startedAt && !finishedAt && now !== null) {
+    return Math.max(0, now - new Date(startedAt).getTime());
+  }
+
+  return getDurationMs(startedAt, finishedAt);
 }
 
 export function formatDuration(durationMs: number | null): string {
@@ -62,6 +91,91 @@ export function formatRunTime(value: string | null): string {
     second: '2-digit',
     hour12: false,
   });
+}
+
+export function formatLogTime(value: string): string {
+  const date = new Date(value);
+  const time = date.toLocaleTimeString('zh-CN', { hour12: false });
+
+  return `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+}
+
+/** One executed step (sequence); retries of the step are its attempts, oldest first. */
+export interface NodeRunGroup {
+  sequence: number;
+  nodeId: string;
+  nodeType: string;
+  iteration: number | null;
+  attempts: NodeRun[];
+  latest: NodeRun;
+}
+
+/** Expects node runs ordered by sequence, then attempt (as the API returns them). */
+export function groupNodeRuns(nodeRuns: NodeRun[]): NodeRunGroup[] {
+  const groups: NodeRunGroup[] = [];
+
+  for (const nodeRun of nodeRuns) {
+    const last = groups.at(-1);
+
+    if (last && last.sequence === nodeRun.sequence) {
+      last.attempts.push(nodeRun);
+      last.latest = nodeRun;
+      continue;
+    }
+
+    groups.push({
+      sequence: nodeRun.sequence,
+      nodeId: nodeRun.nodeId,
+      nodeType: nodeRun.nodeType,
+      iteration: nodeRun.iteration,
+      attempts: [nodeRun],
+      latest: nodeRun,
+    });
+  }
+
+  return groups;
+}
+
+export type CanvasRunStatus = 'idle' | 'running' | 'success' | 'failed';
+
+const CANVAS_STATUS_BY_NODE_RUN: Record<NodeRunStatus, CanvasRunStatus> = {
+  PENDING: 'running',
+  RUNNING: 'running',
+  SUCCESS: 'success',
+  FAILED: 'failed',
+  SKIPPED: 'idle',
+};
+
+/**
+ * The latest node run of each node decides its canvas status: a retried node that finally
+ * succeeded is green, a loop body shows its last iteration. Nodes absent from the map are idle.
+ */
+export function buildNodeStatusMap(nodeRuns: NodeRun[]): Map<string, CanvasRunStatus> {
+  const statusByNode = new Map<string, CanvasRunStatus>();
+
+  for (const nodeRun of nodeRuns) {
+    statusByNode.set(nodeRun.nodeId, CANVAS_STATUS_BY_NODE_RUN[nodeRun.status]);
+  }
+
+  return statusByNode;
+}
+
+export interface RunMetrics {
+  steps: number;
+  attempts: number;
+  failedAttempts: number;
+  retries: number;
+}
+
+export function getRunMetrics(nodeRuns: NodeRun[]): RunMetrics {
+  const steps = new Set(nodeRuns.map((nodeRun) => nodeRun.sequence)).size;
+
+  return {
+    steps,
+    attempts: nodeRuns.length,
+    failedAttempts: nodeRuns.filter((nodeRun) => nodeRun.status === 'FAILED').length,
+    retries: nodeRuns.length - steps,
+  };
 }
 
 export function formatJson(value: unknown): string {
