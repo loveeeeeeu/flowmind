@@ -9,6 +9,8 @@ import { ExecutionLogService } from './execution-log.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 import { RunStateService } from './run-state.service.js';
 
+export const WORKFLOW_VERSION_MISSING = 'WORKFLOW_VERSION_MISSING';
+
 @Injectable()
 export class WorkflowExecutionService {
   constructor(
@@ -25,9 +27,20 @@ export class WorkflowExecutionService {
       return;
     }
 
-    // Transitional: still executes the mutable draft, so edits saved while a run is PENDING leak
-    // into it. Runs switch to their immutable WorkflowVersion once publishing exists.
-    const canvas = run.workflow.draftCanvas as unknown as WorkflowCanvas;
+    // Legacy runs predate versioning. Falling back to the draft would execute something the
+    // user never published, so they fail explicitly instead.
+    if (!run.workflowVersion) {
+      const error = Object.assign(
+        new Error('Workflow run was created before versioned execution was enabled'),
+        { code: WORKFLOW_VERSION_MISSING },
+      );
+      await this.runState.markFailed(runId, error);
+      throw error;
+    }
+
+    // Immutable snapshot bound at run creation: later draft edits or publishes cannot leak in.
+    // The engine still re-validates it before executing.
+    const canvas = run.workflowVersion.canvas as unknown as WorkflowCanvas;
     const input = (run.input ?? {}) as Record<string, unknown>;
     const stopHeartbeat = this.runState.startHeartbeat(runId);
     let result: WorkflowExecutionResult;

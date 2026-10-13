@@ -3,6 +3,7 @@ import type { WorkflowCanvas, WorkflowNode } from './engine/workflow-engine.type
 import { WorkflowGraph } from './engine/workflow-graph.js';
 import type { NodeExecutionEvent, NodeFailureEvent } from './ports/execution-observer.js';
 import type { LlmClient } from './ports/llm-client.js';
+import { SUPPORTED_NODE_TYPES } from './node-types.js';
 
 function canvasWith(type: string): WorkflowCanvas {
   return {
@@ -34,6 +35,20 @@ describe('createWorkflowValidator', () => {
     expect(() => validator.validate(new WorkflowGraph(canvasWith('magic')))).toThrow(
       'Unsupported node type: magic',
     );
+  });
+
+  it('accepts exactly the shared SUPPORTED_NODE_TYPES that the engine can execute', () => {
+    const middleTypes = SUPPORTED_NODE_TYPES.filter(
+      (type) => type !== 'start' && type !== 'end' && type !== 'if' && type !== 'loop',
+    );
+
+    for (const type of middleTypes) {
+      expect(() => validator.validate(new WorkflowGraph(canvasWith(type)))).not.toThrow();
+    }
+    // Building the engine asserts every supported type has an executor.
+    expect(() =>
+      createWorkflowEngine({ llmClient: { generate: vi.fn() }, codeRunner: { run: vi.fn() } }),
+    ).not.toThrow();
   });
 });
 

@@ -18,9 +18,9 @@ import '@xyflow/react/dist/style.css';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getLlmProviders } from '../api/llm';
-import { updateWorkflowCanvas } from '../api/workflow';
+import { publishWorkflow, updateWorkflowCanvas } from '../api/workflow';
 import { queryKeys } from '../api/queryKeys';
-import type { Workflow } from '../types/workflow';
+import type { WorkflowDetail } from '../types/workflow';
 import { StartNode } from './nodes/StartNode';
 import { EndNode } from './nodes/EndNode';
 import { LlmNode } from './nodes/LlmNode';
@@ -92,7 +92,7 @@ function isCanvasChange(change: NodeChange | EdgeChange) {
 }
 
 interface WorkflowCanvasEditorProps {
-  workflow: Workflow;
+  workflow: WorkflowDetail;
 }
 
 export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
@@ -404,6 +404,20 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     },
   });
 
+  const publishMutation = useMutation({
+    mutationFn: () => publishWorkflow(workflow.id),
+    // The header and the run button read latestVersion from the refetched detail, not from here.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflow.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.workflows.versions(workflow.id) }),
+      ]),
+  });
+
+  const latestVersion = workflow.latestVersion;
+  // Publishing snapshots the server-side draft, so unsaved edits would silently be left out.
+  const publishBlockedHint = isDirty ? '请先保存草稿再发布' : undefined;
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
@@ -437,15 +451,24 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
           <div>
             <span className="editor-title-row">
               <strong className="editor-name">{workflow.name}</strong>
-              <span
-                className="editor-draft-badge"
-                title="当前编辑的是草稿，发布后才会生成不可修改的版本"
-              >
-                草稿
-              </span>
+              {latestVersion ? (
+                <span
+                  className="editor-version-badge published"
+                  title="画布编辑的始终是草稿；运行使用最新发布的版本"
+                >
+                  已发布 v{latestVersion.version}
+                </span>
+              ) : (
+                <span
+                  className="editor-version-badge"
+                  title="尚未发布：发布后才会生成不可修改的版本，并且才能运行"
+                >
+                  仅草稿
+                </span>
+              )}
             </span>
             <span className={`editor-save-state ${isDirty ? 'dirty' : ''}`}>
-              {isDirty ? '未保存的更改' : '已自动保存'}
+              {isDirty ? '未保存的更改，保存后才能发布' : '已自动保存'}
             </span>
           </div>
         </div>
@@ -454,6 +477,14 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
           {saveCanvasMutation.isError && (
             <span className="editor-save-error">保存失败：{saveCanvasMutation.error.message}</span>
           )}
+          {publishMutation.isError && (
+            <span className="editor-save-error" title={publishMutation.error.message}>
+              发布失败：{publishMutation.error.message}
+            </span>
+          )}
+          {publishMutation.isSuccess && !isDirty && (
+            <span className="editor-publish-success">刚发布 v{publishMutation.data.version}</span>
+          )}
           <span className="editor-mode">编排模式</span>
           <button
             className="save-action"
@@ -461,6 +492,14 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
             disabled={!isDirty || saveCanvasMutation.isPending}
           >
             {saveCanvasMutation.isPending ? '保存中…' : '保存'}
+          </button>
+          <button
+            className="publish-action"
+            title={publishBlockedHint ?? '把已保存的草稿发布为新的不可修改版本'}
+            onClick={() => publishMutation.mutate()}
+            disabled={isDirty || saveCanvasMutation.isPending || publishMutation.isPending}
+          >
+            {publishMutation.isPending ? '发布中…' : '发布'}
           </button>
         </div>
       </header>
@@ -508,8 +547,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       <ExecutionPanel
         execution={execution}
         workflowUpdatedAt={workflow.updatedAt}
-        isDirty={isDirty}
-        isSaving={saveCanvasMutation.isPending}
+        latestVersion={latestVersion}
         nodeLabels={nodeLabels}
         selectedNodeId={selectedNodeId}
         onSelectNode={focusNode}

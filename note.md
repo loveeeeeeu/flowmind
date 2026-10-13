@@ -541,8 +541,8 @@ ExecutionLog：
 10:00:03  节点执行成功
 ```
 
-# WorkflowVersion：Draft 与不可变执行版本
-把“草稿”和“版本”在数据模型上分开
+# WorkflowVersion
+把“草稿”和“版本”在数据模型上分开，Run 绑定 Version
 ## 问题：
 1.工作流 run01 pedding中，画布发生变化 run02，工作流读取是修改后的Workflow run02
 2.历史工作流画布没有保存，只展示当前工作流画布
@@ -560,6 +560,12 @@ Workflow= 这个工作流本身
 
 ## 数据库迁移
 加新结构，保持兼容 -> 新写入走新结构 -> 旧结构停止使用 -> 必要时清理旧字段
-我们现在就在Phase 1:暂时仍允许旧执行路径,不强制Worker -> workflowVersion
 
-## Run 以后应该运行哪个
+## publish 发布不可变版本
+流程：检查是否归档 → 检查有没有草稿 → 静态校验 → 创建version（最大版本号 +1，复制 draftCanvas 存为快照，status 改为 PUBLISHED）
+只有草稿保存后才能点击发布，且发布前要对草稿校验
+- 校验逻辑不变，以前 Validator 用 registry.has() 判断节点类型（281行），导致 API 只想校验也得造执行器；现在改为只依赖类型清单，执行器注册表只给 Scheduler 用
+## Run 绑定 Version
+run跑到的是最新版本，"最新"在创建 run 时就确定了，不是在 worker 执行时才去找
+- 例子：run 绑定 v1 后排队 → 改草稿、发布 v2 → worker 启动，执行的仍是 v1
+

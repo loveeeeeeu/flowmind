@@ -2,7 +2,6 @@ import { ExecutorRegistry } from './engine/executor-registry.js';
 import type { NodeRetryPolicy } from './engine/node-retry-policy.js';
 import { VariableResolver } from './engine/variable-resolver.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
-import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
 import { WorkflowScheduler } from './engine/workflow-scheduler.js';
 import { WorkflowValidator } from './engine/workflow-validator.js';
 import { CodeExecutor } from './executors/code.executor.js';
@@ -14,6 +13,7 @@ import { LoopExecutor } from './executors/loop.executor.js';
 import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
 import { VariableExecutor } from './executors/variable.executor.js';
+import { SUPPORTED_NODE_TYPES } from './node-types.js';
 import type { CodeRunner } from './ports/code-runner.js';
 import type { LlmClient } from './ports/llm-client.js';
 
@@ -42,26 +42,23 @@ function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retr
 
 export function createWorkflowEngine(options: CreateWorkflowEngineOptions): WorkflowEngine {
   const registry = createExecutorRegistry(options);
+  // Fail at startup rather than at run time if a supported type has no executor.
+  const missing = SUPPORTED_NODE_TYPES.filter((type) => !registry.has(type));
+
+  if (missing.length > 0) {
+    throw new Error(`No executor registered for node types: ${missing.join(', ')}`);
+  }
 
   return new WorkflowEngine(
-    new WorkflowValidator(registry),
+    createWorkflowValidator(),
     new WorkflowScheduler(registry, options.retryPolicy),
   );
 }
 
-function unavailable(capability: string): never {
-  throw new WorkflowExecutionError(`${capability} is not available in validation-only mode`);
-}
-
 /**
- * Validation only asks the registry which node types exist, so the external
- * capabilities are never invoked; processes that cannot execute (the API) use this.
+ * Validation needs only the list of supported node types, so processes that never
+ * execute nodes (the API at publish time) need no LLM client or code runner.
  */
 export function createWorkflowValidator(): WorkflowValidator {
-  const registry = createExecutorRegistry({
-    llmClient: { generate: async () => unavailable('LLM client') },
-    codeRunner: { run: async () => unavailable('Code runner') },
-  });
-
-  return new WorkflowValidator(registry);
+  return new WorkflowValidator(SUPPORTED_NODE_TYPES);
 }

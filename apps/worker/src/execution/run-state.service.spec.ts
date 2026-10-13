@@ -31,11 +31,16 @@ function secondsAgo(seconds: number) {
 
 describe('RunStateService', () => {
   describe('prepareForExecution', () => {
-    it('claims a PENDING run with a conditional update and logs the start', async () => {
+    it('claims a PENDING run with a conditional update and logs the start with its version', async () => {
       const { prisma, logs, service } = createService();
 
       await expect(
-        service.prepareForExecution({ id: 'run-1', status: 'PENDING', heartbeatAt: null }),
+        service.prepareForExecution({
+          id: 'run-1',
+          status: 'PENDING',
+          heartbeatAt: null,
+          workflowVersion: { id: 'version-2', version: 2 },
+        }),
       ).resolves.toBe('execute');
 
       expect(prisma.workflowRun.updateMany).toHaveBeenCalledWith({
@@ -45,7 +50,7 @@ describe('RunStateService', () => {
       expect(logs.log).toHaveBeenCalledWith({
         workflowRunId: 'run-1',
         message: '开始运行',
-        metadata: { workerPid: process.pid },
+        metadata: { workerPid: process.pid, workflowVersionId: 'version-2', version: 2 },
       });
     });
 

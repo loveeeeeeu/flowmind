@@ -3,6 +3,7 @@ import type { WorkflowRunDetail } from '../../types/run';
 import { ExecutionLogList } from './ExecutionLogList';
 import { NodeRunTrace } from './NodeRunTrace';
 import { RunStatusBadge } from './RunStatusBadge';
+import { RunVersionTag } from './RunVersionTag';
 import {
   formatDuration,
   formatJson,
@@ -61,6 +62,7 @@ export function RunDetail({
     <div className="run-detail">
       <div className="run-detail-head">
         <RunStatusBadge status={run.status} />
+        <RunVersionTag version={run.workflowVersion} />
         <code className="run-detail-id">{run.id}</code>
         <span className="run-detail-meta">创建于 {formatRunTime(run.createdAt)}</span>
         <span className="run-detail-meta">
@@ -89,7 +91,9 @@ export function RunDetail({
 
       {ranOlderDraft && (
         <p className="run-stale-hint">
-          工作流在这次运行之后被修改过，追踪中的节点可能与当前画布不一致
+          {run.workflowVersion
+            ? `这次运行执行的是 v${run.workflowVersion.version} 快照，之后草稿或发布有变化，追踪中的节点可能与当前画布不一致`
+            : '工作流在这次运行之后被修改过，追踪中的节点可能与当前画布不一致'}
         </p>
       )}
 

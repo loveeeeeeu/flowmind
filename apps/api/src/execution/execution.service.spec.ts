@@ -24,15 +24,19 @@ describe('ExecutionService', () => {
       queue,
     );
 
-    await expect(
-      service.createRun({ workflowId: 'workflow-1', input: { topic: 'AI' } }),
-    ).resolves.toEqual({
+    const params = {
+      workflowId: 'workflow-1',
+      workflowVersionId: 'version-1',
+      input: { topic: 'AI' },
+    };
+
+    await expect(service.createRun(params)).resolves.toEqual({
       id: 'run-1',
       workflowId: 'workflow-1',
       status: 'PENDING',
     });
 
-    expect(runs.create).toHaveBeenCalledWith('workflow-1', { topic: 'AI' });
+    expect(runs.create).toHaveBeenCalledWith(params);
     expect(enqueueRun).toHaveBeenCalledWith('run-1');
     expect(runs.markFailed).not.toHaveBeenCalled();
   });
@@ -50,7 +54,7 @@ describe('ExecutionService', () => {
     );
 
     await expect(
-      service.createRun({ workflowId: 'workflow-1', input: {} }),
+      service.createRun({ workflowId: 'workflow-1', workflowVersionId: 'version-1', input: {} }),
     ).rejects.toBe(enqueueError);
 
     expect(runs.markFailed).toHaveBeenCalledWith('run-1', enqueueError);

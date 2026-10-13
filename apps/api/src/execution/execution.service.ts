@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ExecutionQueueService } from './queue/execution-queue.service.js';
-import { WorkflowRunService } from './run/workflow-run.service.js';
+import { type CreateRunRecordParams, WorkflowRunService } from './run/workflow-run.service.js';
 
-export interface CreateWorkflowRunParams {
-  workflowId: string;
-  input: Record<string, unknown>;
-}
+export type CreateWorkflowRunParams = CreateRunRecordParams;
 
 @Injectable()
 export class ExecutionService {
@@ -14,8 +11,9 @@ export class ExecutionService {
     private readonly queue: ExecutionQueueService,
   ) {}
 
+  /** The job still carries only the run id; the worker loads the bound version from the row. */
   async createRun(params: CreateWorkflowRunParams) {
-    const run = await this.runs.create(params.workflowId, params.input);
+    const run = await this.runs.create(params);
 
     try {
       await this.queue.enqueueRun(run.id);

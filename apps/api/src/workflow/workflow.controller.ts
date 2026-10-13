@@ -39,10 +39,10 @@ export class WorkflowController {
     return this.workflowService.findAll(query);
   }
 
-  @ApiOperation({ summary: '查询工作流详情' })
+  @ApiOperation({ summary: '查询工作流详情（含最新发布版本摘要 latestVersion）' })
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.workflowService.findOne(id);
+    return this.workflowService.findDetail(id);
   }
 
   @ApiOperation({ summary: '更新工作流（只修改传入的字段）' })
@@ -68,7 +68,14 @@ export class WorkflowController {
   validate(@Param('id') id: string) {
     return this.workflowService.validateWorkflow(id);
   }
-  @ApiOperation({ summary: '同步运行工作流' })
+
+  @ApiOperation({ summary: '发布已保存的草稿，生成新的不可变版本' })
+  @Post(':id/publish')
+  publish(@Param('id') id: string) {
+    return this.workflowService.publish(id);
+  }
+
+  @ApiOperation({ summary: '运行最新发布版本（异步，返回 PENDING 的运行）' })
   @Post(':id/run')
   @HttpCode(HttpStatus.ACCEPTED)
   run(@Param('id') id: string, @Body() dto: RunWorkflowDto) {

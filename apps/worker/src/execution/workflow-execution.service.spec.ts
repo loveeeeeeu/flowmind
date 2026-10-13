@@ -11,16 +11,20 @@ const run = {
   status: 'PENDING',
   heartbeatAt: null,
   input: { name: 'FlowMind' },
-  workflow: { draftCanvas: canvas },
+  workflowVersion: { id: 'version-1', version: 1, canvas } as {
+    id: string;
+    version: number;
+    canvas: unknown;
+  } | null,
 };
 
-function createRunState(decision: RunExecutionDecision = 'execute') {
+function createRunState(decision: RunExecutionDecision = 'execute', loadedRun = run) {
   const stopHeartbeat = vi.fn();
 
   return {
     stopHeartbeat,
     runState: {
-      findRun: vi.fn(async () => run),
+      findRun: vi.fn(async () => loadedRun),
       prepareForExecution: vi.fn(async () => decision),
       startHeartbeat: vi.fn(() => stopHeartbeat),
       markSuccess: vi.fn(async () => undefined),
@@ -69,6 +73,43 @@ describe('WorkflowExecutionService', () => {
     expect(runState.markFailed).toHaveBeenCalledWith('run-1', failure);
     expect(runState.markSuccess).not.toHaveBeenCalled();
     expect(stopHeartbeat).toHaveBeenCalledTimes(1);
+  });
+
+  it('executes the version snapshot bound to the run, not whatever is latest now', async () => {
+    // The run was bound to v2 when created; v3 and a newer draft exist by the time it executes.
+    const v2Canvas = {
+      nodes: [{ id: 'end', type: 'end', data: { outputVariable: 'v2' } }],
+      edges: [],
+    };
+    const { runState } = createRunState('execute', {
+      ...run,
+      workflowVersion: { id: 'version-2', version: 2, canvas: v2Canvas },
+    });
+    const execute = vi.fn(async () => ({ result: {} }));
+
+    await createService(runState, execute).executeRun('run-1');
+
+    expect(execute).toHaveBeenCalledWith(v2Canvas, expect.anything(), expect.anything());
+  });
+
+  it('fails a legacy run without a version instead of falling back to the draft', async () => {
+    const { runState, stopHeartbeat } = createRunState('execute', {
+      ...run,
+      workflowVersion: null,
+    });
+    const execute = vi.fn();
+
+    await expect(createService(runState, execute).executeRun('run-1')).rejects.toThrow(
+      'Workflow run was created before versioned execution was enabled',
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(runState.startHeartbeat).not.toHaveBeenCalled();
+    expect(stopHeartbeat).not.toHaveBeenCalled();
+    expect(runState.markFailed).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({ code: 'WORKFLOW_VERSION_MISSING' }),
+    );
   });
 
   it('does not execute when the run state says skip', async () => {

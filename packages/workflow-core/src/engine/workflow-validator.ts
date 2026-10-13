@@ -1,4 +1,4 @@
-import type { ExecutorRegistry } from './executor-registry.js';
+import { SUPPORTED_NODE_TYPES } from '../node-types.js';
 import type { WorkflowNode } from './workflow-engine.types.js';
 import type { WorkflowGraph } from './workflow-graph.js';
 import { WorkflowValidationError } from './workflow-validation.error.js';
@@ -9,8 +9,13 @@ export interface WorkflowValidationResult {
   executionPlan: WorkflowNode[];
 }
 
+/** Static structure checks only: never calls executors or external services. */
 export class WorkflowValidator {
-  constructor(private readonly registry: ExecutorRegistry) {}
+  private readonly supportedNodeTypes: ReadonlySet<string>;
+
+  constructor(supportedNodeTypes: Iterable<string> = SUPPORTED_NODE_TYPES) {
+    this.supportedNodeTypes = new Set(supportedNodeTypes);
+  }
 
   validate(graph: WorkflowGraph): WorkflowValidationResult {
     if (graph.getNodes().length === 0) {
@@ -127,7 +132,7 @@ export class WorkflowValidator {
 
   private validateNodeTypes(graph: WorkflowGraph) {
     for (const node of graph.getNodes()) {
-      if (!this.registry.has(node.type)) {
+      if (!this.supportedNodeTypes.has(node.type)) {
         throw new WorkflowValidationError(`Unsupported node type: ${node.type}`);
       }
     }

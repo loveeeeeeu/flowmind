@@ -1,7 +1,9 @@
 import type {
   CreateWorkflowInput,
+  PublishedWorkflowVersion,
   UpdateWorkflowInput,
   Workflow,
+  WorkflowDetail,
   WorkflowListResponse,
 } from '../types/workflow';
 import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
@@ -24,8 +26,8 @@ export function getWorkflows(
   return request<WorkflowListResponse>(`/workflows?${params.toString()}`);
 }
 
-export function getWorkflow(id: string): Promise<Workflow> {
-  return request<Workflow>(`/workflows/${id}`);
+export function getWorkflow(id: string): Promise<WorkflowDetail> {
+  return request<WorkflowDetail>(`/workflows/${id}`);
 }
 
 export function createWorkflow(input: CreateWorkflowInput): Promise<Workflow> {
@@ -58,5 +60,12 @@ export function updateWorkflowCanvas(id: string, canvas: WorkflowCanvas): Promis
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(canvas),
+  });
+}
+
+/** No body on purpose: the server publishes the draft it has saved, never an unsaved canvas. */
+export function publishWorkflow(id: string): Promise<PublishedWorkflowVersion> {
+  return request<PublishedWorkflowVersion>(`/workflows/${id}/publish`, {
+    method: 'POST',
   });
 }

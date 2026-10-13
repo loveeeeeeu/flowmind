@@ -5,6 +5,8 @@ export type NodeRunStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIP
 export interface WorkflowRunSummary {
   id: string;
   workflowId: string;
+  /** null for legacy runs created before versioning. */
+  workflowVersion: { id: string; version: number } | null;
   status: RunStatus;
   errorCode: string | null;
   errorMessage: string | null;
@@ -51,7 +53,6 @@ export interface WorkflowVersionSummary {
 }
 
 export interface WorkflowRunDetail extends WorkflowRunSummary {
-  /** null for legacy runs created before versioning. */
   workflowVersion: WorkflowVersionSummary | null;
   input: unknown;
   output: unknown;

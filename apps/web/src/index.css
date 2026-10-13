@@ -50,9 +50,11 @@ a { color: inherit; }
 
 .workflow-editor { height:calc(100vh - 56px); display:flex; flex-direction:column; background:#f7f8fc; overflow:hidden; }
 .editor-toolbar { height:54px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 18px; background:rgba(255,255,255,.92); border-bottom:1px solid #e7ebf2; }
-.editor-identity { display:flex; align-items:center; gap:12px; min-width:0; }.editor-back{font-size:18px;color:#75819a;text-decoration:none;line-height:1}.editor-workflow-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;background:#edf3ff;color:#3868e9}.editor-name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.editor-save-state{font-size:12px;color:#8490a6}.editor-save-state.dirty{color:#c9852a}.editor-actions{display:flex;align-items:center;gap:8px}.editor-actions button{padding:7px 11px;font-size:13px;font-weight:600}.editor-actions .save-action{color:white;background:#3868e9;border-color:#3868e9}.editor-actions .save-action:hover:not(:disabled){background:#2f5dde}.editor-body{min-height:0;flex:1;display:flex}.canvas-stage{position:relative;min-width:0;flex:1;background:#fbfcff}.canvas-stage::before{content:'';position:absolute;z-index:2;top:14px;left:50%;transform:translateX(-50%);pointer-events:none;color:#8290a6;background:rgba(255,255,255,.9);border:1px solid #e5eaf3;border-radius:7px;padding:6px 12px;font-size:11px;box-shadow:0 3px 10px rgba(32,56,102,.05)}.canvas-stage::before{content:'拖拽节点到画布，连接节点以构建工作流'}
+.editor-identity { display:flex; align-items:center; gap:12px; min-width:0; }.editor-back{font-size:18px;color:#75819a;text-decoration:none;line-height:1}.editor-workflow-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;background:#edf3ff;color:#3868e9}.editor-name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.editor-save-state{font-size:12px;color:#8490a6}.editor-save-state.dirty{color:#c9852a}.editor-actions{display:flex;align-items:center;gap:8px}.editor-actions button{padding:7px 11px;font-size:13px;font-weight:600}.editor-actions .publish-action{color:white;background:#3868e9;border-color:#3868e9}.editor-actions .publish-action:hover:not(:disabled){background:#2f5dde}.editor-body{min-height:0;flex:1;display:flex}.canvas-stage{position:relative;min-width:0;flex:1;background:#fbfcff}.canvas-stage::before{content:'';position:absolute;z-index:2;top:14px;left:50%;transform:translateX(-50%);pointer-events:none;color:#8290a6;background:rgba(255,255,255,.9);border:1px solid #e5eaf3;border-radius:7px;padding:6px 12px;font-size:11px;box-shadow:0 3px 10px rgba(32,56,102,.05)}.canvas-stage::before{content:'拖拽节点到画布，连接节点以构建工作流'}
 .editor-title-row { display:inline-flex; align-items:center; gap:6px; min-width:0; max-width:100%; margin-right:8px; vertical-align:middle; }
-.editor-draft-badge { flex-shrink:0; padding:1px 7px; border:1px solid #d6e2fd; border-radius:7px; background:#edf3ff; color:#3868e9; font-size:11px; font-weight:600; line-height:1.5; cursor:default; }
+.editor-version-badge { flex-shrink:0; padding:1px 7px; border:1px solid #f6dfb8; border-radius:7px; background:#fff6e8; color:#c9852a; font-size:11px; font-weight:600; line-height:1.5; cursor:default; }
+.editor-version-badge.published { border-color:#cdebdc; background:#ebf9f1; color:#398262; }
+.editor-publish-success { color:#398262; font-size:12px; font-weight:600; white-space:nowrap; }
 .canvas-stage .react-flow__background { background:#fbfcff; }
 .canvas-stage .react-flow__controls { overflow:hidden; border:1px solid #e2e7f0; border-radius:8px; box-shadow:0 3px 12px rgba(31,49,88,.12); }
 .canvas-stage .react-flow__controls-button { background:#fff; border-color:#edf0f5; color:#60708c; }
@@ -144,6 +146,8 @@ a { color: inherit; }
 .run-detail-head { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .run-detail-id { padding:2px 6px; border-radius:5px; background:#eef1f7; color:#4e5b72; font-size:12px; }
 .run-detail-meta { color:#7b879d; font-size:12px; }
+.run-version-tag { flex-shrink:0; padding:1px 6px; border:1px solid #d6e2fd; border-radius:7px; background:#edf3ff; color:#3868e9; font-size:11px; font-weight:600; line-height:1.5; cursor:default; }
+.run-version-tag.legacy { border-color:#e2e7f0; background:#f5f7fb; color:#9aa4b6; }
 .run-error-box { margin-top:12px; padding:11px 13px; border:1px solid #ffd5dc; border-radius:8px; background:#fff2f4; color:#c63755; font-size:13px; }
 .run-error-box p { margin:4px 0 0; line-height:1.5; word-break:break-word; }
 .run-error-node { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; padding-top:10px; border-top:1px solid #ffd5dc; }
@@ -173,7 +177,7 @@ a { color: inherit; }
 .run-history-item { width:100%; display:grid; gap:6px; padding:9px 11px; border-color:#e2e7f0; border-radius:9px; text-align:left; }
 .run-history-item.active { border-color:#4d78ef; background:#f5f8ff; }
 .run-history-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.run-history-time { color:#5b6880; font-size:12px; }
+.run-history-time { margin-left:auto; color:#5b6880; font-size:12px; }
 .run-history-id { color:#9aa4b6; font-size:11px; }
 .run-history-meta { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#7b879d; font-size:11px; }
 

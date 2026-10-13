@@ -1,4 +1,5 @@
 export * from './create-workflow-engine.js';
+export * from './node-types.js';
 
 export * from './engine/execution-context.js';
 export * from './engine/executor-registry.js';

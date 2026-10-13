@@ -13,6 +13,7 @@ import { ExecutionService } from '../execution/execution.service.js';
 import type { WorkflowCanvas } from '@flowmind/workflow-core';
 import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
+import { WorkflowVersionService } from './workflow-version.service.js';
 
 @Injectable()
 export class WorkflowService {
@@ -20,6 +21,7 @@ export class WorkflowService {
     private readonly prisma: PrismaService,
     private readonly executionService: ExecutionService,
     private readonly workflowPlanService: WorkflowPlanService,
+    private readonly workflowVersionService: WorkflowVersionService,
   ) {}
 
   create(dto: CreateWorkflowDto) {
@@ -77,6 +79,28 @@ export class WorkflowService {
     return workflow;
   }
 
+  /** Detail for the editor: the draft plus a summary of the latest published version. */
+  async findDetail(id: string) {
+    const workflow = await this.prisma.workflow.findUnique({
+      where: { id },
+      include: {
+        versions: {
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { id: true, version: true, createdAt: true },
+        },
+      },
+    });
+
+    if (!workflow) {
+      throw new NotFoundException(`Workflow ${id} not found`);
+    }
+
+    const { versions, ...rest } = workflow;
+
+    return { ...rest, latestVersion: versions[0] ?? null };
+  }
+
   async update(id: string, dto: UpdateWorkflowDto) {
     await this.findOne(id);
 
@@ -121,22 +145,49 @@ export class WorkflowService {
     );
   }
 
-  // Still runs the draft until publishing exists (Sprint 8 Lesson 2 switches runs to versions).
-  async runWorkflow(id: string, dto: RunWorkflowDto) {
+  /**
+   * Publishes the draft saved on the server (never a canvas sent by the client). Only static
+   * structure is checked: publishing never executes nodes or calls external services.
+   */
+  async publish(id: string) {
     const workflow = await this.findOne(id);
+
+    if (workflow.status === 'ARCHIVED') {
+      throw new BadRequestException('Archived workflow cannot be published');
+    }
 
     if (!workflow.draftCanvas) {
       throw new BadRequestException('Workflow has no draft canvas');
     }
 
-    // Structural errors return 400 before a run exists; the worker still re-validates
-    // because the draft may change between enqueue and execution.
-    this.workflowPlanService.createExecutionPlan(
-      workflow.draftCanvas as unknown as WorkflowCanvas,
-    );
+    const canvas = workflow.draftCanvas as unknown as WorkflowCanvas;
+
+    this.workflowPlanService.createExecutionPlan(canvas);
+
+    return this.workflowVersionService.publish(workflow.id, canvas);
+  }
+
+  /**
+   * Binds the run to the latest published version at creation time, so later draft edits or
+   * newer publishes never change what this run executes. The draft is never run here.
+   */
+  async runWorkflow(id: string, dto: RunWorkflowDto) {
+    const workflow = await this.findOne(id);
+
+    if (workflow.status === 'ARCHIVED') {
+      throw new BadRequestException('Archived workflow cannot be run');
+    }
+
+    // The version row, not workflow.status, decides whether there is something to execute.
+    const version = await this.workflowVersionService.findLatest(workflow.id);
+
+    if (!version) {
+      throw new BadRequestException('Workflow has no published version');
+    }
 
     return this.executionService.createRun({
       workflowId: workflow.id,
+      workflowVersionId: version.id,
       input: dto.input,
     });
   }

@@ -16,15 +16,20 @@ function createPrisma() {
 }
 
 describe('WorkflowRunService', () => {
-  it('creates a pending run and snapshots its input as JSON', async () => {
+  it('creates a pending run bound to a version and snapshots its input as JSON', async () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
-    await service.create('workflow-1', { topic: 'AI', omit: undefined });
+    await service.create({
+      workflowId: 'workflow-1',
+      workflowVersionId: 'version-1',
+      input: { topic: 'AI', omit: undefined },
+    });
 
     expect(prisma.workflowRun.create).toHaveBeenCalledWith({
       data: {
         workflowId: 'workflow-1',
+        workflowVersionId: 'version-1',
         status: 'PENDING',
         input: { topic: 'AI' },
       },
@@ -104,6 +109,7 @@ describe('WorkflowRunService', () => {
         startedAt: true,
         finishedAt: true,
         createdAt: true,
+        workflowVersion: { select: { id: true, version: true } },
       },
     });
   });

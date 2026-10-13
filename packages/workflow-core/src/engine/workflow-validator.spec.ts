@@ -1,4 +1,3 @@
-import type { ExecutorRegistry } from './executor-registry.js';
 import type { WorkflowCanvas } from './workflow-engine.types.js';
 import { WorkflowGraph } from './workflow-graph.js';
 import { WorkflowValidator } from './workflow-validator.js';
@@ -38,10 +37,7 @@ function createLoopCanvas(): WorkflowCanvas {
 }
 
 describe('WorkflowValidator', () => {
-  const registry = {
-    has: (type: string) => SUPPORTED_TYPES.has(type),
-  } as unknown as ExecutorRegistry;
-  const validator = new WorkflowValidator(registry);
+  const validator = new WorkflowValidator(SUPPORTED_TYPES);
 
   function validate(canvas: WorkflowCanvas) {
     return validator.validate(new WorkflowGraph(canvas));

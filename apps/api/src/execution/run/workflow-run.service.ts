@@ -3,16 +3,24 @@ import { normalizeExecutionError } from '@flowmind/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { toJsonInput } from './json-value.js';
 
+export interface CreateRunRecordParams {
+  workflowId: string;
+  /** Required for every new run; the column stays nullable only for legacy rows. */
+  workflowVersionId: string;
+  input: Record<string, unknown>;
+}
+
 @Injectable()
 export class WorkflowRunService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(workflowId: string, input: Record<string, unknown>) {
+  create(params: CreateRunRecordParams) {
     return this.prisma.workflowRun.create({
       data: {
-        workflowId,
+        workflowId: params.workflowId,
+        workflowVersionId: params.workflowVersionId,
         status: 'PENDING',
-        input: toJsonInput(input),
+        input: toJsonInput(params.input),
       },
     });
   }
@@ -82,6 +90,8 @@ export class WorkflowRunService {
         startedAt: true,
         finishedAt: true,
         createdAt: true,
+        // Joined here so the history list never fetches versions one run at a time.
+        workflowVersion: { select: { id: true, version: true } },
       },
     });
   }

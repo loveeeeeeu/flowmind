@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { WorkflowVersionSummary } from '../../types/run';
 import { RunDetail } from './RunDetail';
 import { RunHistory } from './RunHistory';
 import { RunStatusBadge } from './RunStatusBadge';
@@ -10,8 +11,8 @@ type ExecutionTab = 'run' | 'history';
 interface ExecutionPanelProps {
   execution: ExecutionState;
   workflowUpdatedAt: string;
-  isDirty: boolean;
-  isSaving: boolean;
+  /** What a new run executes; unsaved or unpublished draft edits never affect it. */
+  latestVersion: WorkflowVersionSummary | null;
   nodeLabels: Record<string, string>;
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
@@ -20,8 +21,7 @@ interface ExecutionPanelProps {
 export function ExecutionPanel({
   execution,
   workflowUpdatedAt,
-  isDirty,
-  isSaving,
+  latestVersion,
   nodeLabels,
   selectedNodeId,
   onSelectNode,
@@ -50,12 +50,6 @@ export function ExecutionPanel({
     setTab(nextTab);
     setIsOpen(true);
   }
-
-  const runBlockedHint = isSaving
-    ? '正在保存，保存完成后即可运行'
-    : isDirty
-      ? '画布有未保存的更改，请先保存再运行'
-      : null;
 
   return (
     <section className={`execution-panel ${isOpen ? 'open' : ''}`}>
@@ -120,7 +114,11 @@ export function ExecutionPanel({
                   直接填写开始节点的变量，例如 <code>{'{"name": "FlowMind"}'}</code>，无需外层 input
                 </p>
 
-                {runBlockedHint && <p className="panel-hint">{runBlockedHint}</p>}
+                <p className="panel-hint">
+                  {latestVersion
+                    ? `将运行已发布的 v${latestVersion.version}；草稿中的修改需要发布后才会生效`
+                    : '请先发布工作流再运行'}
+                </p>
                 {runMutation.isError && (
                   <p className="error-message">启动运行失败：{runMutation.error.message}</p>
                 )}
@@ -129,9 +127,13 @@ export function ExecutionPanel({
                   type="button"
                   className="primary-button execution-run-button"
                   onClick={handleRun}
-                  disabled={isDirty || isSaving || runMutation.isPending}
+                  disabled={!latestVersion || runMutation.isPending}
                 >
-                  {runMutation.isPending ? '启动中…' : '运行'}
+                  {runMutation.isPending
+                    ? '启动中…'
+                    : latestVersion
+                      ? `运行 v${latestVersion.version}`
+                      : '运行'}
                 </button>
               </>
             ) : (

@@ -5,6 +5,7 @@ export const queryKeys = {
     list: (page: number, pageSize: number, keyword: string) =>
       ['workflows', 'list', { page, pageSize, keyword }] as const,
     detail: (id: string) => ['workflows', 'detail', id] as const,
+    versions: (id: string) => ['workflows', 'detail', id, 'versions'] as const,
   },
   llm: {
     providers: ['llm', 'providers'] as const,
