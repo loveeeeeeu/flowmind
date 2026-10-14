@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import type { AuthenticatedApiKey } from '../api-key/api-key.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ExternalRunResponse } from './dto/external-run-response.dto.js';
 
@@ -7,7 +8,7 @@ import type { ExternalRunResponse } from './dto/external-run-response.dto.js';
 export class ExternalRunService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findOne(runId: string): Promise<ExternalRunResponse> {
+  async findOne(runId: string, apiKey: AuthenticatedApiKey): Promise<ExternalRunResponse> {
     const run = await this.prisma.workflowRun.findFirst({
       // Draft test runs belong to the editor; they don't exist for external callers.
       where: { id: runId, source: 'PUBLISHED' },
@@ -27,6 +28,11 @@ export class ExternalRunService {
 
     if (!run) {
       throw new NotFoundException(`Run ${runId} not found`);
+    }
+
+    // The run id is not a secret: without this, any valid key could read any workflow's output.
+    if (run.workflowId !== apiKey.workflowId) {
+      throw new ForbiddenException('API key cannot access this run');
     }
 
     return {

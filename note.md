@@ -630,3 +630,21 @@ Draft Run 也能保证一致.现在两种运行Run/Draft Run都在创建 Run 的
                        ▼
                WorkflowEngine
 ```
+
+# API Key + 外部 API 认证
+## 问题
+外部 API 谁知道 workflowId 谁就能调用，也能读取任意运行的结果。
+
+## 方案
+给每个工作流发 API Key=fm_<prefix>_<secret>，外部请求带 `Authorization: Bearer <key>`：
+- Guard 负责认证：Key 是真的吗？失败返回 401
+  Authorization: Bearer fm_371352f419f04e4d_5-z1Wv...
+    ↓
+  ① 用正则拆出 prefix = 371352f419f04e4d
+  ② 按 prefix 查到唯一一行：{ keyHash, revokedAt失效时间, workflowId }
+  ③ 已撤销？→ 失败
+  ④ 对客户端发来的整串 Key 做 SHA-256，得到一个新哈希
+  ⑤ 新哈希和库里的 keyHash 一样吗？一样 → 认证通过
+- Service 负责授权：Key 能访问这个工作流或这条运行吗？失败返回 403
+
+# 

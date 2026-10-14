@@ -22,6 +22,10 @@ async function bootstrap() {
     .setTitle('FlowMind API')
     .setDescription('FlowMind 工作流平台接口文档')
     .setVersion('0.1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', description: 'FlowMind API Key（fm_ 开头），仅用于 /api/v1' },
+      'api-key',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);

@@ -1,16 +1,24 @@
-import { Body, Controller, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ApiKeyGuard } from '../api-key/api-key.guard.js';
+import type { AuthenticatedApiKey } from '../api-key/api-key.types.js';
+import { CurrentApiKey } from '../api-key/current-api-key.decorator.js';
 import { InvokeWorkflowDto } from './dto/invoke-workflow.dto.js';
 import { ExternalWorkflowService } from './external-workflow.service.js';
 
-// Local development only until API keys exist: do not expose to the public internet.
 @ApiTags('External API v1')
+@ApiBearerAuth('api-key')
+@ApiUnauthorizedResponse({ description: 'Missing, invalid or revoked API key' })
+@UseGuards(ApiKeyGuard)
 @Controller('api/v1/workflows')
 export class ExternalWorkflowController {
   constructor(private readonly service: ExternalWorkflowService) {}
@@ -20,10 +28,15 @@ export class ExternalWorkflowController {
   @ApiBadRequestResponse({
     description: 'Invalid input, workflow archived, or no published version',
   })
+  @ApiForbiddenResponse({ description: 'The API key belongs to another workflow' })
   @ApiNotFoundResponse({ description: 'Workflow not found' })
   @Post(':workflowId/runs')
   @HttpCode(HttpStatus.ACCEPTED)
-  invoke(@Param('workflowId') workflowId: string, @Body() dto: InvokeWorkflowDto) {
-    return this.service.invoke(workflowId, dto.input);
+  invoke(
+    @CurrentApiKey() apiKey: AuthenticatedApiKey,
+    @Param('workflowId') workflowId: string,
+    @Body() dto: InvokeWorkflowDto,
+  ) {
+    return this.service.invoke({ apiKey, workflowId, input: dto.input });
   }
 }

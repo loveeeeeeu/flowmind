@@ -4,6 +4,7 @@ import { getWorkflow, updateWorkflow } from '../../api/workflow';
 import { queryKeys } from '../../api/queryKeys';
 import { WorkflowEditForm } from '../../components/WorkflowEditForm';
 import type { UpdateWorkflowInput } from '../../types/workflow';
+import { ApiKeyList } from '../../workflow/api-keys/ApiKeyList';
 
 export function WorkflowDetailPage() {
   const { id = '' } = useParams();
@@ -76,6 +77,8 @@ export function WorkflowDetailPage() {
       {updateMutation.isSuccess && (
         <div className="saved-message">已保存更改。</div>
       )}
+
+      <ApiKeyList workflowId={workflow.id} hasPublishedVersion={workflow.latestVersion !== null} />
     </main>
   );
 }

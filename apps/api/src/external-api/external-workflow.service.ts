@@ -1,7 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { AuthenticatedApiKey } from '../api-key/api-key.types.js';
 import { ExecutionService } from '../execution/execution.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ExternalRunAcceptedResponse } from './dto/external-run-response.dto.js';
+
+export interface InvokeWorkflowParams {
+  apiKey: AuthenticatedApiKey;
+  workflowId: string;
+  input: Record<string, unknown>;
+}
 
 /**
  * Another entry point into the same execution platform, not a second runtime: it only resolves
@@ -15,10 +27,16 @@ export class ExternalWorkflowService {
     private readonly executionService: ExecutionService,
   ) {}
 
-  async invoke(
-    workflowId: string,
-    input: Record<string, unknown>,
-  ): Promise<ExternalRunAcceptedResponse> {
+  async invoke({
+    apiKey,
+    workflowId,
+    input,
+  }: InvokeWorkflowParams): Promise<ExternalRunAcceptedResponse> {
+    // Checked before any lookup, so a key cannot probe which other workflows exist.
+    if (apiKey.workflowId !== workflowId) {
+      throw new ForbiddenException('API key cannot access this workflow');
+    }
+
     const workflow = await this.prisma.workflow.findUnique({
       where: { id: workflowId },
       select: {
@@ -49,6 +67,7 @@ export class ExternalWorkflowService {
     const run = await this.executionService.createPublishedRun({
       workflowId: workflow.id,
       workflowVersionId: version.id,
+      workflowApiKeyId: apiKey.id,
       input,
     });
 

@@ -1,5 +1,6 @@
 import type { WorkflowRunSummary } from '../../types/run';
 import { RunStatusBadge } from './RunStatusBadge';
+import { RunTriggerTag } from './RunTriggerTag';
 import { RunVersionTag } from './RunVersionTag';
 import { formatDuration, formatRunTime, getDurationMs } from './runUtils';
 
@@ -36,6 +37,7 @@ export function RunHistory({ runs, isLoading, error, selectedRunId, onSelectRun 
             <span className="run-history-row">
               <RunStatusBadge status={run.status} />
               <RunVersionTag run={run} />
+              <RunTriggerTag run={run} />
               <span className="run-history-time">{formatRunTime(run.createdAt)}</span>
             </span>
             <span className="run-history-row">

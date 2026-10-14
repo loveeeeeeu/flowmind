@@ -5,12 +5,20 @@ export type NodeRunStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIP
 /** DRAFT: "测试草稿" run of an editor snapshot. PUBLISHED: run of a published version. */
 export type WorkflowRunSource = 'DRAFT' | 'PUBLISHED';
 
+export interface RunApiKeySummary {
+  id: string;
+  name: string;
+  prefix: string;
+}
+
 export interface WorkflowRunSummary {
   id: string;
   workflowId: string;
   source: WorkflowRunSource;
   /** null for draft test runs, and for legacy runs created before versioning. */
   workflowVersion: { id: string; version: number } | null;
+  /** The API key that triggered the run through /api/v1; null for editor runs. */
+  workflowApiKey: RunApiKeySummary | null;
   status: RunStatus;
   errorCode: string | null;
   errorMessage: string | null;

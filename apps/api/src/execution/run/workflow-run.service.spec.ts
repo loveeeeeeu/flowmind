@@ -38,6 +38,24 @@ describe('WorkflowRunService', () => {
     });
   });
 
+  it('records the API key that triggered an external run', async () => {
+    const prisma = createPrisma();
+    const service = new WorkflowRunService(prisma as unknown as PrismaService);
+
+    await service.createPublished({
+      workflowId: 'workflow-1',
+      workflowVersionId: 'version-1',
+      workflowApiKeyId: 'key-1',
+      input: {},
+    });
+
+    expect(prisma.workflowRun.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ workflowApiKeyId: 'key-1' }) as unknown,
+      }),
+    );
+  });
+
   it('creates a DRAFT run carrying its own canvas snapshot, without a version', async () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
@@ -86,6 +104,7 @@ describe('WorkflowRunService', () => {
       omit: { draftSnapshot: true },
       include: {
         workflowVersion: { select: { id: true, version: true, createdAt: true } },
+        workflowApiKey: { select: { id: true, name: true, prefix: true } },
         nodeRuns: { orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }] },
       },
     });
@@ -134,6 +153,7 @@ describe('WorkflowRunService', () => {
         finishedAt: true,
         createdAt: true,
         workflowVersion: { select: { id: true, version: true } },
+        workflowApiKey: { select: { id: true, name: true, prefix: true } },
       },
     });
   });

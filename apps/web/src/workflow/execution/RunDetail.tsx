@@ -3,6 +3,7 @@ import type { WorkflowRunDetail } from '../../types/run';
 import { ExecutionLogList } from './ExecutionLogList';
 import { NodeRunTrace } from './NodeRunTrace';
 import { RunStatusBadge } from './RunStatusBadge';
+import { RunTriggerTag } from './RunTriggerTag';
 import { RunVersionTag } from './RunVersionTag';
 import {
   formatDuration,
@@ -66,6 +67,7 @@ export function RunDetail({
       <div className="run-detail-head">
         <RunStatusBadge status={run.status} />
         <RunVersionTag run={run} />
+        <RunTriggerTag run={run} />
         <code className="run-detail-id">{run.id}</code>
         <span className="run-detail-meta">创建于 {formatRunTime(run.createdAt)}</span>
         <span className="run-detail-meta">

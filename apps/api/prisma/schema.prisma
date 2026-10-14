@@ -63,9 +63,36 @@ model Workflow {
 
   versions WorkflowVersion[]
   runs     WorkflowRun[]
+  apiKeys  WorkflowApiKey[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A key that lets external callers run one workflow's published version. The raw key
+// (fm_<prefix>_<secret>) is shown once at creation and never stored: only its SHA-256 hash.
+model WorkflowApiKey {
+  id String @id @default(cuid())
+
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  name String
+
+  // Public lookup id embedded in the key, separate from the database id.
+  prefix  String @unique
+  keyHash String
+
+  // Best effort metadata, not part of authentication.
+  lastUsedAt DateTime?
+  // Kept instead of deleting so past runs still point to the key that triggered them.
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  runs WorkflowRun[]
+
+  @@index([workflowId])
 }
 
 // Immutable snapshot created by publishing. No update or delete API: runs must stay reproducible.
@@ -109,6 +136,10 @@ model WorkflowRun {
   // The canvas a draft test run executes, frozen at request time (may include unsaved edits).
   draftSnapshot Json?
 
+  // Set only for runs created through the external API; null for editor runs.
+  workflowApiKeyId String?
+  workflowApiKey   WorkflowApiKey? @relation(fields: [workflowApiKeyId], references: [id], onDelete: SetNull)
+
   status RunStatus @default(PENDING)
 
   input  Json?
@@ -130,6 +161,7 @@ model WorkflowRun {
 
   @@index([workflowId])
   @@index([workflowVersionId])
+  @@index([workflowApiKeyId])
   @@index([status])
   @@index([createdAt])
 }

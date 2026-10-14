@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { ExecutionService } from '../execution/execution.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { ExternalWorkflowService } from './external-workflow.service.js';
@@ -8,6 +8,8 @@ interface WorkflowRow {
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
   versions: { id: string; version: number }[];
 }
+
+const apiKey = { id: 'key-1', workflowId: 'workflow-1' };
 
 function setup(workflow: WorkflowRow | null) {
   const prisma = {
@@ -37,10 +39,12 @@ const published: WorkflowRow = {
 };
 
 describe('ExternalWorkflowService', () => {
-  it('runs the latest published version and returns only the public contract', async () => {
+  it('runs the latest published version, records the key and returns only the contract', async () => {
     const { service, prisma, executionService } = setup(published);
 
-    await expect(service.invoke('workflow-1', { name: 'FlowMind' })).resolves.toStrictEqual({
+    await expect(
+      service.invoke({ apiKey, workflowId: 'workflow-1', input: { name: 'FlowMind' } }),
+    ).resolves.toStrictEqual({
       runId: 'run-1',
       workflowId: 'workflow-1',
       version: 3,
@@ -58,33 +62,46 @@ describe('ExternalWorkflowService', () => {
     expect(executionService.createPublishedRun).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       workflowVersionId: 'version-3',
+      workflowApiKeyId: 'key-1',
       input: { name: 'FlowMind' },
     });
     expect(executionService.createDraftRun).not.toHaveBeenCalled();
   });
 
-  it('returns 404 for an unknown workflow', async () => {
+  it('rejects a key of another workflow before looking anything up', async () => {
+    const { service, prisma, executionService } = setup(published);
+
+    await expect(
+      service.invoke({ apiKey, workflowId: 'workflow-2', input: {} }),
+    ).rejects.toThrow(new ForbiddenException('API key cannot access this workflow'));
+    expect(prisma.workflow.findUnique).not.toHaveBeenCalled();
+    expect(executionService.createPublishedRun).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the key outlived its workflow', async () => {
     const { service, executionService } = setup(null);
 
-    await expect(service.invoke('missing', {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.invoke({ apiKey, workflowId: 'workflow-1', input: {} }),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
 
   it('rejects an archived workflow even if it has versions', async () => {
     const { service, executionService } = setup({ ...published, status: 'ARCHIVED' });
 
-    await expect(service.invoke('workflow-1', {})).rejects.toThrow(
-      new BadRequestException('Archived workflow cannot be run'),
-    );
+    await expect(
+      service.invoke({ apiKey, workflowId: 'workflow-1', input: {} }),
+    ).rejects.toThrow(new BadRequestException('Archived workflow cannot be run'));
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
 
   it('rejects a workflow that was never published instead of running its draft', async () => {
     const { service, executionService } = setup({ ...published, status: 'DRAFT', versions: [] });
 
-    await expect(service.invoke('workflow-1', {})).rejects.toThrow(
-      new BadRequestException('Workflow has no published version'),
-    );
+    await expect(
+      service.invoke({ apiKey, workflowId: 'workflow-1', input: {} }),
+    ).rejects.toThrow(new BadRequestException('Workflow has no published version'));
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
 });

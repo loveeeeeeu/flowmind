@@ -7,6 +7,7 @@ import { LlmModule } from './llm/llm.module.js';
 import { WorkflowModule } from './workflow/workflow.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ExternalApiModule } from './external-api/external-api.module.js';
+import { ApiKeyModule } from './api-key/api-key.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ExternalApiModule } from './external-api/external-api.module.js';
     HealthModule,
     LlmModule,
     WorkflowModule,
+    ApiKeyModule,
     ExternalApiModule,
   ],
 })

@@ -8,8 +8,13 @@ import { toJsonInput } from './json-value.js';
 export interface CreatePublishedRunParams {
   workflowId: string;
   workflowVersionId: string;
+  /** The key that triggered the run through the external API; absent for editor runs. */
+  workflowApiKeyId?: string;
   input: Record<string, unknown>;
 }
+
+/** Which key triggered a run, for the editor's history; never the hash. */
+const RUN_API_KEY = { select: { id: true, name: true, prefix: true } } as const;
 
 export interface CreateDraftRunParams {
   workflowId: string;
@@ -31,6 +36,7 @@ export class WorkflowRunService {
         workflowId: params.workflowId,
         source: 'PUBLISHED',
         workflowVersionId: params.workflowVersionId,
+        workflowApiKeyId: params.workflowApiKeyId,
         status: 'PENDING',
         input: toJsonInput(params.input),
       },
@@ -78,6 +84,7 @@ export class WorkflowRunService {
       include: {
         // null for legacy runs created before versioning.
         workflowVersion: { select: { id: true, version: true, createdAt: true } },
+        workflowApiKey: RUN_API_KEY,
         nodeRuns: {
           // Retries share a sequence, so attempt keeps them in execution order.
           orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }],
@@ -122,6 +129,7 @@ export class WorkflowRunService {
         createdAt: true,
         // Joined here so the history list never fetches versions one run at a time.
         workflowVersion: { select: { id: true, version: true } },
+        workflowApiKey: RUN_API_KEY,
       },
     });
   }
