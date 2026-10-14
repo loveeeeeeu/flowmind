@@ -597,4 +597,36 @@ Draft Run 也能保证一致.现在两种运行Run/Draft Run都在创建 Run 的
 | 发布校验期间草稿被保存 | 发布出去的画布没经过校验 | 修订号检查：事务里读到的 draftRevision 和校验时不一样就返回 409，用户重试 |
 ```
 
-#
+## External Workflow API
+从今天开始，Workflow 不只是一个编辑器里的东西，而是一项可以被别的程序调用的能力。今天做出来的接口只能用于本地开发，不要直接暴露到公网
+接口url换一下即可，@Controller('api/v1/workflows')ExternalWorkflowService：不要重新写一套执行逻辑
+### 重要规则：External API 永远只运行 Published Version
+本课完成后的架构
+```
+                    FlowMind
+                       │
+          ┌────────────┴────────────┐
+          │                         │
+          ▼                         ▼
+     Editor / UI              External API
+          │                  /api/v1/...
+          │                         │
+          └────────────┬────────────┘
+                       ▼
+               ExecutionService
+                       │
+                       ▼
+                  WorkflowRun
+                       │
+                       ▼
+                    BullMQ
+                       │
+                       ▼
+                    Worker
+                       │
+                       ▼
+              WorkflowVersion
+                       │
+                       ▼
+               WorkflowEngine
+```
