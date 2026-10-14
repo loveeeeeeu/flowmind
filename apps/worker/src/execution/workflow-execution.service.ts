@@ -10,6 +10,13 @@ import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 import { RunStateService } from './run-state.service.js';
 
 export const WORKFLOW_VERSION_MISSING = 'WORKFLOW_VERSION_MISSING';
+export const DRAFT_SNAPSHOT_MISSING = 'DRAFT_SNAPSHOT_MISSING';
+
+type LoadedRun = Awaited<ReturnType<RunStateService['findRun']>>;
+
+function runError(code: string, message: string) {
+  return Object.assign(new Error(message), { code });
+}
 
 @Injectable()
 export class WorkflowExecutionService {
@@ -27,25 +34,21 @@ export class WorkflowExecutionService {
       return;
     }
 
-    // Legacy runs predate versioning. Falling back to the draft would execute something the
-    // user never published, so they fail explicitly instead.
-    if (!run.workflowVersion) {
-      const error = Object.assign(
-        new Error('Workflow run was created before versioned execution was enabled'),
-        { code: WORKFLOW_VERSION_MISSING },
-      );
+    let canvas: WorkflowCanvas;
+
+    try {
+      canvas = this.resolveCanvas(run);
+    } catch (error) {
       await this.runState.markFailed(runId, error);
       throw error;
     }
 
-    // Immutable snapshot bound at run creation: later draft edits or publishes cannot leak in.
-    // The engine still re-validates it before executing.
-    const canvas = run.workflowVersion.canvas as unknown as WorkflowCanvas;
     const input = (run.input ?? {}) as Record<string, unknown>;
     const stopHeartbeat = this.runState.startHeartbeat(runId);
     let result: WorkflowExecutionResult;
 
     try {
+      // The engine re-validates the snapshot before executing any node.
       result = await this.engine.execute(canvas, input, {
         observer: new PrismaExecutionObserver(this.prisma, this.logs, runId),
       });
@@ -57,5 +60,30 @@ export class WorkflowExecutionService {
     }
 
     await this.runState.markSuccess(runId, result.result);
+  }
+
+  /**
+   * Both sources are immutable snapshots taken when the run was created, so edits or publishes
+   * while the run is queued never change what it executes. A missing snapshot fails the run
+   * explicitly; falling back to the live draft would execute something nobody asked for.
+   */
+  private resolveCanvas(run: LoadedRun): WorkflowCanvas {
+    switch (run.source) {
+      case 'PUBLISHED':
+        if (!run.workflowVersion) {
+          // Legacy runs from before versioning end up here.
+          throw runError(WORKFLOW_VERSION_MISSING, 'Published run has no workflow version');
+        }
+        return run.workflowVersion.canvas as unknown as WorkflowCanvas;
+
+      case 'DRAFT':
+        if (!run.draftSnapshot) {
+          throw runError(DRAFT_SNAPSHOT_MISSING, 'Draft run has no snapshot');
+        }
+        return run.draftSnapshot as unknown as WorkflowCanvas;
+
+      default:
+        throw new Error(`Unsupported run source: ${String(run.source)}`);
+    }
   }
 }

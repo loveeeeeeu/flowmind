@@ -24,6 +24,7 @@ interface RunStateSnapshot {
   id: string;
   status: string;
   heartbeatAt: Date | null;
+  source?: 'DRAFT' | 'PUBLISHED';
   workflowVersion?: { id: string; version: number } | null;
 }
 
@@ -44,7 +45,8 @@ export class RunStateService {
   async findRun(runId: string) {
     const run = await this.prisma.workflowRun.findUnique({
       where: { id: runId },
-      // The bound version is the only canvas a run may execute; the draft is not loaded at all.
+      // A run executes its bound version or its own draft snapshot; Workflow.draftCanvas is
+      // deliberately not loaded, so the live draft can never leak into a queued run.
       include: {
         workflowVersion: { select: { id: true, version: true, canvas: true } },
       },
@@ -91,8 +93,11 @@ export class RunStateService {
       message: '开始运行',
       metadata: {
         workerPid: process.pid,
-        workflowVersionId: run.workflowVersion?.id ?? null,
-        version: run.workflowVersion?.version ?? null,
+        source: run.source ?? 'PUBLISHED',
+        ...(run.workflowVersion && {
+          workflowVersionId: run.workflowVersion.id,
+          version: run.workflowVersion.version,
+        }),
       },
     });
 

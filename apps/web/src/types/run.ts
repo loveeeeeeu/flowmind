@@ -2,10 +2,14 @@ export type RunStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLE
 
 export type NodeRunStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
 
+/** DRAFT: "测试草稿" run of an editor snapshot. PUBLISHED: run of a published version. */
+export type WorkflowRunSource = 'DRAFT' | 'PUBLISHED';
+
 export interface WorkflowRunSummary {
   id: string;
   workflowId: string;
-  /** null for legacy runs created before versioning. */
+  source: WorkflowRunSource;
+  /** null for draft test runs, and for legacy runs created before versioning. */
   workflowVersion: { id: string; version: number } | null;
   status: RunStatus;
   errorCode: string | null;
@@ -46,14 +50,14 @@ export interface ExecutionLog {
   createdAt: string;
 }
 
-export interface WorkflowVersionSummary {
+export interface RunVersionSummary {
   id: string;
   version: number;
   createdAt: string;
 }
 
 export interface WorkflowRunDetail extends WorkflowRunSummary {
-  workflowVersion: WorkflowVersionSummary | null;
+  workflowVersion: RunVersionSummary | null;
   input: unknown;
   output: unknown;
   updatedAt: string;

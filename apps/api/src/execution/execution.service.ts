@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ExecutionQueueService } from './queue/execution-queue.service.js';
-import { type CreateRunRecordParams, WorkflowRunService } from './run/workflow-run.service.js';
+import {
+  type CreateDraftRunParams,
+  type CreatePublishedRunParams,
+  WorkflowRunService,
+} from './run/workflow-run.service.js';
 
-export type CreateWorkflowRunParams = CreateRunRecordParams;
-
+/**
+ * Two explicit entry points instead of one createRun({ source }): the caller states which kind
+ * of run it wants. Both enqueue only the run id; the worker reads the canvas source from the row.
+ */
 @Injectable()
 export class ExecutionService {
   constructor(
@@ -11,10 +17,19 @@ export class ExecutionService {
     private readonly queue: ExecutionQueueService,
   ) {}
 
-  /** The job still carries only the run id; the worker loads the bound version from the row. */
-  async createRun(params: CreateWorkflowRunParams) {
-    const run = await this.runs.create(params);
+  async createPublishedRun(params: CreatePublishedRunParams) {
+    return this.enqueue(await this.runs.createPublished(params));
+  }
 
+  async createDraftRun(params: CreateDraftRunParams) {
+    return this.enqueue(await this.runs.createDraft(params));
+  }
+
+  findWorkflowRuns(workflowId: string) {
+    return this.runs.findByWorkflow(workflowId);
+  }
+
+  private async enqueue<T extends { id: string }>(run: T): Promise<T> {
     try {
       await this.queue.enqueueRun(run.id);
       return run;
@@ -22,9 +37,5 @@ export class ExecutionService {
       await this.runs.markFailed(run.id, error);
       throw error;
     }
-  }
-
-  findWorkflowRuns(workflowId: string) {
-    return this.runs.findByWorkflow(workflowId);
   }
 }

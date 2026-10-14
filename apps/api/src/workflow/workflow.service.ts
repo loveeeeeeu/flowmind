@@ -14,6 +14,7 @@ import type { WorkflowCanvas } from '@flowmind/workflow-core';
 import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 import { WorkflowVersionService } from './workflow-version.service.js';
+import type { TestWorkflowDto } from './dto/test-workflow.dto.js';
 
 @Injectable()
 export class WorkflowService {
@@ -87,7 +88,7 @@ export class WorkflowService {
         versions: {
           orderBy: { version: 'desc' },
           take: 1,
-          select: { id: true, version: true, createdAt: true },
+          select: { id: true, workflowId: true, version: true, draftRevision: true, createdAt: true },
         },
       },
     });
@@ -121,7 +122,10 @@ export class WorkflowService {
     });
   }
 
-  /** Saving only touches the mutable draft; published versions are never rewritten. */
+  /**
+   * Saving only touches the mutable draft; published versions are never rewritten. Every save
+   * bumps the revision, even with an identical canvas: cheap, and never misses a change.
+   */
   async updateCanvas(id: string, dto: UpdateWorkflowCanvasDto) {
     await this.findOne(id);
 
@@ -129,6 +133,7 @@ export class WorkflowService {
       where: { id },
       data: {
         draftCanvas: { nodes: dto.nodes, edges: dto.edges } as Prisma.InputJsonValue,
+        draftRevision: { increment: 1 },
       },
     });
   }
@@ -162,9 +167,40 @@ export class WorkflowService {
 
     const canvas = workflow.draftCanvas as unknown as WorkflowCanvas;
 
+    // Validated outside the transaction (pure CPU); the revision ties the result to this canvas.
     this.workflowPlanService.createExecutionPlan(canvas);
 
-    return this.workflowVersionService.publish(workflow.id, canvas);
+    return this.workflowVersionService.publish({
+      workflowId: workflow.id,
+      canvas,
+      expectedDraftRevision: workflow.draftRevision,
+    });
+  }
+
+  /**
+   * Debug run of the editor's current canvas, saved or not. Creates a run with its own snapshot
+   * and never a WorkflowVersion, so testing does not flood the version history.
+   */
+  async testRun(id: string, dto: TestWorkflowDto) {
+    const workflow = await this.findOne(id);
+
+    if (workflow.status === 'ARCHIVED') {
+      throw new BadRequestException('Archived workflow cannot be tested');
+    }
+
+    const canvas = {
+      nodes: dto.canvas.nodes,
+      edges: dto.canvas.edges,
+    } as unknown as WorkflowCanvas;
+
+    // An invalid graph is rejected here instead of being queued just to fail in the worker.
+    this.workflowPlanService.createExecutionPlan(canvas);
+
+    return this.executionService.createDraftRun({
+      workflowId: workflow.id,
+      canvas,
+      input: dto.input,
+    });
   }
 
   /**
@@ -185,7 +221,7 @@ export class WorkflowService {
       throw new BadRequestException('Workflow has no published version');
     }
 
-    return this.executionService.createRun({
+    return this.executionService.createPublishedRun({
       workflowId: workflow.id,
       workflowVersionId: version.id,
       input: dto.input,

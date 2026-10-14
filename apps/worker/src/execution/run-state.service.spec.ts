@@ -39,6 +39,7 @@ describe('RunStateService', () => {
           id: 'run-1',
           status: 'PENDING',
           heartbeatAt: null,
+          source: 'PUBLISHED',
           workflowVersion: { id: 'version-2', version: 2 },
         }),
       ).resolves.toBe('execute');
@@ -50,7 +51,30 @@ describe('RunStateService', () => {
       expect(logs.log).toHaveBeenCalledWith({
         workflowRunId: 'run-1',
         message: '开始运行',
-        metadata: { workerPid: process.pid, workflowVersionId: 'version-2', version: 2 },
+        metadata: {
+          workerPid: process.pid,
+          source: 'PUBLISHED',
+          workflowVersionId: 'version-2',
+          version: 2,
+        },
+      });
+    });
+
+    it('logs a draft test run start with its source and no version', async () => {
+      const { logs, service } = createService();
+
+      await service.prepareForExecution({
+        id: 'run-1',
+        status: 'PENDING',
+        heartbeatAt: null,
+        source: 'DRAFT',
+        workflowVersion: null,
+      });
+
+      expect(logs.log).toHaveBeenCalledWith({
+        workflowRunId: 'run-1',
+        message: '开始运行',
+        metadata: { workerPid: process.pid, source: 'DRAFT' },
       });
     });
 

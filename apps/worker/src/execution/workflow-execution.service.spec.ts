@@ -6,16 +6,25 @@ import type { RunExecutionDecision, RunStateService } from './run-state.service.
 import { WorkflowExecutionService } from './workflow-execution.service.js';
 
 const canvas = { nodes: [], edges: [] };
-const run = {
+
+interface FakeRun {
+  id: string;
+  status: string;
+  heartbeatAt: null;
+  input: Record<string, unknown>;
+  source: string;
+  workflowVersion: { id: string; version: number; canvas: unknown } | null;
+  draftSnapshot: unknown;
+}
+
+const run: FakeRun = {
   id: 'run-1',
   status: 'PENDING',
   heartbeatAt: null,
   input: { name: 'FlowMind' },
-  workflowVersion: { id: 'version-1', version: 1, canvas } as {
-    id: string;
-    version: number;
-    canvas: unknown;
-  } | null,
+  source: 'PUBLISHED',
+  workflowVersion: { id: 'version-1', version: 1, canvas },
+  draftSnapshot: null,
 };
 
 function createRunState(decision: RunExecutionDecision = 'execute', loadedRun = run) {
@@ -92,6 +101,44 @@ describe('WorkflowExecutionService', () => {
     expect(execute).toHaveBeenCalledWith(v2Canvas, expect.anything(), expect.anything());
   });
 
+  it('executes the draft snapshot of a DRAFT run, even if the editor changed since', async () => {
+    // Snapshot A was taken when "Test Draft" was clicked; the editor moved on to B afterwards.
+    const snapshotA = {
+      nodes: [{ id: 'end', type: 'end', data: { outputVariable: 'a' } }],
+      edges: [],
+    };
+    const { runState } = createRunState('execute', {
+      ...run,
+      source: 'DRAFT',
+      workflowVersion: null,
+      draftSnapshot: snapshotA,
+    });
+    const execute = vi.fn(async () => ({ result: {} }));
+
+    await createService(runState, execute).executeRun('run-1');
+
+    expect(execute).toHaveBeenCalledWith(snapshotA, expect.anything(), expect.anything());
+  });
+
+  it('fails a DRAFT run without a snapshot', async () => {
+    const { runState } = createRunState('execute', {
+      ...run,
+      source: 'DRAFT',
+      workflowVersion: null,
+      draftSnapshot: null,
+    });
+    const execute = vi.fn();
+
+    await expect(createService(runState, execute).executeRun('run-1')).rejects.toThrow(
+      'Draft run has no snapshot',
+    );
+    expect(execute).not.toHaveBeenCalled();
+    expect(runState.markFailed).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({ code: 'DRAFT_SNAPSHOT_MISSING' }),
+    );
+  });
+
   it('fails a legacy run without a version instead of falling back to the draft', async () => {
     const { runState, stopHeartbeat } = createRunState('execute', {
       ...run,
@@ -100,7 +147,7 @@ describe('WorkflowExecutionService', () => {
     const execute = vi.fn();
 
     await expect(createService(runState, execute).executeRun('run-1')).rejects.toThrow(
-      'Workflow run was created before versioned execution was enabled',
+      'Published run has no workflow version',
     );
 
     expect(execute).not.toHaveBeenCalled();

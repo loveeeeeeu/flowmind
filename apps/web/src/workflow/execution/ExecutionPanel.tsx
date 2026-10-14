@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { WorkflowVersionSummary } from '../../types/run';
+import type { WorkflowVersionSummary } from '../../types/workflow';
+import type { WorkflowCanvas } from '../types/workflowCanvas';
 import { RunDetail } from './RunDetail';
 import { RunHistory } from './RunHistory';
 import { RunStatusBadge } from './RunStatusBadge';
@@ -11,39 +12,69 @@ type ExecutionTab = 'run' | 'history';
 interface ExecutionPanelProps {
   execution: ExecutionState;
   workflowUpdatedAt: string;
-  /** What a new run executes; unsaved or unpublished draft edits never affect it. */
+  /** What "运行 vN" executes; unsaved or unpublished draft edits never affect it. */
   latestVersion: WorkflowVersionSummary | null;
+  /** While a historical version is shown read-only there is no draft on screen to test. */
+  isPreviewing: boolean;
+  /** Snapshot of the editor's current canvas, unsaved edits included, taken at click time. */
+  getTestCanvas: () => WorkflowCanvas;
   nodeLabels: Record<string, string>;
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
+  onViewVersion: (versionId: string) => void;
 }
 
 export function ExecutionPanel({
   execution,
   workflowUpdatedAt,
   latestVersion,
+  isPreviewing,
+  getTestCanvas,
   nodeLabels,
   selectedNodeId,
   onSelectNode,
+  onViewVersion,
 }: ExecutionPanelProps) {
-  const { isOpen, setIsOpen, historyQuery, trackedRun, viewedRunId, viewedRunQuery, runMutation } =
-    execution;
+  const {
+    isOpen,
+    setIsOpen,
+    historyQuery,
+    trackedRun,
+    viewedRunId,
+    viewedRunQuery,
+    runMutation,
+    testRunMutation,
+  } = execution;
   const [tab, setTab] = useState<ExecutionTab>('run');
   const [inputText, setInputText] = useState('{}');
   const [inputError, setInputError] = useState<string | null>(null);
 
-  function handleRun() {
-    let input: Record<string, unknown>;
-
+  function readInput(): Record<string, unknown> | null {
     try {
-      input = parseRunInput(inputText);
+      const input = parseRunInput(inputText);
+      setInputError(null);
+      return input;
     } catch (error) {
       setInputError(error instanceof SyntaxError ? 'JSON 格式错误' : (error as Error).message);
-      return;
+      return null;
     }
+  }
 
-    setInputError(null);
-    runMutation.mutate(input);
+  function handleRun() {
+    const input = readInput();
+
+    if (input) {
+      runMutation.mutate(input);
+    }
+  }
+
+  // Never saves: the dirty flag stays as it was, the snapshot only lives on the run.
+  function handleTestDraft() {
+    const input = readInput();
+
+    if (input) {
+      testRunMutation.mutate({ input, canvas: getTestCanvas() });
+    }
   }
 
   function openTab(nextTab: ExecutionTab) {
@@ -115,26 +146,44 @@ export function ExecutionPanel({
                 </p>
 
                 <p className="panel-hint">
+                  {isPreviewing
+                    ? '正在预览历史版本，返回草稿后才能测试草稿'
+                    : '测试草稿：运行当前画布（含未保存的修改），不会生成版本'}
+                  <br />
                   {latestVersion
-                    ? `将运行已发布的 v${latestVersion.version}；草稿中的修改需要发布后才会生效`
-                    : '请先发布工作流再运行'}
+                    ? `运行 v${latestVersion.version}：运行已发布版本，不受草稿修改影响`
+                    : '正式运行需要先发布工作流'}
                 </p>
+                {testRunMutation.isError && (
+                  <p className="error-message">测试草稿失败：{testRunMutation.error.message}</p>
+                )}
                 {runMutation.isError && (
                   <p className="error-message">启动运行失败：{runMutation.error.message}</p>
                 )}
 
-                <button
-                  type="button"
-                  className="primary-button execution-run-button"
-                  onClick={handleRun}
-                  disabled={!latestVersion || runMutation.isPending}
-                >
-                  {runMutation.isPending
-                    ? '启动中…'
-                    : latestVersion
-                      ? `运行 v${latestVersion.version}`
-                      : '运行'}
-                </button>
+                <div className="execution-run-actions">
+                  <button
+                    type="button"
+                    className="execution-test-button"
+                    onClick={handleTestDraft}
+                    disabled={isPreviewing || testRunMutation.isPending}
+                  >
+                    {testRunMutation.isPending ? '启动中…' : '测试草稿'}
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button execution-run-button"
+                    title={latestVersion ? undefined : '请先发布工作流再运行'}
+                    onClick={handleRun}
+                    disabled={!latestVersion || runMutation.isPending}
+                  >
+                    {runMutation.isPending
+                      ? '启动中…'
+                      : latestVersion
+                        ? `运行 v${latestVersion.version}`
+                        : '运行'}
+                  </button>
+                </div>
               </>
             ) : (
               <RunHistory
@@ -157,6 +206,7 @@ export function ExecutionPanel({
               nodeLabels={nodeLabels}
               selectedNodeId={selectedNodeId}
               onSelectNode={onSelectNode}
+              onViewVersion={onViewVersion}
             />
           </div>
         </div>

@@ -35,7 +35,7 @@ export function RunHistory({ runs, isLoading, error, selectedRunId, onSelectRun 
           >
             <span className="run-history-row">
               <RunStatusBadge status={run.status} />
-              <RunVersionTag version={run.workflowVersion} />
+              <RunVersionTag run={run} />
               <span className="run-history-time">{formatRunTime(run.createdAt)}</span>
             </span>
             <span className="run-history-row">

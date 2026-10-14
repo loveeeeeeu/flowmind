@@ -18,7 +18,7 @@ import '@xyflow/react/dist/style.css';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getLlmProviders } from '../api/llm';
-import { publishWorkflow, updateWorkflowCanvas } from '../api/workflow';
+import { getWorkflowVersion, publishWorkflow, updateWorkflowCanvas } from '../api/workflow';
 import { queryKeys } from '../api/queryKeys';
 import type { WorkflowDetail } from '../types/workflow';
 import { StartNode } from './nodes/StartNode';
@@ -48,6 +48,8 @@ import { CodeNode } from './nodes/CodeNode';
 import { ExecutionPanel } from './execution/ExecutionPanel';
 import { buildNodeStatusMap } from './execution/runUtils';
 import { useExecutionState } from './execution/useExecutionState';
+import { VersionHistory } from './version/VersionHistory';
+import { VersionPreviewBanner } from './version/VersionPreviewBanner';
 
 const nodeTypes = {
   start: StartNode,
@@ -111,7 +113,28 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [flow, setFlow] = useState<ReactFlowInstance<WorkflowNode, WorkflowEdge> | null>(null);
+  const [isVersionsOpen, setIsVersionsOpen] = useState(false);
+  const [previewVersionId, setPreviewVersionId] = useState<string | null>(null);
   const execution = useExecutionState(workflow.id);
+
+  // Read-only preview of a published version. It only switches what the canvas displays:
+  // the draft's nodes/edges/isDirty are never replaced, so "返回草稿" loses nothing.
+  const isPreviewing = previewVersionId !== null;
+  const previewQuery = useQuery({
+    queryKey: queryKeys.versions.detail(workflow.id, previewVersionId ?? ''),
+    queryFn: () => getWorkflowVersion(workflow.id, previewVersionId as string),
+    enabled: isPreviewing,
+    // Versions are immutable.
+    staleTime: Infinity,
+  });
+  const previewVersion = isPreviewing ? previewQuery.data : undefined;
+
+  const latestVersion = workflow.latestVersion;
+  // isDirty: local canvas differs from the saved draft. hasUnpublishedChanges: the saved draft
+  // differs from the latest version. Independent, so both can be true at once.
+  const hasUnpublishedChanges = latestVersion
+    ? workflow.draftRevision > latestVersion.draftRevision
+    : workflow.draftCanvas !== null;
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const nodeLabels = useMemo(
@@ -119,7 +142,9 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     [nodes],
   );
 
-  const overlayRun = execution.isOpen ? execution.viewedRunQuery.data : undefined;
+  // No run overlay on a version preview: the viewed run may belong to another canvas.
+  const overlayRun =
+    execution.isOpen && !isPreviewing ? execution.viewedRunQuery.data : undefined;
   // Execution status is a render-only className: `nodes` (what gets saved) never contains it.
   const renderedNodes = useMemo(() => {
     if (!overlayRun) {
@@ -138,7 +163,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const focusNode = useCallback(
     (nodeId: string) => {
       // A historical run can reference a node that has since been deleted.
-      if (!nodes.some((node) => node.id === nodeId)) {
+      if (isPreviewing || !nodes.some((node) => node.id === nodeId)) {
         return;
       }
 
@@ -148,7 +173,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       setSelectedNodeId(nodeId);
       void flow?.fitView({ nodes: [{ id: nodeId }], duration: 300, maxZoom: 1.2 });
     },
-    [nodes, setNodes, flow],
+    [isPreviewing, nodes, setNodes, flow],
   );
 
   const handleNodesChange = useCallback(
@@ -410,13 +435,22 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflow.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.workflows.versions(workflow.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.versions.list(workflow.id) }),
       ]),
   });
 
-  const latestVersion = workflow.latestVersion;
   // Publishing snapshots the server-side draft, so unsaved edits would silently be left out.
-  const publishBlockedHint = isDirty ? '请先保存草稿再发布' : undefined;
+  const publishBlockedReason = isPreviewing
+    ? '预览历史版本时不能发布'
+    : isDirty
+      ? '请先保存草稿再发布'
+      : workflow.draftCanvas === null
+        ? '请先保存草稿'
+        : !hasUnpublishedChanges
+          ? '草稿与已发布版本一致，无需重复发布'
+          : null;
+
+  const getTestCanvas = useCallback(() => toPersistedCanvas(nodes, edges), [nodes, edges]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -428,7 +462,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
 
       event.preventDefault();
 
-      if (isDirty && !saveCanvasMutation.isPending) {
+      if (isDirty && !isPreviewing && !saveCanvasMutation.isPending) {
         saveCanvasMutation.mutate();
       }
     }
@@ -438,7 +472,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isDirty, saveCanvasMutation]);
+  }, [isDirty, isPreviewing, saveCanvasMutation]);
 
   return (
     <div className="workflow-editor">
@@ -452,12 +486,14 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
             <span className="editor-title-row">
               <strong className="editor-name">{workflow.name}</strong>
               {latestVersion ? (
-                <span
-                  className="editor-version-badge published"
-                  title="画布编辑的始终是草稿；运行使用最新发布的版本"
+                <button
+                  type="button"
+                  className="editor-version-badge published clickable"
+                  title={`点击只读查看 v${latestVersion.version} 的画布；编辑的始终是草稿`}
+                  onClick={() => setPreviewVersionId(latestVersion.id)}
                 >
                   已发布 v{latestVersion.version}
-                </span>
+                </button>
               ) : (
                 <span
                   className="editor-version-badge"
@@ -467,8 +503,21 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
                 </span>
               )}
             </span>
-            <span className={`editor-save-state ${isDirty ? 'dirty' : ''}`}>
-              {isDirty ? '未保存的更改，保存后才能发布' : '已自动保存'}
+            <span className="editor-state-row">
+              <span className={`editor-save-state ${isDirty ? 'dirty' : ''}`}>
+                {isDirty ? '未保存的更改' : '草稿已保存'}
+              </span>
+              {latestVersion ? (
+                <span
+                  className={`editor-publish-state ${hasUnpublishedChanges ? 'pending' : ''}`}
+                >
+                  {hasUnpublishedChanges
+                    ? '有未发布的修改'
+                    : `与 v${latestVersion.version} 一致`}
+                </span>
+              ) : (
+                <span className="editor-publish-state">尚未发布</span>
+              )}
             </span>
           </div>
         </div>
@@ -482,30 +531,48 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
               发布失败：{publishMutation.error.message}
             </span>
           )}
-          {publishMutation.isSuccess && !isDirty && (
-            <span className="editor-publish-success">刚发布 v{publishMutation.data.version}</span>
-          )}
-          <span className="editor-mode">编排模式</span>
+          <button
+            type="button"
+            className={`versions-action ${isVersionsOpen ? 'active' : ''}`}
+            onClick={() => setIsVersionsOpen((open) => !open)}
+          >
+            版本历史
+          </button>
           <button
             className="save-action"
+            title={isPreviewing ? '预览历史版本时不能保存' : undefined}
             onClick={() => saveCanvasMutation.mutate()}
-            disabled={!isDirty || saveCanvasMutation.isPending}
+            disabled={isPreviewing || !isDirty || saveCanvasMutation.isPending}
           >
-            {saveCanvasMutation.isPending ? '保存中…' : '保存'}
+            {saveCanvasMutation.isPending ? '保存中…' : '保存草稿'}
           </button>
           <button
             className="publish-action"
-            title={publishBlockedHint ?? '把已保存的草稿发布为新的不可修改版本'}
+            title={publishBlockedReason ?? '把已保存的草稿发布为新的不可修改版本'}
             onClick={() => publishMutation.mutate()}
-            disabled={isDirty || saveCanvasMutation.isPending || publishMutation.isPending}
+            disabled={
+              publishBlockedReason !== null ||
+              saveCanvasMutation.isPending ||
+              publishMutation.isPending
+            }
           >
             {publishMutation.isPending ? '发布中…' : '发布'}
           </button>
         </div>
       </header>
 
+      {isPreviewing && (
+        <VersionPreviewBanner
+          version={previewVersion}
+          error={previewQuery.error}
+          hasUnsavedDraft={isDirty}
+          onBackToDraft={() => setPreviewVersionId(null)}
+        />
+      )}
+
       <div className="editor-body">
       <NodeLibrary
+        disabled={isPreviewing}
         onAddLlm={addLlmNode}
         onAddTemplate={addTemplateNode}
         onAddVariable={addVariableNode}
@@ -516,41 +583,59 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       />
 
         <div className="canvas-stage">
+          {/* Keyed by what is shown so each switch remounts and fits the view to that canvas. */}
           <ReactFlow
-            nodes={renderedNodes}
-            edges={edges}
+            key={previewVersion?.id ?? 'draft'}
+            nodes={isPreviewing ? (previewVersion?.canvas.nodes ?? []) : renderedNodes}
+            edges={isPreviewing ? (previewVersion?.canvas.edges ?? []) : edges}
             nodeTypes={nodeTypes}
             onInit={setFlow}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={handleEdgesChange}
-            onConnect={onConnect}
+            onNodesChange={isPreviewing ? undefined : handleNodesChange}
+            onEdgesChange={isPreviewing ? undefined : handleEdgesChange}
+            onConnect={isPreviewing ? undefined : onConnect}
             isValidConnection={isValidConnection}
-            deleteKeyCode={['Backspace', 'Delete']}
-            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-            onPaneClick={() => setSelectedNodeId(null)}
+            nodesDraggable={!isPreviewing}
+            nodesConnectable={!isPreviewing}
+            elementsSelectable={!isPreviewing}
+            deleteKeyCode={isPreviewing ? null : ['Backspace', 'Delete']}
+            onNodeClick={isPreviewing ? undefined : (_, node) => setSelectedNodeId(node.id)}
+            onPaneClick={isPreviewing ? undefined : () => setSelectedNodeId(null)}
             fitView
           >
             <Background color="#d9e0eb" gap={18} size={1} />
-            <Controls />
+            <Controls showInteractive={!isPreviewing} />
             <MiniMap zoomable pannable />
           </ReactFlow>
         </div>
 
         <PropertiesPanel
-          node={selectedNode}
+          node={isPreviewing ? null : selectedNode}
           providers={providersQuery.data ?? []}
           onNodeDataChange={updateNodeData}
           onDeleteNode={deleteNode}
         />
+
+        {isVersionsOpen && (
+          <VersionHistory
+            workflowId={workflow.id}
+            latestVersionId={latestVersion?.id ?? null}
+            previewVersionId={previewVersionId}
+            onPreview={setPreviewVersionId}
+            onClose={() => setIsVersionsOpen(false)}
+          />
+        )}
       </div>
 
       <ExecutionPanel
         execution={execution}
         workflowUpdatedAt={workflow.updatedAt}
         latestVersion={latestVersion}
+        isPreviewing={isPreviewing}
+        getTestCanvas={getTestCanvas}
         nodeLabels={nodeLabels}
         selectedNodeId={selectedNodeId}
         onSelectNode={focusNode}
+        onViewVersion={setPreviewVersionId}
       />
     </div>
   );

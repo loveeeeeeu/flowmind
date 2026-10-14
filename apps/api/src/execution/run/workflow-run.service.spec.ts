@@ -16,11 +16,11 @@ function createPrisma() {
 }
 
 describe('WorkflowRunService', () => {
-  it('creates a pending run bound to a version and snapshots its input as JSON', async () => {
+  it('creates a PUBLISHED run bound to a version, without a draft snapshot', async () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
-    await service.create({
+    await service.createPublished({
       workflowId: 'workflow-1',
       workflowVersionId: 'version-1',
       input: { topic: 'AI', omit: undefined },
@@ -29,11 +29,33 @@ describe('WorkflowRunService', () => {
     expect(prisma.workflowRun.create).toHaveBeenCalledWith({
       data: {
         workflowId: 'workflow-1',
+        source: 'PUBLISHED',
         workflowVersionId: 'version-1',
         status: 'PENDING',
         input: { topic: 'AI' },
       },
+      omit: { draftSnapshot: true },
     });
+  });
+
+  it('creates a DRAFT run carrying its own canvas snapshot, without a version', async () => {
+    const prisma = createPrisma();
+    const service = new WorkflowRunService(prisma as unknown as PrismaService);
+    const canvas = { nodes: [{ id: 'start', type: 'start', data: {} }], edges: [] };
+
+    await service.createDraft({ workflowId: 'workflow-1', canvas, input: {} });
+
+    const [[args]] = prisma.workflowRun.create.mock.calls as unknown as [
+      [{ data: Record<string, unknown> }],
+    ];
+    expect(args.data).toEqual({
+      workflowId: 'workflow-1',
+      source: 'DRAFT',
+      draftSnapshot: canvas,
+      status: 'PENDING',
+      input: {},
+    });
+    expect(args.data).not.toHaveProperty('workflowVersionId');
   });
 
   it('marks a run failed when it cannot be enqueued', async () => {
@@ -61,6 +83,7 @@ describe('WorkflowRunService', () => {
 
     expect(prisma.workflowRun.findUnique).toHaveBeenCalledWith({
       where: { id: 'run-1' },
+      omit: { draftSnapshot: true },
       include: {
         workflowVersion: { select: { id: true, version: true, createdAt: true } },
         nodeRuns: { orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }] },
@@ -103,6 +126,7 @@ describe('WorkflowRunService', () => {
       select: {
         id: true,
         workflowId: true,
+        source: true,
         status: true,
         errorCode: true,
         errorMessage: true,

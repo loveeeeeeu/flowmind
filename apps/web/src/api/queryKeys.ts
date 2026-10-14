@@ -5,7 +5,13 @@ export const queryKeys = {
     list: (page: number, pageSize: number, keyword: string) =>
       ['workflows', 'list', { page, pageSize, keyword }] as const,
     detail: (id: string) => ['workflows', 'detail', id] as const,
-    versions: (id: string) => ['workflows', 'detail', id, 'versions'] as const,
+  },
+  // Outside the workflow detail key: invalidating the detail after every save must not refetch
+  // immutable version snapshots.
+  versions: {
+    list: (workflowId: string) => ['workflowVersions', workflowId, 'list'] as const,
+    detail: (workflowId: string, versionId: string) =>
+      ['workflowVersions', workflowId, 'detail', versionId] as const,
   },
   llm: {
     providers: ['llm', 'providers'] as const,

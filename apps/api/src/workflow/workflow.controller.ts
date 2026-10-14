@@ -18,6 +18,7 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
 import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 import { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
+import { TestWorkflowDto } from './dto/test-workflow.dto.js';
 
 @ApiTags('Workflows')
 @Controller('workflows')
@@ -69,6 +70,13 @@ export class WorkflowController {
     return this.workflowService.validateWorkflow(id);
   }
 
+  @ApiOperation({ summary: '测试当前画布（可未保存）：生成 DRAFT 运行，不创建版本' })
+  @Post(':id/test-run')
+  @HttpCode(HttpStatus.ACCEPTED)
+  testRun(@Param('id') id: string, @Body() dto: TestWorkflowDto) {
+    return this.workflowService.testRun(id, dto);
+  }
+
   @ApiOperation({ summary: '发布已保存的草稿，生成新的不可变版本' })
   @Post(':id/publish')
   publish(@Param('id') id: string) {
@@ -89,11 +97,17 @@ export class WorkflowController {
   }
 
   // Read-only on purpose: versions are immutable, so there is no PATCH or DELETE route.
-  @ApiOperation({ summary: '查询工作流的发布版本（新版本在前）' })
+  @ApiOperation({ summary: '查询工作流的发布版本（仅元数据，新版本在前）' })
   @Get(':id/versions')
   async findVersions(@Param('id') id: string) {
     await this.workflowService.findOne(id);
 
     return this.workflowVersionService.findByWorkflow(id);
+  }
+
+  @ApiOperation({ summary: '查询某个发布版本（含画布快照，只读）' })
+  @Get(':id/versions/:versionId')
+  findVersion(@Param('id') id: string, @Param('versionId') versionId: string) {
+    return this.workflowVersionService.findOne(id, versionId);
   }
 }

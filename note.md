@@ -490,10 +490,14 @@ Worker 才消费旧 Run
    1. RUNNING 卡死：worker 执行中途死了
       --心跳：worker 执行期间每 10 秒更新 heartbeatAt
       --判断：超过 60 秒没更新，就认为 worker 已经失联。
+      --重启恢复扫描：启动时扫一次，之后每 60 秒扫一次（需要定时检查，保证最多一个扫描周期之后一定能发现）
    2. PENDING 卡死：数据库有记录，队列里没 Job
       --API 先插入 run（PENDING），再放进队列。如果在两步之间崩溃，就会留下 PENDING 孤儿，这是典型的双写问题。
       --判断条件是：超过 5 分钟，而且 BullMQ 里没有还活着的 Job。满足就标成失败
-      --重启恢复扫描：启动时扫一次，之后每 60 秒扫一次（需要定时检查，保证最多一个扫描周期之后一定能发现）
+      ### 为什么不反过来，先入队再建 run？
+      因为 Worker 可能比数据库插入更快拿到 Job，到数据库里查不到这条 run，问题反而更难处理。
+      --混了两个不同的"等待，Job 状态 waiting（Redis（BullMQ）），run 状态 PENDING（PostgreSQL），Worker 不去数据库找 PENDING 的 run，它只盯着 Redis 队列，队列里一出现 Job 就马上取走。
+      
 手动重跑：整个 run 失败了，用户想重来，创建一条新的 run
 ## 总流程
 ```
@@ -565,7 +569,32 @@ Workflow= 这个工作流本身
 流程：检查是否归档 → 检查有没有草稿 → 静态校验 → 创建version（最大版本号 +1，复制 draftCanvas 存为快照，status 改为 PUBLISHED）
 只有草稿保存后才能点击发布，且发布前要对草稿校验
 - 校验逻辑不变，以前 Validator 用 registry.has() 判断节点类型（281行），导致 API 只想校验也得造执行器；现在改为只依赖类型清单，执行器注册表只给 Scheduler 用
-## Run 绑定 Version
-run跑到的是最新版本，"最新"在创建 run 时就确定了，不是在 worker 执行时才去找
+## Run 绑定 Version 正式运行跑的是发布版本
+run跑到的是最新版本，"最新"在创建 run 时就确定了，不是在 worker 执行时才去读
 - 例子：run 绑定 v1 后排队 → 改草稿、发布 v2 → worker 启动，执行的仍是 v1
+## Draft Run绑定draft snapshot 测试运行跑的是草稿快照
+排队和执行链路两者共用，Worker 只根据 source 选择执行哪份画布，source=PUBLISHED选择执行version，source=DRAFT选择执行draft
+### 一致性问题
+Draft Run 也能保证一致.现在两种运行Run/Draft Run都在创建 Run 的那一刻固定下画布
+--以前 Worker 是到真正执行时才去读 workflow.draftCanvas。点"运行"以后，任务可能还在队列里排队，这时你保存了草稿，Worker 拿到的就是新画布。点的时候是 A，跑的却是 B，这就是不一致。
+### 用修订号判断有没有未发布的修改并防止并发发布
+--判断： 用修订号比较，draftRevision（每次保存加 1）大于最新版本记录的 draftRevision，就是"有未发布的修改"。
+--保护：
+同一修订号重复发布，返回 400；
+发布校验期间草稿又被保存，返回 409，保证发布出去的就是刚才校验过的那份画布；
+## 历史版本画布的只读预览
+同一个 React Flow 通过切换数据源来只读展示历史版本，草稿状态不受影响
+同一份画布，数据分离
+## 总结目前所有，并发操作引发的问题+解决办法
+```
+| 场景 | 问题 | 解决 |
+|---|---|---|
+| 同一个 Job 被投递多次 | BullMQ 至少投递一次，两个 worker 可能同时领取同一个 run | 带条件领取：`WHERE status=PENDING` 才改成 RUNNING；行锁让两条 UPDATE 排队，count=0 说明被别人抢了，直接跳过 |
+| worker 崩溃 | run 一直停在 RUNNING | 执行期间每 10 秒写一次心跳，超过 60 秒没更新由恢复扫描标成失败（WORKER_INTERRUPTED） |
+| 假死 worker 和恢复扫描同时结束同一个 run | 结果被重复写或互相覆盖 | 只有状态还是 RUNNING 才写 SUCCESS/FAILED，后到的那个 count=0，结果丢弃 |
+| 先建 run 再入队，中间崩溃（双写） | 留下没有 Job 的 PENDING 孤儿 | 入队失败立即标失败；恢复扫描：超过 5 分钟且队列里没有活着的 Job，就标成失败 |
+| run 排队期间画布被修改 | 点的时候是 A，跑的却是 B | 创建 run 时就固定画布：正式运行绑定 version，测试运行存 draftSnapshot；worker 不读 draftCanvas |
+| 发布校验期间草稿被保存 | 发布出去的画布没经过校验 | 修订号检查：事务里读到的 draftRevision 和校验时不一样就返回 409，用户重试 |
+```
 
+#

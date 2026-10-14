@@ -1,4 +1,5 @@
 import type { ExecutionLog, WorkflowRunDetail, WorkflowRunSummary } from '../types/run';
+import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
 import { request } from './client';
 
 export function createWorkflowRun(
@@ -9,6 +10,19 @@ export function createWorkflowRun(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ input }),
+  });
+}
+
+/** Tests the editor's current canvas (saved or not); creates a DRAFT run, never a version. */
+export function createWorkflowTestRun(
+  workflowId: string,
+  input: Record<string, unknown>,
+  canvas: WorkflowCanvas,
+): Promise<WorkflowRunSummary> {
+  return request<WorkflowRunSummary>(`/workflows/${workflowId}/test-run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input, canvas }),
   });
 }
 

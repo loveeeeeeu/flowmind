@@ -50,11 +50,38 @@ a { color: inherit; }
 
 .workflow-editor { height:calc(100vh - 56px); display:flex; flex-direction:column; background:#f7f8fc; overflow:hidden; }
 .editor-toolbar { height:54px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 18px; background:rgba(255,255,255,.92); border-bottom:1px solid #e7ebf2; }
-.editor-identity { display:flex; align-items:center; gap:12px; min-width:0; }.editor-back{font-size:18px;color:#75819a;text-decoration:none;line-height:1}.editor-workflow-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;background:#edf3ff;color:#3868e9}.editor-name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.editor-save-state{font-size:12px;color:#8490a6}.editor-save-state.dirty{color:#c9852a}.editor-actions{display:flex;align-items:center;gap:8px}.editor-actions button{padding:7px 11px;font-size:13px;font-weight:600}.editor-actions .publish-action{color:white;background:#3868e9;border-color:#3868e9}.editor-actions .publish-action:hover:not(:disabled){background:#2f5dde}.editor-body{min-height:0;flex:1;display:flex}.canvas-stage{position:relative;min-width:0;flex:1;background:#fbfcff}.canvas-stage::before{content:'';position:absolute;z-index:2;top:14px;left:50%;transform:translateX(-50%);pointer-events:none;color:#8290a6;background:rgba(255,255,255,.9);border:1px solid #e5eaf3;border-radius:7px;padding:6px 12px;font-size:11px;box-shadow:0 3px 10px rgba(32,56,102,.05)}.canvas-stage::before{content:'拖拽节点到画布，连接节点以构建工作流'}
+.editor-identity { display:flex; align-items:center; gap:12px; min-width:0; }.editor-back{font-size:18px;color:#75819a;text-decoration:none;line-height:1}.editor-workflow-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;background:#edf3ff;color:#3868e9}.editor-name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.editor-save-state{font-size:12px;color:#8490a6}.editor-save-state.dirty{color:#c9852a}.editor-actions{display:flex;align-items:center;gap:8px}.editor-actions button{padding:7px 11px;font-size:13px;font-weight:600}.editor-actions .publish-action{color:white;background:#3868e9;border-color:#3868e9}.editor-actions .publish-action:hover:not(:disabled){background:#2f5dde}.editor-body{position:relative;min-height:0;flex:1;display:flex}.canvas-stage{position:relative;min-width:0;flex:1;background:#fbfcff}.canvas-stage::before{content:'';position:absolute;z-index:2;top:14px;left:50%;transform:translateX(-50%);pointer-events:none;color:#8290a6;background:rgba(255,255,255,.9);border:1px solid #e5eaf3;border-radius:7px;padding:6px 12px;font-size:11px;box-shadow:0 3px 10px rgba(32,56,102,.05)}.canvas-stage::before{content:'拖拽节点到画布，连接节点以构建工作流'}
 .editor-title-row { display:inline-flex; align-items:center; gap:6px; min-width:0; max-width:100%; margin-right:8px; vertical-align:middle; }
 .editor-version-badge { flex-shrink:0; padding:1px 7px; border:1px solid #f6dfb8; border-radius:7px; background:#fff6e8; color:#c9852a; font-size:11px; font-weight:600; line-height:1.5; cursor:default; }
 .editor-version-badge.published { border-color:#cdebdc; background:#ebf9f1; color:#398262; }
-.editor-publish-success { color:#398262; font-size:12px; font-weight:600; white-space:nowrap; }
+.editor-version-badge.clickable { cursor:pointer; }
+.editor-version-badge.published.clickable:hover:not(:disabled) { border-color:#a9dcc2; background:#ddf3e7; }
+.editor-state-row { display:flex; align-items:center; gap:8px; }
+.editor-publish-state { color:#9aa4b6; font-size:12px; }
+.editor-publish-state::before { content:'·'; margin-right:8px; color:#c3cad6; }
+.editor-publish-state.pending { color:#c9852a; font-weight:600; }
+.editor-actions .versions-action { color:#5b6880; background:#fff; }
+.editor-actions .versions-action.active { border-color:#d6e2fd; background:#edf3ff; color:#3868e9; }
+
+.version-preview-banner { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:8px 18px; border-bottom:1px solid #d6e2fd; background:#edf3ff; color:#3868e9; font-size:13px; }
+.version-preview-text { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; }
+.version-preview-note { color:#c9852a; font-size:12px; font-weight:600; }
+.version-preview-error { color:#c63755; }
+.version-preview-banner .subtle-button { padding:5px 11px; font-size:12px; font-weight:600; }
+
+.version-drawer { position:absolute; z-index:6; top:0; right:0; bottom:0; width:300px; display:flex; flex-direction:column; padding:16px; overflow-y:auto; border-left:1px solid #e2e7f0; background:#fff; }
+.version-drawer-header { display:flex; align-items:center; justify-content:space-between; }
+.version-drawer-header h3 { margin:0; color:#1c2434; font-size:15px; }
+.version-drawer-hint { margin:6px 0 12px; color:#9aa4b6; font-size:12px; }
+.version-list { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+.version-item { width:100%; display:grid; gap:4px; padding:10px 12px; border:1px solid #e2e7f0; border-radius:11px; background:#fff; text-align:left; }
+.version-item:hover:not(:disabled) { border-color:#b9c9f8; background:#fbfcff; }
+.version-item.active { border-color:#3868e9; background:#edf3ff; }
+.version-item-head { display:flex; align-items:center; gap:8px; color:#1c2434; font-size:14px; }
+.version-current-tag { padding:1px 6px; border:1px solid #cdebdc; border-radius:7px; background:#ebf9f1; color:#398262; font-size:11px; font-weight:600; }
+.version-item-meta { color:#7b879d; font-size:12px; }
+
+.node-library.disabled .node-library-heading span { color:#3868e9; }
 .canvas-stage .react-flow__background { background:#fbfcff; }
 .canvas-stage .react-flow__controls { overflow:hidden; border:1px solid #e2e7f0; border-radius:8px; box-shadow:0 3px 12px rgba(31,49,88,.12); }
 .canvas-stage .react-flow__controls-button { background:#fff; border-color:#edf0f5; color:#60708c; }
@@ -133,7 +160,10 @@ a { color: inherit; }
 .execution-input { min-height:120px; }
 .execution-input-hint { margin:6px 0 0; color:#9aa4b6; font-size:12px; line-height:1.5; }
 .execution-input-hint code { padding:1px 4px; border-radius:4px; background:#eaeef6; color:#4e5b72; font-size:11px; }
-.execution-run-button { margin-top:14px; }
+.execution-run-actions { display:flex; gap:8px; margin-top:14px; }
+.execution-run-actions button { flex:1; }
+.execution-test-button { padding:10px 14px; border-color:#d6e2fd; background:#fff; color:#3868e9; font-weight:600; }
+.execution-test-button:hover:not(:disabled) { background:#edf3ff; }
 .execution-empty { margin:12px 0; color:#9aa4b6; font-size:13px; }
 .execution-warning { margin:12px 0 0; padding:9px 12px; border:1px solid #f6dfb8; border-radius:8px; background:#fff8ec; color:#a86a1c; font-size:12px; }
 
@@ -148,6 +178,8 @@ a { color: inherit; }
 .run-detail-meta { color:#7b879d; font-size:12px; }
 .run-version-tag { flex-shrink:0; padding:1px 6px; border:1px solid #d6e2fd; border-radius:7px; background:#edf3ff; color:#3868e9; font-size:11px; font-weight:600; line-height:1.5; cursor:default; }
 .run-version-tag.legacy { border-color:#e2e7f0; background:#f5f7fb; color:#9aa4b6; }
+.run-version-tag.draft { border-color:#f6dfb8; background:#fff6e8; color:#c9852a; }
+.run-detail-head .run-view-version { margin-left:auto; padding:4px 10px; font-size:12px; }
 .run-error-box { margin-top:12px; padding:11px 13px; border:1px solid #ffd5dc; border-radius:8px; background:#fff2f4; color:#c63755; font-size:13px; }
 .run-error-box p { margin:4px 0 0; line-height:1.5; word-break:break-word; }
 .run-error-node { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; padding-top:10px; border-top:1px solid #ffd5dc; }

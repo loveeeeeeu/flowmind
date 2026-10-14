@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createWorkflowRun, getWorkflowRun, getWorkflowRuns } from '../../api/runs';
+import {
+  createWorkflowRun,
+  createWorkflowTestRun,
+  getWorkflowRun,
+  getWorkflowRuns,
+} from '../../api/runs';
 import { queryKeys } from '../../api/queryKeys';
+import type { WorkflowRunSummary } from '../../types/run';
+import type { WorkflowCanvas } from '../types/workflowCanvas';
 import { isTerminalRunStatus, isUnfinishedRun } from './runUtils';
 
 const RUN_POLL_INTERVAL_MS = 1000;
@@ -60,16 +67,25 @@ export function useExecutionState(workflowId: string) {
     }
   }, [historyIsBehind, queryClient, workflowId]);
 
+  // Draft tests and published runs share one history, trace and polling; only the source differs.
+  async function followRun(run: WorkflowRunSummary) {
+    setActiveRunId(run.id);
+    setSelectedRunId(null);
+    setIsOpen(true);
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.runs.workflowHistory(workflowId),
+    });
+  }
+
   const runMutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => createWorkflowRun(workflowId, input),
-    onSuccess: async (run) => {
-      setActiveRunId(run.id);
-      setSelectedRunId(null);
-      setIsOpen(true);
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.runs.workflowHistory(workflowId),
-      });
-    },
+    onSuccess: followRun,
+  });
+
+  const testRunMutation = useMutation({
+    mutationFn: ({ input, canvas }: { input: Record<string, unknown>; canvas: WorkflowCanvas }) =>
+      createWorkflowTestRun(workflowId, input, canvas),
+    onSuccess: followRun,
   });
 
   return {
@@ -81,6 +97,7 @@ export function useExecutionState(workflowId: string) {
     viewedRunQuery,
     selectRun: setSelectedRunId,
     runMutation,
+    testRunMutation,
   };
 }
 

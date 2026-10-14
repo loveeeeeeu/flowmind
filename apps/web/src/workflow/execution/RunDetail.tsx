@@ -25,6 +25,7 @@ interface RunDetailProps {
   nodeLabels: Record<string, string>;
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
+  onViewVersion: (versionId: string) => void;
 }
 
 export function RunDetail({
@@ -36,6 +37,7 @@ export function RunDetail({
   nodeLabels,
   selectedNodeId,
   onSelectNode,
+  onViewVersion,
 }: RunDetailProps) {
   const [view, setView] = useState<RunDetailView>('trace');
 
@@ -57,17 +59,27 @@ export function RunDetail({
   const failedNodeRun = [...run.nodeRuns].reverse().find((nodeRun) => nodeRun.status === 'FAILED');
   const failedNodeLabel = failedNodeRun ? nodeLabels[failedNodeRun.nodeId] : undefined;
   const ranOlderDraft = new Date(workflowUpdatedAt).getTime() > new Date(run.createdAt).getTime();
+  const publishedVersion = run.source === 'PUBLISHED' ? run.workflowVersion : null;
 
   return (
     <div className="run-detail">
       <div className="run-detail-head">
         <RunStatusBadge status={run.status} />
-        <RunVersionTag version={run.workflowVersion} />
+        <RunVersionTag run={run} />
         <code className="run-detail-id">{run.id}</code>
         <span className="run-detail-meta">创建于 {formatRunTime(run.createdAt)}</span>
         <span className="run-detail-meta">
           耗时 {formatDuration(getElapsedMs(run.startedAt, run.finishedAt, now))}
         </span>
+        {publishedVersion && (
+          <button
+            type="button"
+            className="subtle-button run-view-version"
+            onClick={() => onViewVersion(publishedVersion.id)}
+          >
+            查看 v{publishedVersion.version}
+          </button>
+        )}
       </div>
 
       <dl className="run-metrics">
@@ -91,9 +103,11 @@ export function RunDetail({
 
       {ranOlderDraft && (
         <p className="run-stale-hint">
-          {run.workflowVersion
-            ? `这次运行执行的是 v${run.workflowVersion.version} 快照，之后草稿或发布有变化，追踪中的节点可能与当前画布不一致`
-            : '工作流在这次运行之后被修改过，追踪中的节点可能与当前画布不一致'}
+          {run.source === 'DRAFT'
+            ? '这次测试执行的是点击测试时的画布快照，之后草稿有变化，追踪中的节点可能与当前画布不一致'
+            : run.workflowVersion
+              ? `这次运行执行的是 v${run.workflowVersion.version} 快照，之后草稿或发布有变化，追踪中的节点可能与当前画布不一致`
+              : '工作流在这次运行之后被修改过，追踪中的节点可能与当前画布不一致'}
         </p>
       )}
 

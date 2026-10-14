@@ -1,10 +1,11 @@
 import type {
   CreateWorkflowInput,
-  PublishedWorkflowVersion,
   UpdateWorkflowInput,
   Workflow,
   WorkflowDetail,
   WorkflowListResponse,
+  WorkflowVersionDetail,
+  WorkflowVersionSummary,
 } from '../types/workflow';
 import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
 import { request } from './client';
@@ -64,8 +65,19 @@ export function updateWorkflowCanvas(id: string, canvas: WorkflowCanvas): Promis
 }
 
 /** No body on purpose: the server publishes the draft it has saved, never an unsaved canvas. */
-export function publishWorkflow(id: string): Promise<PublishedWorkflowVersion> {
-  return request<PublishedWorkflowVersion>(`/workflows/${id}/publish`, {
+export function publishWorkflow(id: string): Promise<WorkflowVersionSummary> {
+  return request<WorkflowVersionSummary>(`/workflows/${id}/publish`, {
     method: 'POST',
   });
+}
+
+export function getWorkflowVersions(workflowId: string): Promise<WorkflowVersionSummary[]> {
+  return request<WorkflowVersionSummary[]>(`/workflows/${workflowId}/versions`);
+}
+
+export function getWorkflowVersion(
+  workflowId: string,
+  versionId: string,
+): Promise<WorkflowVersionDetail> {
+  return request<WorkflowVersionDetail>(`/workflows/${workflowId}/versions/${versionId}`);
 }

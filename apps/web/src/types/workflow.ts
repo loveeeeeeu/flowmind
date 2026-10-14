@@ -1,5 +1,4 @@
 import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
-import type { WorkflowVersionSummary } from './run';
 
 export type WorkflowStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -10,18 +9,30 @@ export interface Workflow {
     status: WorkflowStatus;
     /** The editable draft; published versions are separate immutable snapshots. */
     draftCanvas: WorkflowCanvas | null;
+    /** Bumped on every draft save; compared with latestVersion.draftRevision. */
+    draftRevision: number;
     createdAt: string;
     updatedAt: string;
+}
+
+/** Version list item: metadata only, the canvas is loaded per version on demand. */
+export interface WorkflowVersionSummary {
+  id: string;
+  workflowId: string;
+  version: number;
+  /** The draft revision that was published. */
+  draftRevision: number;
+  createdAt: string;
+}
+
+export interface WorkflowVersionDetail extends WorkflowVersionSummary {
+  canvas: WorkflowCanvas;
 }
 
 /** GET /workflows/:id only: list items do not carry version information. */
 export interface WorkflowDetail extends Workflow {
   /** Highest published version, or null if the workflow was never published (it cannot run). */
   latestVersion: WorkflowVersionSummary | null;
-}
-
-export interface PublishedWorkflowVersion extends WorkflowVersionSummary {
-  workflowId: string;
 }
 
 export interface WorkflowListResponse {

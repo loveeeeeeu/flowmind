@@ -35,6 +35,12 @@ enum NodeRunStatus {
   SKIPPED
 }
 
+// DRAFT: a test run of an unpublished canvas snapshot. PUBLISHED: runs a WorkflowVersion.
+enum WorkflowRunSource {
+  DRAFT
+  PUBLISHED
+}
+
 enum ExecutionLogLevel {
   DEBUG
   INFO
@@ -51,6 +57,9 @@ model Workflow {
 
   // Mutable working copy edited in the canvas editor. Never executed by published runs.
   draftCanvas Json?
+  // Incremented on every draft save; compared with the latest version's revision to detect
+  // unpublished changes, and checked at publish time so only the validated draft is published.
+  draftRevision Int @default(0)
 
   versions WorkflowVersion[]
   runs     WorkflowRun[]
@@ -70,6 +79,8 @@ model WorkflowVersion {
   version Int
 
   canvas Json
+  // Workflow.draftRevision that was published; versions created before revisions existed have 0.
+  draftRevision Int
 
   createdAt DateTime @default(now())
 
@@ -86,9 +97,17 @@ model WorkflowRun {
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  // Null for legacy runs created before versioning; never guessed after the fact.
+  // Exactly one canvas source per run, enforced by the services (Prisma cannot express the XOR):
+  //   PUBLISHED: workflowVersionId set, draftSnapshot null
+  //   DRAFT:     draftSnapshot set,     workflowVersionId null
+  // Legacy runs from before versioning are PUBLISHED with a null version and fail explicitly.
+  source WorkflowRunSource @default(PUBLISHED)
+
   workflowVersionId String?
   workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)
+
+  // The canvas a draft test run executes, frozen at request time (may include unsaved edits).
+  draftSnapshot Json?
 
   status RunStatus @default(PENDING)
 

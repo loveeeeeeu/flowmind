@@ -1,27 +1,54 @@
 import { Injectable } from '@nestjs/common';
 import { normalizeExecutionError } from '@flowmind/shared';
+import type { WorkflowCanvas } from '@flowmind/workflow-core';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { toJsonInput } from './json-value.js';
 
-export interface CreateRunRecordParams {
+export interface CreatePublishedRunParams {
   workflowId: string;
-  /** Required for every new run; the column stays nullable only for legacy rows. */
   workflowVersionId: string;
   input: Record<string, unknown>;
 }
 
+export interface CreateDraftRunParams {
+  workflowId: string;
+  canvas: WorkflowCanvas;
+  input: Record<string, unknown>;
+}
+
+/**
+ * The two creators are the only writers of new runs, so each run gets exactly one canvas
+ * source: a published version or its own draft snapshot, never both.
+ */
 @Injectable()
 export class WorkflowRunService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(params: CreateRunRecordParams) {
+  createPublished(params: CreatePublishedRunParams) {
     return this.prisma.workflowRun.create({
       data: {
         workflowId: params.workflowId,
+        source: 'PUBLISHED',
         workflowVersionId: params.workflowVersionId,
         status: 'PENDING',
         input: toJsonInput(params.input),
       },
+      omit: { draftSnapshot: true },
+    });
+  }
+
+  createDraft(params: CreateDraftRunParams) {
+    return this.prisma.workflowRun.create({
+      data: {
+        workflowId: params.workflowId,
+        source: 'DRAFT',
+        draftSnapshot: params.canvas as unknown as Prisma.InputJsonValue,
+        status: 'PENDING',
+        input: toJsonInput(params.input),
+      },
+      // The client already has the canvas it sent; don't echo it back.
+      omit: { draftSnapshot: true },
     });
   }
 
@@ -46,6 +73,8 @@ export class WorkflowRunService {
   findOne(runId: string) {
     return this.prisma.workflowRun.findUnique({
       where: { id: runId },
+      // Polled every second while running; the snapshot can be large and the UI doesn't show it yet.
+      omit: { draftSnapshot: true },
       include: {
         // null for legacy runs created before versioning.
         workflowVersion: { select: { id: true, version: true, createdAt: true } },
@@ -84,6 +113,7 @@ export class WorkflowRunService {
       select: {
         id: true,
         workflowId: true,
+        source: true,
         status: true,
         errorCode: true,
         errorMessage: true,
