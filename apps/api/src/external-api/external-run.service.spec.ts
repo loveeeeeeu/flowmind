@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { ExternalRunService } from './external-run.service.js';
 
@@ -101,14 +101,16 @@ describe('ExternalRunService', () => {
   it('returns 404 for unknown runs and for draft test runs', async () => {
     const { service } = setup(null);
 
-    await expect(service.findOne('draft-run', apiKey)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findOne('draft-run', apiKey)).rejects.toThrow(
+      apiError.notFound('RUN_NOT_FOUND', 'Run draft-run not found'),
+    );
   });
 
   it('refuses a run of another workflow without revealing its status or output', async () => {
     const { service } = setup(runRow({ workflowId: 'workflow-2' }));
 
     await expect(service.findOne('run-1', apiKey)).rejects.toThrow(
-      new ForbiddenException('API key cannot access this run'),
+      apiError.forbidden('API_KEY_FORBIDDEN', 'API key cannot access this run'),
     );
   });
 });

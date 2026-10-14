@@ -124,11 +124,13 @@ model WorkflowRun {
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  // Exactly one canvas source per run, enforced by the services (Prisma cannot express the XOR):
-  //   PUBLISHED: workflowVersionId set, draftSnapshot null
-  //   DRAFT:     draftSnapshot set,     workflowVersionId null
-  // Legacy runs from before versioning are PUBLISHED with a null version and fail explicitly.
-  source WorkflowRunSource @default(PUBLISHED)
+  // Exactly one canvas source per run. Prisma cannot express the XOR, so the services set it and
+  // the CHECK constraint "WorkflowRun_source_canvas_check" (raw SQL migration) enforces it:
+  //   PUBLISHED: draftSnapshot null; workflowVersionId set by the services
+  //   DRAFT:     draftSnapshot set, workflowVersionId null, workflowApiKeyId null
+  // PUBLISHED may still have a null version: legacy runs from before versioning, which the worker
+  // fails explicitly instead of falling back to the draft. No default: callers must choose.
+  source WorkflowRunSource
 
   workflowVersionId String?
   workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)

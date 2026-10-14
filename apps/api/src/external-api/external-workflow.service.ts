@@ -1,10 +1,6 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { AuthenticatedApiKey } from '../api-key/api-key.types.js';
+import { apiError } from '../common/api-error.js';
 import { ExecutionService } from '../execution/execution.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ExternalRunAcceptedResponse } from './dto/external-run-response.dto.js';
@@ -34,7 +30,7 @@ export class ExternalWorkflowService {
   }: InvokeWorkflowParams): Promise<ExternalRunAcceptedResponse> {
     // Checked before any lookup, so a key cannot probe which other workflows exist.
     if (apiKey.workflowId !== workflowId) {
-      throw new ForbiddenException('API key cannot access this workflow');
+      throw apiError.forbidden('API_KEY_FORBIDDEN', 'API key cannot access this workflow');
     }
 
     const workflow = await this.prisma.workflow.findUnique({
@@ -51,17 +47,17 @@ export class ExternalWorkflowService {
     });
 
     if (!workflow) {
-      throw new NotFoundException(`Workflow ${workflowId} not found`);
+      throw apiError.notFound('WORKFLOW_NOT_FOUND', `Workflow ${workflowId} not found`);
     }
 
     if (workflow.status === 'ARCHIVED') {
-      throw new BadRequestException('Archived workflow cannot be run');
+      throw apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be run');
     }
 
     const version = workflow.versions[0];
 
     if (!version) {
-      throw new BadRequestException('Workflow has no published version');
+      throw apiError.badRequest('WORKFLOW_NOT_PUBLISHED', 'Workflow has no published version');
     }
 
     const run = await this.executionService.createPublishedRun({

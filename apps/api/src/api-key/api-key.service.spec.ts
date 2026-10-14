@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { generateApiKey, hashApiKey } from './api-key.secret.js';
 import { ApiKeyService } from './api-key.service.js';
@@ -69,8 +69,9 @@ describe('ApiKeyService', () => {
   it('cannot create or list keys of a missing workflow', async () => {
     const { service, prisma } = setup({ workflowExists: false });
 
-    await expect(service.create('missing', 'x')).rejects.toBeInstanceOf(NotFoundException);
-    await expect(service.list('missing')).rejects.toBeInstanceOf(NotFoundException);
+    const notFound = apiError.notFound('WORKFLOW_NOT_FOUND', 'Workflow missing not found');
+    await expect(service.create('missing', 'x')).rejects.toThrow(notFound);
+    await expect(service.list('missing')).rejects.toThrow(notFound);
     expect(prisma.workflowApiKey.create).not.toHaveBeenCalled();
   });
 
@@ -100,7 +101,9 @@ describe('ApiKeyService', () => {
   it('returns 404 when there is no live key to revoke', async () => {
     const { service } = setup({ revokeCount: 0 });
 
-    await expect(service.revoke('workflow-1', 'key-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.revoke('workflow-1', 'key-1')).rejects.toThrow(
+      apiError.notFound('API_KEY_NOT_FOUND', 'API key key-1 not found'),
+    );
   });
 
   describe('verify', () => {

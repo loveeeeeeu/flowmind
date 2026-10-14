@@ -1,5 +1,6 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { apiError } from '../../common/api-error.js';
 import { WorkflowRunService } from './workflow-run.service.js';
 
 @ApiTags('Runs')
@@ -13,7 +14,7 @@ export class RunController {
     const run = await this.runs.findOne(id);
 
     if (!run) {
-      throw new NotFoundException(`Run ${id} not found`);
+      throw apiError.notFound('RUN_NOT_FOUND', `Run ${id} not found`);
     }
 
     return run;
@@ -25,7 +26,7 @@ export class RunController {
     const logs = await this.runs.findLogs(id);
 
     if (!logs) {
-      throw new NotFoundException(`Run ${id} not found`);
+      throw apiError.notFound('RUN_NOT_FOUND', `Run ${id} not found`);
     }
 
     return logs;

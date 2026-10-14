@@ -1,10 +1,6 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { WorkflowCanvas } from '@flowmind/workflow-core';
+import { apiError } from '../common/api-error.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -35,7 +31,7 @@ export class WorkflowVersionService {
    * Short transaction with no external calls. Validation happened before it, so the revision
    * check guarantees that the canvas being stored is exactly the one that was validated.
    */
-  async publish({ workflowId, canvas, expectedDraftRevision }: PublishVersionParams) {
+  async publishValidatedDraft({ workflowId, canvas, expectedDraftRevision }: PublishVersionParams) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const current = await tx.workflow.findUnique({
@@ -44,12 +40,15 @@ export class WorkflowVersionService {
         });
 
         if (!current) {
-          throw new NotFoundException(`Workflow ${workflowId} not found`);
+          throw apiError.notFound('WORKFLOW_NOT_FOUND', `Workflow ${workflowId} not found`);
         }
 
         // A save landed between validation and this transaction: its canvas was never validated.
         if (current.draftRevision !== expectedDraftRevision) {
-          throw new ConflictException('Workflow draft changed during publish, please retry');
+          throw apiError.conflict(
+            'DRAFT_CHANGED_DURING_PUBLISH',
+            'Workflow draft changed during publish, please retry',
+          );
         }
 
         const latest = await tx.workflowVersion.findFirst({
@@ -60,7 +59,10 @@ export class WorkflowVersionService {
 
         // Also guards API callers and double clicks, not just the disabled button.
         if (latest && latest.draftRevision === expectedDraftRevision) {
-          throw new BadRequestException('Workflow has no unpublished changes');
+          throw apiError.badRequest(
+            'WORKFLOW_NO_UNPUBLISHED_CHANGES',
+            'Workflow has no unpublished changes',
+          );
         }
 
         const version = await tx.workflowVersion.create({
@@ -84,7 +86,10 @@ export class WorkflowVersionService {
     } catch (error) {
       // Two concurrent publishes of the same revision computed the same version number.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Workflow was published concurrently, please retry');
+        throw apiError.conflict(
+          'WORKFLOW_PUBLISH_CONFLICT',
+          'Workflow was published concurrently, please retry',
+        );
       }
 
       throw error;
@@ -109,7 +114,10 @@ export class WorkflowVersionService {
     });
 
     if (!version) {
-      throw new NotFoundException(`Workflow version ${versionId} not found`);
+      throw apiError.notFound(
+        'WORKFLOW_VERSION_NOT_FOUND',
+        `Workflow version ${versionId} not found`,
+      );
     }
 
     return version;

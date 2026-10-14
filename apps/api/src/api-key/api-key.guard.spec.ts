@@ -1,4 +1,5 @@
-import { type ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import type { ExecutionContext } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import { ApiKeyGuard } from './api-key.guard.js';
 import type { ApiKeyService } from './api-key.service.js';
 import type { ApiKeyRequest } from './api-key.types.js';
@@ -39,7 +40,9 @@ describe('ApiKeyGuard', () => {
   ])('returns 401 for %s without verifying', async (_name, header, message) => {
     const { guard, context, apiKeys } = setup(header);
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new UnauthorizedException(message));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      apiError.unauthorized('INVALID_API_KEY', message),
+    );
     expect(apiKeys.verify).not.toHaveBeenCalled();
   });
 
@@ -47,7 +50,7 @@ describe('ApiKeyGuard', () => {
     const { guard, context, request } = setup('Bearer fm_wrong', null);
 
     await expect(guard.canActivate(context)).rejects.toThrow(
-      new UnauthorizedException('Invalid API key'),
+      apiError.unauthorized('INVALID_API_KEY', 'Invalid API key'),
     );
     expect(request.apiKey).toBeUndefined();
   });

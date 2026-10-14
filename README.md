@@ -12,14 +12,33 @@ packages/
   shared/         api 与 worker 共用的约定：队列名、job 数据结构、错误归一化
 ```
 
-运行一次工作流的链路：
+草稿、版本与运行：
 
 ```
-web → POST /workflows/:id/run → api 创建 WorkflowRun(PENDING) + 入队 → 返回 202
-                                   ↓ Redis (BullMQ)
-                                 worker 取 job → RUNNING → 执行引擎 → 写 NodeRun → SUCCESS / FAILED
-web / Swagger → GET /runs/:id 查看结果
+草稿 draftCanvas（可编辑，每次保存 draftRevision + 1）
+  ├─ 测试草稿  POST /workflows/:id/test-run → DRAFT 运行，执行创建时的画布快照 draftSnapshot
+  └─ 发布      POST /workflows/:id/publish  → 不可修改的 WorkflowVersion v1、v2 …
+                 ├─ 编辑器运行  POST /workflows/:id/run              → PUBLISHED 运行，绑定当时的最新版本
+                 └─ 外部调用    POST /api/v1/workflows/:id/runs（API Key）→ 同上，并记录使用的 Key
 ```
+
+运行一次工作流的链路（job 里只有 runId，执行什么画布由 run 自己决定）：
+
+```
+api 创建 WorkflowRun(PENDING，已绑定版本或快照) + 入队 → 返回 202
+        ↓ Redis (BullMQ)
+worker 取 job → RUNNING → 按 run.source 取画布 → 执行引擎 → 写 NodeRun → SUCCESS / FAILED
+GET /runs/:id（编辑器）或 GET /api/v1/runs/:id（外部）查看结果
+```
+
+一致性规则（有单元测试和数据库约束保护，改动前先看这里）：
+
+1. `draftCanvas` 是唯一可编辑的草稿；只有保存会增加 `draftRevision`，测试、运行、发布都不会。
+2. `WorkflowVersion` 只增不改，代码里没有任何 update / delete。
+3. 发布只发布服务端已保存的草稿，校验通过后在短事务里比对 `draftRevision`，期间草稿被保存则返回 409 `DRAFT_CHANGED_DURING_PUBLISH`。
+4. DRAFT 运行执行创建时的 `draftSnapshot`；PUBLISHED 运行执行创建时绑定的 `workflowVersionId`。数据库 CHECK 约束 `WorkflowRun_source_canvas_check` 保证二者互斥。
+5. worker 只通过 `resolveRunCanvas()` 取画布，从不读取 `draftCanvas`。
+6. 外部 API 只能创建 PUBLISHED 运行；API Key 只能访问所属工作流及其运行。
 
 ## 环境要求
 
@@ -115,10 +134,64 @@ cd apps/web;    npx tsc --noEmit -p tsconfig.app.json
 ## 手动验证一次运行
 
 1. 在前端画布搭建 Start → 模板 → End 并保存，或在 Swagger 创建工作流并 `PATCH /workflows/{id}/canvas`。
-2. `POST /workflows/{工作流ID}/run`，body：`{"input": {"name": "FlowMind"}}`，返回 202 和 `status: "PENDING"`，记下返回的 `id`（运行 ID）。
-3. `GET /runs/{运行ID}`：`status` 应为 `SUCCESS`，`nodeRuns` 按 `sequence` 列出每个节点的执行记录。
+2. 发布：前端点"发布"，或 `POST /workflows/{工作流ID}/publish`，返回 `version: 1`。没发布过的工作流不能运行（400 `WORKFLOW_NOT_PUBLISHED`）。
+3. `POST /workflows/{工作流ID}/run`，body：`{"input": {"name": "FlowMind"}}`，返回 202 和 `status: "PENDING"`，记下返回的 `id`（运行 ID）。
+4. `GET /runs/{运行ID}`：`status` 应为 `SUCCESS`，`workflowVersion.version` 为 1，`nodeRuns` 按 `sequence` 列出每个节点的执行记录。
 
 注意区分：`/workflows/{id}` 用工作流 ID，`/runs/{id}` 用运行 ID。`GET /workflows/{工作流ID}/runs` 可以列出某个工作流的全部运行记录。
+
+## 外部调用（External API v1）
+
+供其他系统调用已发布的工作流。Swagger 中的分组：Workflows / Runs / API Keys 是编辑器用的内部接口，External API v1 是对外接口。
+
+1. 发布工作流，在工作流详情页"API 密钥"中创建密钥。完整密钥只显示一次，数据库只存前缀和哈希。
+2. 提交运行（异步，立即返回 202）：
+
+```bash
+curl -X POST http://localhost:3000/api/v1/workflows/<工作流ID>/runs \
+  -H "Authorization: Bearer fm_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"name":"FlowMind"}}'
+```
+
+```json
+{ "runId": "cm...", "workflowId": "cm...", "version": 2, "status": "PENDING" }
+```
+
+3. 用返回的 `runId` 轮询结果，直到 `status` 为 `SUCCESS` / `FAILED` / `CANCELLED`：
+
+```bash
+curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
+```
+
+```json
+{
+  "runId": "cm...", "workflowId": "cm...", "version": 2, "status": "SUCCESS",
+  "output": { "greeting": "Hello FlowMind" }, "error": null,
+  "createdAt": "...", "startedAt": "...", "finishedAt": "..."
+}
+```
+
+`output` 只在 SUCCESS 时有值，`error`（`{ code, message }`）只在 FAILED 时有值。运行的是提交时的最新发布版本，之后再改草稿或发布新版本都不影响它。body 只接受 `input`，不能传画布或版本号。PowerShell 5 请用 `curl.exe` 并把 JSON 写进文件后用 `-d "@body.json"` 传入。
+
+### 错误格式
+
+所有 4xx 返回统一结构，调用方按 `code` 判断，`message` 只给人看、可能调整：
+
+```json
+{ "statusCode": 403, "error": "Forbidden", "code": "API_KEY_FORBIDDEN", "message": "API key cannot access this workflow" }
+```
+
+| code | 状态码 | 含义 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | 请求体不合法（如 `input` 不是对象、多传了字段） |
+| `INVALID_API_KEY` | 401 | 缺少、格式错误、不存在或已吊销的 Key |
+| `API_KEY_FORBIDDEN` | 403 | Key 不属于该工作流 / 该运行 |
+| `WORKFLOW_NOT_FOUND` / `RUN_NOT_FOUND` | 404 | 资源不存在（草稿测试运行对外部也视为不存在） |
+| `WORKFLOW_NOT_PUBLISHED` | 400 | 还没有发布版本 |
+| `WORKFLOW_ARCHIVED` | 400 | 工作流已归档 |
+
+编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
 
 ## 常见问题
 
@@ -133,6 +206,7 @@ cd apps/web;    npx tsc --noEmit -p tsconfig.app.json
 
 ## 已知限制
 
-- worker 执行时读取工作流的最新画布，入队后修改画布会影响尚未执行的运行（后续用 WorkflowVersion 快照解决）。
-- 提交运行时 API 只检查画布是否存在，结构错误要等 worker 执行时才标记为 FAILED。
+- 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理）目前没有用户认证，只适合本地开发。
+- API Key 可以读取同一工作流下由编辑器创建的 PUBLISHED 运行结果。
+- 版本化之前创建的运行（显示为"旧版运行"）保留只读，不会重新执行；若被重新执行会以 `WORKFLOW_VERSION_MISSING` 失败。
 - Code 节点使用 worker_threads + vm 隔离，不是安全沙箱，不要执行不可信代码。

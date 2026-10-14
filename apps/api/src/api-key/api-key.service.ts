@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { generateApiKey, hashApiKey, hashesMatch, parseApiKeyPrefix } from './api-key.secret.js';
 import type { AuthenticatedApiKey } from './api-key.types.js';
@@ -51,7 +52,7 @@ export class ApiKeyService {
     });
 
     if (result.count === 0) {
-      throw new NotFoundException(`API key ${keyId} not found`);
+      throw apiError.notFound('API_KEY_NOT_FOUND', `API key ${keyId} not found`);
     }
   }
 
@@ -99,7 +100,7 @@ export class ApiKeyService {
     });
 
     if (!workflow) {
-      throw new NotFoundException(`Workflow ${workflowId} not found`);
+      throw apiError.notFound('WORKFLOW_NOT_FOUND', `Workflow ${workflowId} not found`);
     }
   }
 }

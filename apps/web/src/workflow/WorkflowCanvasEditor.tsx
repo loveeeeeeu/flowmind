@@ -50,6 +50,7 @@ import { buildNodeStatusMap } from './execution/runUtils';
 import { useExecutionState } from './execution/useExecutionState';
 import { VersionHistory } from './version/VersionHistory';
 import { VersionPreviewBanner } from './version/VersionPreviewBanner';
+import { hasUnpublishedChanges } from './version/publishState';
 
 const nodeTypes = {
   start: StartNode,
@@ -130,11 +131,9 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const previewVersion = isPreviewing ? previewQuery.data : undefined;
 
   const latestVersion = workflow.latestVersion;
-  // isDirty: local canvas differs from the saved draft. hasUnpublishedChanges: the saved draft
-  // differs from the latest version. Independent, so both can be true at once.
-  const hasUnpublishedChanges = latestVersion
-    ? workflow.draftRevision > latestVersion.draftRevision
-    : workflow.draftCanvas !== null;
+  // isDirty: local canvas differs from the saved draft. isPublishPending: the saved draft differs
+  // from the latest version. Independent, so both can be true at once.
+  const isPublishPending = hasUnpublishedChanges(workflow);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const nodeLabels = useMemo(
@@ -446,7 +445,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       ? '请先保存草稿再发布'
       : workflow.draftCanvas === null
         ? '请先保存草稿'
-        : !hasUnpublishedChanges
+        : !isPublishPending
           ? '草稿与已发布版本一致，无需重复发布'
           : null;
 
@@ -509,9 +508,9 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
               </span>
               {latestVersion ? (
                 <span
-                  className={`editor-publish-state ${hasUnpublishedChanges ? 'pending' : ''}`}
+                  className={`editor-publish-state ${isPublishPending ? 'pending' : ''}`}
                 >
-                  {hasUnpublishedChanges
+                  {isPublishPending
                     ? '有未发布的修改'
                     : `与 v${latestVersion.version} 一致`}
                 </span>

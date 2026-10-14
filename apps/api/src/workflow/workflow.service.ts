@@ -1,8 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto.js';
@@ -15,6 +12,8 @@ import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 import { WorkflowVersionService } from './workflow-version.service.js';
 import type { TestWorkflowDto } from './dto/test-workflow.dto.js';
+
+type WorkflowRecord = Awaited<ReturnType<WorkflowService['findOne']>>;
 
 @Injectable()
 export class WorkflowService {
@@ -74,7 +73,7 @@ export class WorkflowService {
     });
 
     if (!workflow) {
-      throw new NotFoundException(`Workflow ${id} not found`);
+      throw apiError.notFound('WORKFLOW_NOT_FOUND', `Workflow ${id} not found`);
     }
 
     return workflow;
@@ -94,7 +93,7 @@ export class WorkflowService {
     });
 
     if (!workflow) {
-      throw new NotFoundException(`Workflow ${id} not found`);
+      throw apiError.notFound('WORKFLOW_NOT_FOUND', `Workflow ${id} not found`);
     }
 
     const { versions, ...rest } = workflow;
@@ -142,7 +141,7 @@ export class WorkflowService {
     const workflow = await this.findOne(id);
 
     if (!workflow.draftCanvas) {
-      throw new BadRequestException('Workflow has no draft canvas');
+      throw apiError.badRequest('WORKFLOW_DRAFT_MISSING', 'Workflow has no draft canvas');
     }
 
     return this.workflowPlanService.createExecutionPlan(
@@ -156,25 +155,28 @@ export class WorkflowService {
    */
   async publish(id: string) {
     const workflow = await this.findOne(id);
-
-    if (workflow.status === 'ARCHIVED') {
-      throw new BadRequestException('Archived workflow cannot be published');
-    }
-
-    if (!workflow.draftCanvas) {
-      throw new BadRequestException('Workflow has no draft canvas');
-    }
-
-    const canvas = workflow.draftCanvas as unknown as WorkflowCanvas;
+    const canvas = this.ensurePublishable(workflow);
 
     // Validated outside the transaction (pure CPU); the revision ties the result to this canvas.
     this.workflowPlanService.createExecutionPlan(canvas);
 
-    return this.workflowVersionService.publish({
+    return this.workflowVersionService.publishValidatedDraft({
       workflowId: workflow.id,
       canvas,
       expectedDraftRevision: workflow.draftRevision,
     });
+  }
+
+  private ensurePublishable(workflow: WorkflowRecord): WorkflowCanvas {
+    if (workflow.status === 'ARCHIVED') {
+      throw apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be published');
+    }
+
+    if (!workflow.draftCanvas) {
+      throw apiError.badRequest('WORKFLOW_DRAFT_MISSING', 'Workflow has no draft canvas');
+    }
+
+    return workflow.draftCanvas as unknown as WorkflowCanvas;
   }
 
   /**
@@ -185,7 +187,7 @@ export class WorkflowService {
     const workflow = await this.findOne(id);
 
     if (workflow.status === 'ARCHIVED') {
-      throw new BadRequestException('Archived workflow cannot be tested');
+      throw apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be tested');
     }
 
     const canvas = {
@@ -211,14 +213,14 @@ export class WorkflowService {
     const workflow = await this.findOne(id);
 
     if (workflow.status === 'ARCHIVED') {
-      throw new BadRequestException('Archived workflow cannot be run');
+      throw apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be run');
     }
 
     // The version row, not workflow.status, decides whether there is something to execute.
     const version = await this.workflowVersionService.findLatest(workflow.id);
 
     if (!version) {
-      throw new BadRequestException('Workflow has no published version');
+      throw apiError.badRequest('WORKFLOW_NOT_PUBLISHED', 'Workflow has no published version');
     }
 
     return this.executionService.createPublishedRun({

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import type { ExecutionService } from '../execution/execution.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { ExternalWorkflowService } from './external-workflow.service.js';
@@ -73,7 +73,9 @@ describe('ExternalWorkflowService', () => {
 
     await expect(
       service.invoke({ apiKey, workflowId: 'workflow-2', input: {} }),
-    ).rejects.toThrow(new ForbiddenException('API key cannot access this workflow'));
+    ).rejects.toThrow(
+      apiError.forbidden('API_KEY_FORBIDDEN', 'API key cannot access this workflow'),
+    );
     expect(prisma.workflow.findUnique).not.toHaveBeenCalled();
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
@@ -83,7 +85,7 @@ describe('ExternalWorkflowService', () => {
 
     await expect(
       service.invoke({ apiKey, workflowId: 'workflow-1', input: {} }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow(apiError.notFound('WORKFLOW_NOT_FOUND', 'Workflow workflow-1 not found'));
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
 
@@ -92,7 +94,7 @@ describe('ExternalWorkflowService', () => {
 
     await expect(
       service.invoke({ apiKey, workflowId: 'workflow-1', input: {} }),
-    ).rejects.toThrow(new BadRequestException('Archived workflow cannot be run'));
+    ).rejects.toThrow(apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be run'));
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
 
@@ -101,7 +103,9 @@ describe('ExternalWorkflowService', () => {
 
     await expect(
       service.invoke({ apiKey, workflowId: 'workflow-1', input: {} }),
-    ).rejects.toThrow(new BadRequestException('Workflow has no published version'));
+    ).rejects.toThrow(
+      apiError.badRequest('WORKFLOW_NOT_PUBLISHED', 'Workflow has no published version'),
+    );
     expect(executionService.createPublishedRun).not.toHaveBeenCalled();
   });
 });

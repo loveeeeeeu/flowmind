@@ -8,15 +8,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ExecutionLogService } from './execution-log.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 import { RunStateService } from './run-state.service.js';
-
-export const WORKFLOW_VERSION_MISSING = 'WORKFLOW_VERSION_MISSING';
-export const DRAFT_SNAPSHOT_MISSING = 'DRAFT_SNAPSHOT_MISSING';
-
-type LoadedRun = Awaited<ReturnType<RunStateService['findRun']>>;
-
-function runError(code: string, message: string) {
-  return Object.assign(new Error(message), { code });
-}
+import { resolveRunCanvas } from './resolve-run-canvas.js';
 
 @Injectable()
 export class WorkflowExecutionService {
@@ -37,7 +29,7 @@ export class WorkflowExecutionService {
     let canvas: WorkflowCanvas;
 
     try {
-      canvas = this.resolveCanvas(run);
+      canvas = resolveRunCanvas(run);
     } catch (error) {
       await this.runState.markFailed(runId, error);
       throw error;
@@ -60,30 +52,5 @@ export class WorkflowExecutionService {
     }
 
     await this.runState.markSuccess(runId, result.result);
-  }
-
-  /**
-   * Both sources are immutable snapshots taken when the run was created, so edits or publishes
-   * while the run is queued never change what it executes. A missing snapshot fails the run
-   * explicitly; falling back to the live draft would execute something nobody asked for.
-   */
-  private resolveCanvas(run: LoadedRun): WorkflowCanvas {
-    switch (run.source) {
-      case 'PUBLISHED':
-        if (!run.workflowVersion) {
-          // Legacy runs from before versioning end up here.
-          throw runError(WORKFLOW_VERSION_MISSING, 'Published run has no workflow version');
-        }
-        return run.workflowVersion.canvas as unknown as WorkflowCanvas;
-
-      case 'DRAFT':
-        if (!run.draftSnapshot) {
-          throw runError(DRAFT_SNAPSHOT_MISSING, 'Draft run has no snapshot');
-        }
-        return run.draftSnapshot as unknown as WorkflowCanvas;
-
-      default:
-        throw new Error(`Unsupported run source: ${String(run.source)}`);
-    }
   }
 }

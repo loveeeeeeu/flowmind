@@ -13,7 +13,7 @@ import { ApiKeyService } from './api-key.service.js';
 import { CreateApiKeyDto } from './dto/create-api-key.dto.js';
 
 // Internal management API: protected by user auth later (Sprint 10), not by API keys.
-@ApiTags('Workflow API Keys')
+@ApiTags('API Keys')
 @Controller('workflows/:workflowId/api-keys')
 export class ApiKeyController {
   constructor(private readonly apiKeys: ApiKeyService) {}

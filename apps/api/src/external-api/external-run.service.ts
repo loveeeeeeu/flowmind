@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { AuthenticatedApiKey } from '../api-key/api-key.types.js';
+import { apiError } from '../common/api-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ExternalRunResponse } from './dto/external-run-response.dto.js';
 
@@ -27,12 +28,12 @@ export class ExternalRunService {
     });
 
     if (!run) {
-      throw new NotFoundException(`Run ${runId} not found`);
+      throw apiError.notFound('RUN_NOT_FOUND', `Run ${runId} not found`);
     }
 
     // The run id is not a secret: without this, any valid key could read any workflow's output.
     if (run.workflowId !== apiKey.workflowId) {
-      throw new ForbiddenException('API key cannot access this run');
+      throw apiError.forbidden('API_KEY_FORBIDDEN', 'API key cannot access this run');
     }
 
     return {

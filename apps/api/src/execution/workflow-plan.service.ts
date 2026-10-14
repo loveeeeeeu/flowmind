@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   createWorkflowValidator,
   type WorkflowCanvas,
   WorkflowGraph,
   WorkflowValidationError,
 } from '@flowmind/workflow-core';
+import { apiError } from '../common/api-error.js';
 
 @Injectable()
 export class WorkflowPlanService {
@@ -20,7 +21,7 @@ export class WorkflowPlanService {
       };
     } catch (error) {
       if (error instanceof WorkflowValidationError) {
-        throw new BadRequestException(error.message);
+        throw apiError.badRequest('WORKFLOW_INVALID', error.message);
       }
 
       throw error;

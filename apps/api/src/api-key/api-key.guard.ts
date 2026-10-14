@@ -1,9 +1,5 @@
-import {
-  type CanActivate,
-  type ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import { ApiKeyService } from './api-key.service.js';
 import type { ApiKeyRequest } from './api-key.types.js';
 
@@ -22,20 +18,22 @@ export class ApiKeyGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<ApiKeyRequest>();
     const authorization = request.headers.authorization;
 
+    // One code for every failure: callers fix all of them the same way, and the variants must not
+    // help probe which keys exist. The message is only a hint for humans.
     if (!authorization) {
-      throw new UnauthorizedException('Missing API key');
+      throw apiError.unauthorized('INVALID_API_KEY', 'Missing API key');
     }
 
     const token = BEARER_PATTERN.exec(authorization)?.[1];
 
     if (!token) {
-      throw new UnauthorizedException('Invalid authorization header');
+      throw apiError.unauthorized('INVALID_API_KEY', 'Invalid authorization header');
     }
 
     const apiKey = await this.apiKeys.verify(token);
 
     if (!apiKey) {
-      throw new UnauthorizedException('Invalid API key');
+      throw apiError.unauthorized('INVALID_API_KEY', 'Invalid API key');
     }
 
     request.apiKey = apiKey;

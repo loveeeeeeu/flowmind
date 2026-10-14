@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import type { ExecutionService } from '../execution/execution.service.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -39,7 +39,7 @@ function createService({
     createDraftRun: vi.fn(async () => ({ id: 'run-2', source: 'DRAFT' })),
   };
   const versions = {
-    publish: vi.fn(async () => ({ id: 'version-1', version: 1 })),
+    publishValidatedDraft: vi.fn(async () => ({ id: 'version-1', version: 1 })),
     findLatest: vi.fn(async () => latestVersion),
   };
   const service = new WorkflowService(
@@ -63,46 +63,57 @@ describe('WorkflowService.updateCanvas', () => {
       data: { draftCanvas: validCanvas, draftRevision: { increment: 1 } },
     });
   });
+
+  it('returns WORKFLOW_NOT_FOUND for an unknown workflow', async () => {
+    const { service, prisma } = createService();
+    prisma.workflow.findUnique.mockResolvedValueOnce(null as never);
+
+    await expect(service.updateCanvas('missing', validCanvas)).rejects.toThrow(
+      apiError.notFound('WORKFLOW_NOT_FOUND', 'Workflow missing not found'),
+    );
+  });
 });
 
 describe('WorkflowService.publish', () => {
   it('publishes the validated draft together with the revision it was read at', async () => {
-    const { service, versions } = createService({ draftRevision: 4 });
+    const { service, versions, prisma } = createService({ draftRevision: 4 });
 
     await service.publish('workflow-1');
 
-    expect(versions.publish).toHaveBeenCalledWith({
+    expect(versions.publishValidatedDraft).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       canvas: validCanvas,
       expectedDraftRevision: 4,
     });
+    // Publishing reads the draft; only saving bumps draftRevision.
+    expect(prisma.workflow.update).not.toHaveBeenCalled();
   });
 
   it('rejects a structurally invalid draft without creating a version', async () => {
     const { service, versions } = createService({ draftCanvas: invalidCanvas });
 
     await expect(service.publish('workflow-1')).rejects.toThrow(
-      new BadRequestException('Workflow must have exactly one end node'),
+      apiError.badRequest('WORKFLOW_INVALID', 'Workflow must have exactly one end node'),
     );
-    expect(versions.publish).not.toHaveBeenCalled();
+    expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
   });
 
   it('rejects a workflow whose draft was never saved', async () => {
     const { service, versions } = createService({ draftCanvas: null });
 
     await expect(service.publish('workflow-1')).rejects.toThrow(
-      new BadRequestException('Workflow has no draft canvas'),
+      apiError.badRequest('WORKFLOW_DRAFT_MISSING', 'Workflow has no draft canvas'),
     );
-    expect(versions.publish).not.toHaveBeenCalled();
+    expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
   });
 
   it('rejects an archived workflow', async () => {
     const { service, versions } = createService({ status: 'ARCHIVED' });
 
     await expect(service.publish('workflow-1')).rejects.toThrow(
-      new BadRequestException('Archived workflow cannot be published'),
+      apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be published'),
     );
-    expect(versions.publish).not.toHaveBeenCalled();
+    expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
   });
 });
 
@@ -125,8 +136,8 @@ describe('WorkflowService.testRun', () => {
       canvas: unsaved,
       input: { name: 'A' },
     });
-    // Testing never publishes and never saves the draft.
-    expect(versions.publish).not.toHaveBeenCalled();
+    // Testing never publishes and never saves the draft (so draftRevision stays put).
+    expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
     expect(prisma.workflow.update).not.toHaveBeenCalled();
     expect(execution.createPublishedRun).not.toHaveBeenCalled();
   });
@@ -136,7 +147,9 @@ describe('WorkflowService.testRun', () => {
 
     await expect(
       service.testRun('workflow-1', { input: {}, canvas: invalidCanvas }),
-    ).rejects.toThrow(new BadRequestException('Workflow must have exactly one end node'));
+    ).rejects.toThrow(
+      apiError.badRequest('WORKFLOW_INVALID', 'Workflow must have exactly one end node'),
+    );
     expect(execution.createDraftRun).not.toHaveBeenCalled();
   });
 
@@ -145,14 +158,14 @@ describe('WorkflowService.testRun', () => {
 
     await expect(
       service.testRun('workflow-1', { input: {}, canvas: validCanvas }),
-    ).rejects.toThrow(new BadRequestException('Archived workflow cannot be tested'));
+    ).rejects.toThrow(apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be tested'));
     expect(execution.createDraftRun).not.toHaveBeenCalled();
   });
 });
 
 describe('WorkflowService.runWorkflow', () => {
   it('creates a PUBLISHED run bound to the latest version', async () => {
-    const { service, execution } = createService({
+    const { service, execution, prisma } = createService({
       status: 'PUBLISHED',
       latestVersion: { id: 'version-2', version: 2 },
     });
@@ -164,13 +177,14 @@ describe('WorkflowService.runWorkflow', () => {
       workflowVersionId: 'version-2',
       input: { name: 'FlowMind' },
     });
+    expect(prisma.workflow.update).not.toHaveBeenCalled();
   });
 
-  it('never runs the draft: no published version means 400', async () => {
+  it('never runs the draft: no published version means WORKFLOW_NOT_PUBLISHED', async () => {
     const { service, execution } = createService({ latestVersion: null });
 
     await expect(service.runWorkflow('workflow-1', { input: {} })).rejects.toThrow(
-      new BadRequestException('Workflow has no published version'),
+      apiError.badRequest('WORKFLOW_NOT_PUBLISHED', 'Workflow has no published version'),
     );
     expect(execution.createPublishedRun).not.toHaveBeenCalled();
   });
@@ -195,7 +209,7 @@ describe('WorkflowService.runWorkflow', () => {
     });
 
     await expect(service.runWorkflow('workflow-1', { input: {} })).rejects.toThrow(
-      new BadRequestException('Archived workflow cannot be run'),
+      apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be run'),
     );
     expect(execution.createPublishedRun).not.toHaveBeenCalled();
   });

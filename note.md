@@ -572,16 +572,20 @@ Workflow= 这个工作流本身
 ## Run 绑定 Version 正式运行跑的是发布版本
 run跑到的是最新版本，"最新"在创建 run 时就确定了，不是在 worker 执行时才去读
 - 例子：run 绑定 v1 后排队 → 改草稿、发布 v2 → worker 启动，执行的仍是 v1
-## Draft Run绑定draft snapshot 测试运行跑的是草稿快照
+## Draft Run执行 draftSnapshot（创建运行时复制的画布快照）
 排队和执行链路两者共用，Worker 只根据 source 选择执行哪份画布，source=PUBLISHED选择执行version，source=DRAFT选择执行draft
 ### 一致性问题
-Draft Run 也能保证一致.现在两种运行Run/Draft Run都在创建 Run 的那一刻固定下画布
---以前 Worker 是到真正执行时才去读 workflow.draftCanvas。点"运行"以后，任务可能还在队列里排队，这时你保存了草稿，Worker 拿到的就是新画布。点的时候是 A，跑的却是 B，这就是不一致。
-### 用修订号判断有没有未发布的修改并防止并发发布
+Draft Run 也能保证一致.现在两种运行Run/Draft Run都在创建 Run 的那一刻固定下画布。
+那一致性靠什么？靠的不是"已保存的草稿"，而是快照：创建运行的那一刻，就把这份画布复制一份存进 run.draftSnapshot，Worker 只执行这份快照。之后你继续改画布、保存、甚至发布，都动不到这次运行要执行的东西。
+#### 快照 vs revision
+简单说：revision 和快照是两套机制，各管各的，没有直接关系。快照是在**创建运行时（API 收到请求的那一刻）**生成的，不是 Worker 真正执行时。
+revision：给"已保存草稿"计数
+--判断有没有未发布的修改
+### 用修订号revision判断有没有未发布的修改并防止并发发布
 --判断： 用修订号比较，draftRevision（每次保存加 1）大于最新版本记录的 draftRevision，就是"有未发布的修改"。
 --保护：
 同一修订号重复发布，返回 400；
-发布校验期间草稿又被保存，返回 409，保证发布出去的就是刚才校验过的那份画布；
+发布校验期间草稿又被保存，返回 409，保证发布出去的就是刚才校验过的那份画布；（校验前读了一次revision，检验完后又读了一次revision）
 ## 历史版本画布的只读预览
 同一个 React Flow 通过切换数据源来只读展示历史版本，草稿状态不受影响
 同一份画布，数据分离
@@ -647,4 +651,5 @@ Draft Run 也能保证一致.现在两种运行Run/Draft Run都在创建 Run 的
   ⑤ 新哈希和库里的 keyHash 一样吗？一样 → 认证通过
 - Service 负责授权：Key 能访问这个工作流或这条运行吗？失败返回 403
 
-# 
+# Consistency Tests + API Contract Cleanup + Sprint 8 收尾
+把 Sprint 8 做成一套稳定、可解释、不会互相打架的 Version + Publish + External API 系统

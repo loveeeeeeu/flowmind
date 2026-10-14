@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { apiError } from '../common/api-error.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { WorkflowVersionService } from './workflow-version.service.js';
@@ -77,13 +77,13 @@ const canvasB = {
   nodes: [...canvasA.nodes, { id: 'tpl', type: 'template', data: {} }],
 };
 
-describe('WorkflowVersionService.publish', () => {
+describe('WorkflowVersionService.publishValidatedDraft', () => {
   it('first publish creates v1 with the published draft revision and marks PUBLISHED', async () => {
     const { service, versions, workflow, saveDraft } = createService();
     saveDraft();
     saveDraft();
 
-    const result = await service.publish({
+    const result = await service.publishValidatedDraft({
       workflowId: 'workflow-1',
       canvas: canvasA,
       expectedDraftRevision: 2,
@@ -98,9 +98,9 @@ describe('WorkflowVersionService.publish', () => {
   it('second publish after a new save creates v2 and leaves the v1 snapshot untouched', async () => {
     const { service, versions, saveDraft } = createService();
     saveDraft();
-    await service.publish({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 });
+    await service.publishValidatedDraft({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 });
     saveDraft();
-    await service.publish({ workflowId: 'workflow-1', canvas: canvasB, expectedDraftRevision: 2 });
+    await service.publishValidatedDraft({ workflowId: 'workflow-1', canvas: canvasB, expectedDraftRevision: 2 });
 
     expect(versions.map((v) => [v.version, v.draftRevision])).toEqual([
       [1, 1],
@@ -112,23 +112,31 @@ describe('WorkflowVersionService.publish', () => {
   it('rejects publishing the same revision twice (no unpublished changes)', async () => {
     const { service, versions, saveDraft } = createService();
     saveDraft();
-    await service.publish({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 });
+    await service.publishValidatedDraft({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 });
 
     await expect(
-      service.publish({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 }),
-    ).rejects.toThrow(new BadRequestException('Workflow has no unpublished changes'));
+      service.publishValidatedDraft({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 }),
+    ).rejects.toThrow(
+      apiError.badRequest('WORKFLOW_NO_UNPUBLISHED_CHANGES', 'Workflow has no unpublished changes'),
+    );
     expect(versions).toHaveLength(1);
   });
 
   it('rejects when the draft was saved after validation (optimistic revision check)', async () => {
-    const { service, versions, saveDraft } = createService();
+    const { service, versions, workflow, saveDraft } = createService();
     saveDraft(); // validated at revision 1 ...
     saveDraft(); // ... but a save lands before the transaction: revision 2
 
     await expect(
-      service.publish({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 }),
-    ).rejects.toBeInstanceOf(ConflictException);
+      service.publishValidatedDraft({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 }),
+    ).rejects.toThrow(
+      apiError.conflict(
+        'DRAFT_CHANGED_DURING_PUBLISH',
+        'Workflow draft changed during publish, please retry',
+      ),
+    );
     expect(versions).toHaveLength(0);
+    expect(workflow.status).toBe('DRAFT');
   });
 
   it('turns a concurrent publish (unique version clash) into 409', async () => {
@@ -142,8 +150,13 @@ describe('WorkflowVersionService.publish', () => {
     );
 
     await expect(
-      service.publish({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 }),
-    ).rejects.toBeInstanceOf(ConflictException);
+      service.publishValidatedDraft({ workflowId: 'workflow-1', canvas: canvasA, expectedDraftRevision: 1 }),
+    ).rejects.toThrow(
+      apiError.conflict(
+        'WORKFLOW_PUBLISH_CONFLICT',
+        'Workflow was published concurrently, please retry',
+      ),
+    );
   });
 });
 
@@ -178,8 +191,11 @@ describe('WorkflowVersionService queries', () => {
   it('returns 404 for a version of another workflow', async () => {
     const { service } = createService();
 
-    await expect(service.findOne('workflow-1', 'version-of-other')).rejects.toBeInstanceOf(
-      NotFoundException,
+    await expect(service.findOne('workflow-1', 'version-of-other')).rejects.toThrow(
+      apiError.notFound(
+        'WORKFLOW_VERSION_NOT_FOUND',
+        'Workflow version version-of-other not found',
+      ),
     );
   });
 
