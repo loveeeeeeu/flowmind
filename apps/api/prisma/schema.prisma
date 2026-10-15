@@ -48,6 +48,13 @@ enum ExecutionLogLevel {
   ERROR
 }
 
+// The kind of model service a credential connects to. Adding a provider is a normal enum migration.
+enum CredentialProvider {
+  OPENAI
+  DEEPSEEK
+  OPENAI_COMPATIBLE
+}
+
 model Workflow {
   id          String         @id @default(cuid())
   name        String
@@ -93,6 +100,31 @@ model WorkflowApiKey {
   runs WorkflowRun[]
 
   @@index([workflowId])
+}
+
+// How FlowMind connects to a model provider. Canvases, versions, runs and logs only ever hold the
+// credential id; the provider secret lives here, AES-256-GCM encrypted with the master key from
+// CREDENTIAL_ENCRYPTION_KEY (never stored in the database). Unlike WorkflowApiKey it is encrypted,
+// not hashed: the worker must recover the plaintext to call the provider.
+model Credential {
+  id String @id @default(cuid())
+
+  name     String
+  provider CredentialProvider
+  // Null means the provider's official endpoint; required for OPENAI_COMPATIBLE (checked in the service).
+  baseUrl  String?
+
+  // base64 ciphertext, 12-byte IV (random per encryption, not secret) and 16-byte GCM auth tag.
+  encryptedSecret String
+  secretIv        String
+  secretAuthTag   String
+
+  // Soft delete: published versions may still reference the id, and should fail with
+  // CREDENTIAL_REVOKED rather than a dangling reference.
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Immutable snapshot created by publishing. No update or delete API: runs must stay reproducible.

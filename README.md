@@ -71,6 +71,14 @@ Copy-Item apps/api/.env.example apps/api/.env
 
 编辑 `apps/api/.env`，至少确认 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`；要用 LLM 节点再填对应的 `*_API_KEY`。
 
+生成模型凭证的加密主密钥，填入 `CREDENTIAL_ENCRYPTION_KEY`（必填，缺少或格式不对 API 会拒绝启动）：
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+这个值生成一次后就不要再改，并单独备份：数据库里的凭证都用它加密，丢失或更换后所有已保存的凭证都无法解密。
+
 worker 读取环境变量的顺序：`apps/worker/.env`（可选，不存在就跳过）→ `apps/api/.env`。本地开发只维护 `apps/api/.env` 一份即可，密钥不要提交到 Git。
 
 ### 4. 构建共享包
@@ -191,7 +199,22 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 | `WORKFLOW_NOT_PUBLISHED` | 400 | 还没有发布版本 |
 | `WORKFLOW_ARCHIVED` | 400 | 工作流已归档 |
 
-编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
+编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`、`CREDENTIAL_NOT_FOUND`、`CREDENTIAL_REVOKED`、`CREDENTIAL_BASE_URL_REQUIRED`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
+
+## 模型凭证（Credentials）
+
+前端"模型凭证"页面（`/settings/credentials`）或 `POST /credentials` 保存连接模型供应商所需的 API Key：
+
+| 供应商 | Base URL |
+|---|---|
+| `OPENAI` / `DEEPSEEK` | 可选，留空使用官方地址 |
+| `OPENAI_COMPATIBLE` | 必填，如自建 vLLM `http://localhost:8000/v1` |
+
+- 密钥用 AES-256-GCM 加密后存库（`encryptedSecret` + 随机 `secretIv` + `secretAuthTag`），任何接口都只返回 `id / name / provider / baseUrl / revokedAt / createdAt / updatedAt`。
+- 修改时不传 `secret` 就保留原密钥，传了就重新加密覆盖；供应商创建后不能改。
+- 删除是撤销（软删除）：已发布版本可能还引用着这个凭证 id，运行时会明确失败而不是找不到。
+- 画布、版本、运行记录和执行日志只会保存凭证 id，永远不保存密钥本身。
+- 和外部调用的 API Key 不同：那个只需要校验，所以只存哈希；模型凭证要在调用供应商时还原原文，所以只能加密。
 
 ## 常见问题
 
@@ -206,7 +229,8 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 
 ## 已知限制
 
-- 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理）目前没有用户认证，只适合本地开发。
+- 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理、模型凭证管理）目前没有用户认证，只适合本地开发。
+- LLM 节点暂时仍使用 `.env` 中的 `*_API_KEY`，尚未接入模型凭证；不支持更换加密主密钥（Key Rotation）。
 - API Key 可以读取同一工作流下由编辑器创建的 PUBLISHED 运行结果。
 - 版本化之前创建的运行（显示为"旧版运行"）保留只读，不会重新执行；若被重新执行会以 `WORKFLOW_VERSION_MISSING` 失败。
 - Code 节点使用 worker_threads + vm 隔离，不是安全沙箱，不要执行不可信代码。

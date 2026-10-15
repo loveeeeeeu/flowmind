@@ -2,6 +2,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router';
 import { WorkflowListPage } from './pages/workflows/WorkflowListPage';
 import { WorkflowDetailPage } from './pages/workflows/WorkflowDetailPage.tsx';
 import { WorkflowEditorPage } from './pages/workflows/WorkflowEditorPage.tsx';
+import { CredentialsPage } from './pages/settings/CredentialsPage';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <NavLink to="/workflows">▦ 工作室</NavLink>
           <a href="#knowledge" onClick={(event) => event.preventDefault()}>▤ 知识库</a>
           <a href="#tools" onClick={(event) => event.preventDefault()}>⌘ 工具</a>
+          <NavLink to="/settings/credentials">⚿ 模型凭证</NavLink>
         </nav>
         <div className="global-nav-actions"><button className="nav-search" type="button">⌕ 搜索</button><span className="avatar">FM</span></div>
       </header>
@@ -24,6 +26,7 @@ function App() {
         <Route path="/workflows" element={<WorkflowListPage />} />
         <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
         <Route path="/workflows/:id/editor" element={<WorkflowEditorPage />} />
+        <Route path="/settings/credentials" element={<CredentialsPage />} />
       </Routes>
     </div>
   );

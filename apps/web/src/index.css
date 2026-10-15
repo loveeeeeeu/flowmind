@@ -283,4 +283,36 @@ a { color: inherit; }
 .api-key-dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
 .api-key-dialog-actions button { padding:8px 14px; font-size:13px; }
 
+.credentials-notice { margin:0 0 18px; padding:9px 12px; border:1px solid #e2e7f0; border-radius:8px; background:#f5f7fb; color:#7b879d; font-size:12px; }
+.credential-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; margin:0; padding:0; list-style:none; }
+.credential-card { display:grid; gap:12px; padding:16px 18px; border:1px solid #e2e7f0; border-radius:12px; background:#fff; box-shadow:0 1px 2px rgba(30,50,90,.03); }
+.credential-card.revoked { background:#fafbfd; }
+.credential-card-head { display:flex; align-items:center; gap:8px; min-width:0; }
+.credential-name { overflow:hidden; color:#1c2434; font-size:14px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+.credential-card.revoked .credential-name { color:#9aa4b6; }
+.credential-provider { flex-shrink:0; padding:1px 7px; border:1px solid #d6e2ff; border-radius:7px; background:#edf3ff; color:#3868e9; font-size:11px; font-weight:600; }
+.credential-revoked-tag { flex-shrink:0; padding:1px 6px; border:1px solid #ffd5dc; border-radius:7px; background:#fff2f4; color:#c63755; font-size:11px; font-weight:600; }
+.credential-fields { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 12px; margin:0; font-size:12px; }
+.credential-fields dt { color:#9aa4b6; }
+.credential-fields dd { overflow:hidden; margin:0; color:#4f5c73; text-overflow:ellipsis; white-space:nowrap; }
+.credential-fields dd.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.credential-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; }
+.credential-meta { color:#9aa4b6; font-size:12px; }
+.credential-actions { display:flex; gap:6px; }
+.credential-actions button { padding:5px 11px; font-size:12px; }
+.credential-actions .credential-revoke { color:#c63755; }
+.credential-actions .credential-revoke:hover:not(:disabled) { border-color:#ffc2cd; background:#fff2f4; }
+
+.modal-card.credential-dialog { width:min(520px, calc(100vw - 48px)); }
+.credential-dialog-body { display:grid; gap:14px; padding:26px 28px; }
+.credential-dialog-body h2 { margin:0; color:#273650; font-size:18px; }
+.credential-dialog-body label { display:grid; gap:7px; color:#4f5c73; font-size:13px; font-weight:600; }
+.credential-dialog-body input, .credential-dialog-body select { padding:10px 11px; border:1px solid #dce2ee; border-radius:7px; background:#fff; color:#1c2434; font-size:13px; }
+.credential-dialog-body select:disabled { background:#f5f7fb; color:#7b879d; }
+.credential-dialog-body input:focus, .credential-dialog-body select:focus { outline:none; border-color:#3868e9; box-shadow:0 0 0 3px rgba(56,104,233,.12); }
+.credential-dialog-hint { color:#9aa4b6; font-size:12px; font-weight:400; }
+.credential-dialog-error { margin:0; color:#c63755; font-size:12px; }
+.credential-dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
+.credential-dialog-actions button { padding:8px 14px; font-size:13px; }
+
 @media (max-width: 1050px){.execution-side{width:240px}.workspace-page{padding:30px 24px}.global-nav-links{margin-left:0}.global-nav-links a:nth-child(n+3){display:none}.node-library{width:180px}.properties-panel{width:300px}}

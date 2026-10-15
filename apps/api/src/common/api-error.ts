@@ -25,6 +25,9 @@ export const API_ERROR_CODES = [
   'API_KEY_FORBIDDEN',
   'API_KEY_NOT_FOUND',
   'RUN_NOT_FOUND',
+  'CREDENTIAL_NOT_FOUND',
+  'CREDENTIAL_REVOKED',
+  'CREDENTIAL_BASE_URL_REQUIRED',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

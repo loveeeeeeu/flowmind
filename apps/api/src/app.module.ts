@@ -8,6 +8,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ExternalApiModule } from './external-api/external-api.module.js';
 import { ApiKeyModule } from './api-key/api-key.module.js';
+import { CredentialModule } from './credential/credential.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ApiKeyModule } from './api-key/api-key.module.js';
     WorkflowModule,
     ApiKeyModule,
     ExternalApiModule,
+    CredentialModule,
   ],
 })
 export class AppModule {}
