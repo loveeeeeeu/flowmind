@@ -1,94 +1,104 @@
-import type { PrismaService } from '../prisma/prisma.service.js';
-import type { ProviderRegistry } from './provider-registry.js';
+import { LlmProviderError } from './errors/llm-provider.error.js';
+import { ProviderRegistry } from './provider-registry.js';
 import type { OpenAICompatibleProvider } from './providers/openai-compatible.provider.js';
+import type { ResolvedModelConfig, RuntimeModelResolver } from './runtime-model-resolver.js';
 import { WorkerLlmClient } from './worker-llm-client.js';
 
-interface ModelRow {
-  modelName: string;
-  supportsTemperature: boolean;
-  credential: { provider: string; revokedAt: Date | null };
-}
-
-const deepseekModel: ModelRow = {
+const deepseek: ResolvedModelConfig = {
+  modelId: 'model-1',
   modelName: 'deepseek-chat',
+  provider: 'DEEPSEEK',
+  baseUrl: null,
+  apiKey: 'sk-decrypted',
   supportsTemperature: true,
-  credential: { provider: 'DEEPSEEK', revokedAt: null },
 };
 
-function setup(model: ModelRow | null) {
-  const config = { id: 'deepseek', baseUrl: 'https://example.com', apiKey: 'test-key' };
-  const prisma = { model: { findUnique: vi.fn(async () => model) } };
-  const registry = { get: vi.fn(() => config) };
+function setup(model: ResolvedModelConfig | Error) {
+  const resolve = vi.fn(async () => {
+    if (model instanceof Error) {
+      throw model;
+    }
+    return model;
+  });
   const generate = vi.fn(async () => ({ text: 'hi', usage: { totalTokens: 3 }, raw: {} }));
-  const client = new WorkerLlmClient(
-    prisma as unknown as PrismaService,
-    registry as unknown as ProviderRegistry,
-    { generate } as unknown as OpenAICompatibleProvider,
-  );
+  const registry = new ProviderRegistry({ generate } as unknown as OpenAICompatibleProvider);
+  const client = new WorkerLlmClient({ resolve } as unknown as RuntimeModelResolver, registry);
 
-  return { client, prisma, registry, generate, config };
+  return { client, resolve, generate };
 }
 
-const request = { modelId: 'model-1', prompt: 'Hello', temperature: 0.2 };
+const request = { modelId: 'model-1', prompt: 'Hello', systemPrompt: 'Be brief', temperature: 0.2 };
 
 describe('WorkerLlmClient', () => {
-  it('resolves modelId to the model name and its provider, then calls the adapter', async () => {
-    const { client, prisma, registry, generate, config } = setup(deepseekModel);
+  it('resolves the modelId and passes the resolved call config to the provider adapter', async () => {
+    const { client, resolve, generate } = setup(deepseek);
 
     const result = await client.generate(request);
 
-    expect(prisma.model.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'model-1' } }),
-    );
-    expect(registry.get).toHaveBeenCalledWith('deepseek');
-    expect(generate).toHaveBeenCalledWith(config, {
+    expect(resolve).toHaveBeenCalledWith('model-1');
+    expect(generate).toHaveBeenCalledWith({
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: 'sk-decrypted',
       model: 'deepseek-chat',
       prompt: 'Hello',
-      systemPrompt: undefined,
+      systemPrompt: 'Be brief',
       temperature: 0.2,
     });
     expect(result).toEqual({ text: 'hi', usage: { totalTokens: 3 } });
   });
 
   it.each([
-    ['OPENAI', 'openai'],
-    ['OPENAI_COMPATIBLE', 'custom'],
-  ])('maps %s credentials to the %s env provider', async (provider, registryId) => {
-    const { client, registry } = setup({ ...deepseekModel, credential: { provider, revokedAt: null } });
+    ['OPENAI', null, 'https://api.openai.com/v1'],
+    ['DEEPSEEK', null, 'https://api.deepseek.com'],
+    ['OPENAI', 'https://proxy.example.com/v1', 'https://proxy.example.com/v1'],
+    ['OPENAI_COMPATIBLE', 'http://localhost:8000/v1', 'http://localhost:8000/v1'],
+  ] as const)('%s with baseUrl %s calls %s', async (provider, baseUrl, expected) => {
+    const { client, generate } = setup({ ...deepseek, provider, baseUrl });
 
     await client.generate(request);
 
-    expect(registry.get).toHaveBeenCalledWith(registryId);
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ baseUrl: expected }));
+  });
+
+  it('fails with CREDENTIAL_BASE_URL_REQUIRED for an OpenAI-compatible credential without one', async () => {
+    const { client, generate } = setup({ ...deepseek, provider: 'OPENAI_COMPATIBLE', baseUrl: null });
+
+    await expect(client.generate(request)).rejects.toMatchObject({
+      code: 'CREDENTIAL_BASE_URL_REQUIRED',
+      retryable: false,
+    });
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it('drops temperature for models that do not support it', async () => {
-    const { client, generate } = setup({ ...deepseekModel, supportsTemperature: false });
+    const { client, generate } = setup({ ...deepseek, supportsTemperature: false });
 
     await client.generate(request);
 
-    expect(generate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ temperature: undefined }));
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ temperature: undefined }));
   });
 
-  it('fails with MODEL_NOT_FOUND, not retryable, for an unknown model', async () => {
-    const { client, generate } = setup(null);
+  it('does not call the provider when resolution fails', async () => {
+    const revoked = Object.assign(new Error('revoked'), { code: 'CREDENTIAL_REVOKED', retryable: false });
+    const { client, generate } = setup(revoked);
 
-    await expect(client.generate(request)).rejects.toMatchObject({
-      code: 'MODEL_NOT_FOUND',
-      retryable: false,
-    });
+    await expect(client.generate(request)).rejects.toBe(revoked);
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it('fails with CREDENTIAL_REVOKED when the credential is revoked', async () => {
-    const { client, generate } = setup({
-      ...deepseekModel,
-      credential: { provider: 'DEEPSEEK', revokedAt: new Date() },
-    });
+  it('passes provider errors through unchanged, keeping their retry semantics', async () => {
+    const { client, generate } = setup(deepseek);
+    const rateLimit = new LlmProviderError({ code: 'RATE_LIMIT', status: 429, retryable: true, message: 'Rate limit' });
+    generate.mockRejectedValueOnce(rateLimit);
 
-    await expect(client.generate(request)).rejects.toMatchObject({
-      code: 'CREDENTIAL_REVOKED',
-      retryable: false,
-    });
-    expect(generate).not.toHaveBeenCalled();
+    await expect(client.generate(request)).rejects.toBe(rateLimit);
+  });
+
+  it('never returns the secret in its result', async () => {
+    const { client } = setup(deepseek);
+
+    const result = await client.generate(request);
+
+    expect(JSON.stringify(result)).not.toContain('sk-decrypted');
   });
 });

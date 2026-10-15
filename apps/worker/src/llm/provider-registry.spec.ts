@@ -1,44 +1,38 @@
-import type { ConfigService } from '@nestjs/config';
-import { ProviderRegistry } from './provider-registry.js';
-
-function createRegistry(values: Record<string, string>) {
-  const configService = { get: (key: string) => values[key] } as unknown as ConfigService;
-  return new ProviderRegistry(configService);
-}
+import { ProviderRegistry, resolveBaseUrl } from './provider-registry.js';
+import type { OpenAICompatibleProvider } from './providers/openai-compatible.provider.js';
+import type { CredentialProvider } from '../generated/prisma/enums.js';
 
 describe('ProviderRegistry', () => {
-  it('throws when provider is not configured', () => {
-    expect(() => createRegistry({}).get('openai')).toThrow(
-      'LLM provider "openai" is not configured',
+  const adapter = { generate: vi.fn() } as unknown as OpenAICompatibleProvider;
+  const registry = new ProviderRegistry(adapter);
+
+  it.each(['OPENAI', 'DEEPSEEK', 'OPENAI_COMPATIBLE'] as const)(
+    'routes %s to the OpenAI-compatible adapter',
+    (provider) => {
+      expect(registry.get(provider)).toBe(adapter);
+    },
+  );
+
+  it('fails with PROVIDER_NOT_SUPPORTED, not retryable, for an unknown provider', () => {
+    expect(() => registry.get('ANTHROPIC' as CredentialProvider)).toThrow(
+      expect.objectContaining({ code: 'PROVIDER_NOT_SUPPORTED', retryable: false }),
     );
   });
+});
 
-  it('registers deepseek with configured base url', () => {
-    const registry = createRegistry({
-      DEEPSEEK_API_KEY: 'test-key',
-      DEEPSEEK_BASE_URL: 'https://example.com',
-    });
-
-    expect(registry.get('deepseek')).toEqual({
-      id: 'deepseek',
-      baseUrl: 'https://example.com',
-      apiKey: 'test-key',
-    });
+describe('resolveBaseUrl', () => {
+  it('prefers the credential base URL', () => {
+    expect(resolveBaseUrl('DEEPSEEK', 'https://proxy.example.com')).toBe('https://proxy.example.com');
   });
 
-  it('falls back to default base url', () => {
-    const registry = createRegistry({ DEEPSEEK_API_KEY: 'test-key' });
-
-    expect(registry.get('deepseek').baseUrl).toBe('https://api.deepseek.com');
+  it('falls back to the official endpoint for OpenAI and DeepSeek', () => {
+    expect(resolveBaseUrl('OPENAI', null)).toBe('https://api.openai.com/v1');
+    expect(resolveBaseUrl('DEEPSEEK', null)).toBe('https://api.deepseek.com');
   });
 
-  it('requires both key and base url for custom provider', () => {
-    expect(createRegistry({ CUSTOM_LLM_API_KEY: 'k' }).has('custom')).toBe(false);
-    expect(
-      createRegistry({
-        CUSTOM_LLM_API_KEY: 'k',
-        CUSTOM_LLM_BASE_URL: 'http://localhost:8000/v1',
-      }).has('custom'),
-    ).toBe(true);
+  it('requires a base URL for OpenAI-compatible credentials', () => {
+    expect(() => resolveBaseUrl('OPENAI_COMPATIBLE', null)).toThrow(
+      expect.objectContaining({ code: 'CREDENTIAL_BASE_URL_REQUIRED', retryable: false }),
+    );
   });
 });

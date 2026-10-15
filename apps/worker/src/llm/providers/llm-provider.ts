@@ -1,4 +1,7 @@
-export interface LlmGenerateInput {
+/** A fully resolved call: the adapter only speaks the protocol, it never looks anything up. */
+export interface LlmProviderRequest {
+  baseUrl: string;
+  apiKey: string;
   model: string;
   prompt: string;
   systemPrompt?: string;
@@ -15,12 +18,6 @@ export interface LlmGenerateResult {
   raw?: unknown;
 }
 
-export interface LlmProviderConfig {
-  id: string;
-  baseUrl: string;
-  apiKey: string;
-}
-
 export interface LlmProvider {
-  generate(config: LlmProviderConfig, input: LlmGenerateInput): Promise<LlmGenerateResult>;
+  generate(request: LlmProviderRequest): Promise<LlmGenerateResult>;
 }

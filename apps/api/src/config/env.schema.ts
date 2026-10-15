@@ -1,46 +1,21 @@
 import { z } from 'zod';
-import { MASTER_KEY_PATTERN } from '../credential/credential-crypto.service.js';
+import { MASTER_KEY_PATTERN } from '@flowmind/shared';
 
-const optionalUrl = z.string().url().optional().or(z.literal(''));
+export const envSchema = z.object({
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default('development'),
+  PORT: z.coerce.number().int().positive().default(3000),
+  DATABASE_URL: z.string().min(1),
+  REDIS_HOST: z.string().min(1).default('localhost'),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
 
-export const envSchema = z
-  .object({
-    NODE_ENV: z
-      .enum(['development', 'test', 'production'])
-      .default('development'),
-    PORT: z.coerce.number().int().positive().default(3000),
-    DATABASE_URL: z.string().min(1),
-    REDIS_HOST: z.string().min(1).default('localhost'),
-    REDIS_PORT: z.coerce.number().int().positive().default(6379),
-
-    DEEPSEEK_API_KEY: z.string().optional(),
-    DEEPSEEK_BASE_URL: optionalUrl,
-    OPENAI_API_KEY: z.string().optional(),
-    OPENAI_BASE_URL: optionalUrl,
-    CUSTOM_LLM_API_KEY: z.string().optional(),
-    CUSTOM_LLM_BASE_URL: optionalUrl,
-
-    LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
-
-    // Master key for provider credentials. Must be identical for api and worker, and never
-    // change: secrets encrypted with another key cannot be decrypted.
-    CREDENTIAL_ENCRYPTION_KEY: z
-      .string({ error: 'is required (32 random bytes, base64)' })
-      .regex(MASTER_KEY_PATTERN, 'must be 32 random bytes encoded as base64 (44 characters)'),
-  })
-  .superRefine((env, ctx) => {
-    const hasCustomKey = Boolean(env.CUSTOM_LLM_API_KEY);
-    const hasCustomUrl = Boolean(env.CUSTOM_LLM_BASE_URL);
-
-    if (hasCustomKey !== hasCustomUrl) {
-      ctx.addIssue({
-        code: 'custom',
-        message:
-          'CUSTOM_LLM_API_KEY and CUSTOM_LLM_BASE_URL must be configured together',
-        path: ['CUSTOM_LLM_API_KEY'],
-      });
-    }
-  });
+  // Master key for provider credentials. Must be identical for api and worker, and never
+  // change: secrets encrypted with another key cannot be decrypted.
+  CREDENTIAL_ENCRYPTION_KEY: z
+    .string({ error: 'is required (32 random bytes, base64)' })
+    .regex(MASTER_KEY_PATTERN, 'must be 32 random bytes encoded as base64 (44 characters)'),
+});
 
 export type Env = z.infer<typeof envSchema>;
 

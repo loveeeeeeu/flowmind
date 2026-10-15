@@ -1,15 +1,14 @@
 import type { ConfigService } from '@nestjs/config';
 import { LlmProviderError } from '../errors/llm-provider.error.js';
-import type { LlmProviderConfig } from './llm-provider.js';
+import type { LlmProviderRequest } from './llm-provider.js';
 import { OpenAICompatibleProvider } from './openai-compatible.provider.js';
 
-const providerConfig: LlmProviderConfig = {
-  id: 'deepseek',
-  baseUrl: 'https://example.com/',
+const input: LlmProviderRequest = {
+  baseUrl: 'https://example.com/v1//',
   apiKey: 'test-key',
+  model: 'test-model',
+  prompt: 'hello',
 };
-
-const input = { model: 'test-model', prompt: 'hello' };
 
 function mockFetchResponse(body: string, status: number) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, { status }));
@@ -36,19 +35,28 @@ describe('OpenAICompatibleProvider', () => {
       200,
     );
 
-    const result = await provider.generate(providerConfig, input);
+    const result = await provider.generate(input);
 
     expect(result.text).toBe('Hi there');
     expect(result.usage).toEqual({ promptTokens: 3, completionTokens: 2, totalTokens: 5 });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://example.com/chat/completions');
+    expect(url).toBe('https://example.com/v1/chat/completions');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(JSON.parse(init.body as string)).toEqual({
       model: 'test-model',
       messages: [{ role: 'user', content: 'hello' }],
     });
+  });
+
+  it('sends temperature only when given', async () => {
+    const fetchMock = mockFetchResponse(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), 200);
+
+    await provider.generate({ ...input, temperature: 0 });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({ temperature: 0 });
   });
 
   it.each([
@@ -61,8 +69,7 @@ describe('OpenAICompatibleProvider', () => {
   ])('maps HTTP $status to $code', async ({ status, code, retryable }) => {
     mockFetchResponse('error body', status);
 
-    await expect(provider.generate(providerConfig, input)).rejects.toMatchObject({
-      providerId: 'deepseek',
+    await expect(provider.generate(input)).rejects.toMatchObject({
       status,
       code,
       retryable,
@@ -74,7 +81,7 @@ describe('OpenAICompatibleProvider', () => {
       new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
     );
 
-    await expect(provider.generate(providerConfig, input)).rejects.toMatchObject({
+    await expect(provider.generate(input)).rejects.toMatchObject({
       code: 'TIMEOUT',
       retryable: true,
       message: 'LLM provider timed out after 1000ms',
@@ -84,7 +91,7 @@ describe('OpenAICompatibleProvider', () => {
   it('maps connection failure to NETWORK_ERROR', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
 
-    await expect(provider.generate(providerConfig, input)).rejects.toMatchObject({
+    await expect(provider.generate(input)).rejects.toMatchObject({
       code: 'NETWORK_ERROR',
       retryable: true,
     });
@@ -93,7 +100,7 @@ describe('OpenAICompatibleProvider', () => {
   it('maps empty choices to EMPTY_RESPONSE', async () => {
     mockFetchResponse(JSON.stringify({ choices: [] }), 200);
 
-    await expect(provider.generate(providerConfig, input)).rejects.toMatchObject({
+    await expect(provider.generate(input)).rejects.toMatchObject({
       code: 'EMPTY_RESPONSE',
     });
   });
@@ -101,7 +108,7 @@ describe('OpenAICompatibleProvider', () => {
   it('does not leak api key in error message', async () => {
     mockFetchResponse('unauthorized', 401);
 
-    const error = await provider.generate(providerConfig, input).catch((e: unknown) => e);
+    const error = await provider.generate(input).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(LlmProviderError);
     expect((error as LlmProviderError).message).not.toContain('test-key');

@@ -1,7 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { WORKFLOW_EXECUTION_QUEUE } from '@flowmind/shared';
+import { CredentialCrypto, decodeMasterKey, WORKFLOW_EXECUTION_QUEUE } from '@flowmind/shared';
 import { createWorkflowEngine, WorkflowEngine } from '@flowmind/workflow-core';
 import { fileURLToPath } from 'node:url';
 import { CodeRunnerService } from './code/code-runner.service.js';
@@ -14,10 +14,12 @@ import { WorkflowExecutionService } from './execution/workflow-execution.service
 import { WorkflowRunProcessor } from './execution/workflow-run.processor.js';
 import { ProviderRegistry } from './llm/provider-registry.js';
 import { OpenAICompatibleProvider } from './llm/providers/openai-compatible.provider.js';
+import { RuntimeModelResolver } from './llm/runtime-model-resolver.js';
 import { WorkerLlmClient } from './llm/worker-llm-client.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
-// apps/worker/.env wins; otherwise fall back to the API's .env so secrets live in one file locally.
+// apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
+// share the same CREDENTIAL_ENCRYPTION_KEY locally.
 const envFilePath = ['../.env', '../../api/.env'].map((path) =>
   fileURLToPath(new URL(path, import.meta.url)),
 );
@@ -38,8 +40,15 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     PrismaModule,
   ],
   providers: [
-    ProviderRegistry,
+    {
+      provide: CredentialCrypto,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new CredentialCrypto(decodeMasterKey(config.get<string>('CREDENTIAL_ENCRYPTION_KEY'))),
+    },
+    RuntimeModelResolver,
     OpenAICompatibleProvider,
+    ProviderRegistry,
     WorkerLlmClient,
     CodeRunnerService,
     {

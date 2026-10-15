@@ -1,11 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { inspect } from 'node:util';
 import type { ConfigService } from '@nestjs/config';
-import {
-  CredentialCryptoService,
-  CredentialDecryptionError,
-  type EncryptedSecret,
-} from './credential-crypto.service.js';
+import { CredentialDecryptionError, type EncryptedSecret } from '@flowmind/shared';
+import { CredentialCryptoService } from './credential-crypto.service.js';
 
 const masterKey = randomBytes(32).toString('base64');
 

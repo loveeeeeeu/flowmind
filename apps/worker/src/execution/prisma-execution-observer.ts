@@ -15,7 +15,7 @@ import { toJsonInput } from './json-value.js';
 function describeNode(node: WorkflowNode): Record<string, unknown> {
   switch (node.type) {
     case 'llm':
-      return { provider: node.data.provider, model: node.data.model };
+      return { modelId: node.data.modelId };
     case 'http':
       return { method: node.data.method };
     default:
@@ -57,7 +57,14 @@ export class PrismaExecutionObserver implements ExecutionObserver {
       workflowRunId: this.workflowRunId,
       nodeRunId: nodeRun.id,
       message: '节点开始执行',
-      metadata: { nodeId: node.id, nodeType: node.type, sequence, attempt, ...describeNode(node) },
+      metadata: {
+        nodeId: node.id,
+        nodeType: node.type,
+        sequence,
+        attempt,
+        ...describeNode(node),
+        ...(node.type === 'llm' ? await this.describeModel(node.data.modelId) : {}),
+      },
     });
   }
 
@@ -116,6 +123,33 @@ export class PrismaExecutionObserver implements ExecutionObserver {
         ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
       },
     });
+  }
+
+  /**
+   * Which model and credential the call will use, for debugging. Selects metadata only, never
+   * the secret fields; best-effort like the log itself, so a lookup failure logs nothing extra.
+   */
+  private async describeModel(modelId: unknown): Promise<Record<string, unknown>> {
+    if (typeof modelId !== 'string' || !modelId) {
+      return {};
+    }
+
+    const model = await this.prisma.model
+      .findUnique({
+        where: { id: modelId },
+        select: { modelName: true, credentialId: true, credential: { select: { provider: true } } },
+      })
+      .catch(() => null);
+
+    if (!model) {
+      return {};
+    }
+
+    return {
+      modelName: model.modelName,
+      provider: model.credential.provider,
+      credentialId: model.credentialId,
+    };
   }
 
   private makeKey(sequence: number, attempt: number) {

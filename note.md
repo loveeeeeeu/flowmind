@@ -693,3 +693,20 @@ modelId → Model → Credential（检查撤销）→ 解密 → 调用供应商
 ## 职责拆分
 LlmExecutor（依赖接口而不是具体实现） 只认 modelId → WorkerLlmClient 查库解析 → Provider 发请求
 过渡：现在按 provider 类型取 .env，第 4 课换成解密凭证
+
+# worker 在运行时解析凭证（真正接通模型中心
+一句话总结：前三课分别建好了凭证、模型中心，并让节点只存 modelId。这节课补上最后一环：worker 执行 LLM 节点时，顺着 modelId → Model → Credential → 解密密钥 → 调用供应商 走完整条链。从此决定"用哪个 Key"的是数据库里的凭证，不再是 .env。
+## 三层职责：谁该知道什么
+```
+层                              |知道什么                         |不该知道什么
+workflow-core（LlmExecutor）    |modelId、prompt、temperature     |Prisma、凭证、AES、API Key、Base URL
+worker 解析层（RuntimeModelResolver） |查模型、查凭证、解密         |HTTP 协议细节
+供应商适配器（OpenAICompatibleProvider）|baseUrl、apiKey、modelName、请求格式、超时|数据库、.env 里的密钥
+可以这样记：
+core 定义接口 
+Resolver 负责"调用谁"：把 modelId 变成一份完整的调用配置（baseUrl + apiKey + model + prompt）。
+Adapter 负责"怎么调用"：拿到配置就发 HTTP 请求，自己什么都不查。
+```
+怎么理解供应商适配器：这些“不同大模型供应商的通信细节”，由供应商适配器负责。适配器负责把 FlowMind 内部统一的请求转换成上面这种供应商协议，也负责把响应统一回来
+
+# 

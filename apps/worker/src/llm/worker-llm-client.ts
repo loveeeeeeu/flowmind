@@ -1,60 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import {
-  WorkflowExecutionError,
-  type LlmClient,
-  type LlmGenerateRequest,
-  type LlmGenerateResponse,
-} from '@flowmind/workflow-core';
-import type { CredentialProvider } from '../generated/prisma/enums.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { ProviderRegistry } from './provider-registry.js';
-import { OpenAICompatibleProvider } from './providers/openai-compatible.provider.js';
-
-// TEMPORARY (Sprint 9 Lesson 3 -> 4): the model comes from Model Center, but the endpoint and
-// secret still come from the env-configured registry entry for the credential's provider.
-// Lesson 4 replaces this with decrypting the credential itself.
-const LEGACY_PROVIDER_IDS: Record<CredentialProvider, string> = {
-  OPENAI: 'openai',
-  DEEPSEEK: 'deepseek',
-  OPENAI_COMPATIBLE: 'custom',
-};
-
-function runError(code: string, message: string) {
-  return new WorkflowExecutionError(message, { code, retryable: false });
-}
+import type { LlmClient, LlmGenerateRequest, LlmGenerateResponse } from '@flowmind/workflow-core';
+import { ProviderRegistry, resolveBaseUrl } from './provider-registry.js';
+import { RuntimeModelResolver } from './runtime-model-resolver.js';
 
 /**
- * Resolves a node's modelId at call time. A disabled model still runs (published versions keep
- * working); a revoked credential never does.
+ * The engine's LlmClient port backed by Model Center: the resolver decides whom to call, the
+ * provider adapter how. Resolution errors are never retried; provider errors keep their own
+ * retryable flag (rate limit, timeout, 5xx).
  */
 @Injectable()
 export class WorkerLlmClient implements LlmClient {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly resolver: RuntimeModelResolver,
     private readonly registry: ProviderRegistry,
-    private readonly adapter: OpenAICompatibleProvider,
   ) {}
 
   async generate(request: LlmGenerateRequest): Promise<LlmGenerateResponse> {
-    const model = await this.prisma.model.findUnique({
-      where: { id: request.modelId },
-      select: {
-        modelName: true,
-        supportsTemperature: true,
-        credential: { select: { provider: true, revokedAt: true } },
-      },
-    });
+    const model = await this.resolver.resolve(request.modelId);
+    const provider = this.registry.get(model.provider);
 
-    if (!model) {
-      throw runError('MODEL_NOT_FOUND', `Model ${request.modelId} not found`);
-    }
-
-    if (model.credential.revokedAt) {
-      throw runError('CREDENTIAL_REVOKED', `Credential for model ${request.modelId} is revoked`);
-    }
-
-    const provider = this.registry.get(LEGACY_PROVIDER_IDS[model.credential.provider]);
-    const result = await this.adapter.generate(provider, {
+    const result = await provider.generate({
+      baseUrl: resolveBaseUrl(model.provider, model.baseUrl),
+      apiKey: model.apiKey,
       model: model.modelName,
       prompt: request.prompt,
       systemPrompt: request.systemPrompt,

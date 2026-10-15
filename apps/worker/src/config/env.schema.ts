@@ -1,32 +1,21 @@
 import { z } from 'zod';
+import { MASTER_KEY_PATTERN } from '@flowmind/shared';
 
-const optionalUrl = z.string().url().optional().or(z.literal(''));
+// Deployment configuration only. Provider API keys and base URLs are product configuration:
+// they live encrypted in the Credential table and are resolved per LLM call.
+export const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  DATABASE_URL: z.string().min(1),
+  REDIS_HOST: z.string().min(1).default('localhost'),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
 
-export const envSchema = z
-  .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    DATABASE_URL: z.string().min(1),
-    REDIS_HOST: z.string().min(1).default('localhost'),
-    REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
-    DEEPSEEK_API_KEY: z.string().optional(),
-    DEEPSEEK_BASE_URL: optionalUrl,
-    OPENAI_API_KEY: z.string().optional(),
-    OPENAI_BASE_URL: optionalUrl,
-    CUSTOM_LLM_API_KEY: z.string().optional(),
-    CUSTOM_LLM_BASE_URL: optionalUrl,
-
-    LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
-  })
-  .superRefine((env, ctx) => {
-    if (Boolean(env.CUSTOM_LLM_API_KEY) !== Boolean(env.CUSTOM_LLM_BASE_URL)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'CUSTOM_LLM_API_KEY and CUSTOM_LLM_BASE_URL must be configured together',
-        path: ['CUSTOM_LLM_API_KEY'],
-      });
-    }
-  });
+  // Must be the api's key: the worker decrypts what the api encrypted.
+  CREDENTIAL_ENCRYPTION_KEY: z
+    .string({ error: 'is required (32 random bytes, base64)' })
+    .regex(MASTER_KEY_PATTERN, 'must be 32 random bytes encoded as base64 (44 characters)'),
+});
 
 export type Env = z.infer<typeof envSchema>;
 

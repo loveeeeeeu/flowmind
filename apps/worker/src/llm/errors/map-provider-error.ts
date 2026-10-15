@@ -6,12 +6,11 @@ function summarize(body: string) {
   return body.length > MAX_BODY_LENGTH ? `${body.slice(0, MAX_BODY_LENGTH)}...` : body;
 }
 
-export function createHttpProviderError(providerId: string, status: number, body: string) {
+export function createHttpProviderError(status: number, body: string) {
   switch (status) {
     case 400:
     case 422:
       return new LlmProviderError({
-        providerId,
         code: 'INVALID_REQUEST',
         status,
         retryable: false,
@@ -21,7 +20,6 @@ export function createHttpProviderError(providerId: string, status: number, body
     case 401:
     case 403:
       return new LlmProviderError({
-        providerId,
         code: 'AUTH_ERROR',
         status,
         retryable: false,
@@ -30,7 +28,6 @@ export function createHttpProviderError(providerId: string, status: number, body
 
     case 402:
       return new LlmProviderError({
-        providerId,
         code: 'INSUFFICIENT_BALANCE',
         status,
         retryable: false,
@@ -39,7 +36,6 @@ export function createHttpProviderError(providerId: string, status: number, body
 
     case 429:
       return new LlmProviderError({
-        providerId,
         code: 'RATE_LIMIT',
         status,
         retryable: true,
@@ -51,7 +47,6 @@ export function createHttpProviderError(providerId: string, status: number, body
     case 503:
     case 504:
       return new LlmProviderError({
-        providerId,
         code: 'PROVIDER_UNAVAILABLE',
         status,
         retryable: true,
@@ -60,7 +55,6 @@ export function createHttpProviderError(providerId: string, status: number, body
 
     default:
       return new LlmProviderError({
-        providerId,
         code: 'UNKNOWN',
         status,
         retryable: status >= 500,

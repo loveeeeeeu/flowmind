@@ -69,7 +69,9 @@ pnpm install
 Copy-Item apps/api/.env.example apps/api/.env
 ```
 
-编辑 `apps/api/.env`，至少确认 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`；要用 LLM 节点还需在模型中心登记模型，并填写对应供应商的 `*_API_KEY`（见下文"LLM 节点"）。
+编辑 `apps/api/.env`，至少确认 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`。供应商的 API Key 不写在 `.env` 里：启动后在"模型设置 → 模型凭证"添加凭证，再到模型中心登记模型（见下文"LLM 节点"）。
+
+`.env` 只放 FlowMind 自身的部署配置（数据库、Redis、主密钥、超时）；凭证是产品配置，加密存在数据库里，运行时才解密。
 
 生成模型凭证的加密主密钥，填入 `CREDENTIAL_ENCRYPTION_KEY`（必填，缺少或格式不对 API 会拒绝启动）：
 
@@ -79,7 +81,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 这个值生成一次后就不要再改，并单独备份：数据库里的凭证都用它加密，丢失或更换后所有已保存的凭证都无法解密。
 
-worker 读取环境变量的顺序：`apps/worker/.env`（可选，不存在就跳过）→ `apps/api/.env`。本地开发只维护 `apps/api/.env` 一份即可，密钥不要提交到 Git。
+worker 读取环境变量的顺序：`apps/worker/.env`（可选，不存在就跳过）→ `apps/api/.env`。本地开发只维护 `apps/api/.env` 一份即可，密钥不要提交到 Git。worker 也必须配置**同一个** `CREDENTIAL_ENCRYPTION_KEY`（缺少会拒绝启动），否则解密凭证时运行会以 `CREDENTIAL_DECRYPTION_ERROR` 失败。
 
 ### 4. 构建共享包
 
@@ -214,6 +216,7 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 - 修改时不传 `secret` 就保留原密钥，传了就重新加密覆盖；供应商创建后不能改。
 - 删除是撤销（软删除）：已发布版本可能还引用着这个凭证 id，运行时会明确失败而不是找不到。
 - 画布、版本、运行记录和执行日志只会保存凭证 id，永远不保存密钥本身。
+- 密钥在每次 LLM 调用时由 worker 从数据库读取并解密，只存在于这次调用的内存里，不缓存：修改密钥后下一次运行就用新密钥（已发布版本无需重新发布），撤销后立即失效。
 - 和外部调用的 API Key 不同：那个只需要校验，所以只存哈希；模型凭证要在调用供应商时还原原文，所以只能加密。
 
 ## 模型中心（Models）
@@ -266,6 +269,26 @@ LLM 节点只保存模型中心里的模型 id，不再保存 provider、模型�
 
 已发布版本不再做资源校验：模型停用后仍能运行；凭证撤销后运行时节点以 `CREDENTIAL_REVOKED` 失败且不重试。
 
+运行时（worker）的解析链路：
+
+```text
+RuntimeModelResolver   modelId → Model → Credential → 解密密钥（不检查 Model.enabled）
+ProviderRegistry       凭证供应商 → 协议适配器（目前三种都走 OpenAI 兼容协议）
+Provider Adapter       baseUrl + apiKey + modelName → POST {baseUrl}/chat/completions
+```
+
+Base URL 优先用凭证里填的，留空时 `OPENAI` 用 `https://api.openai.com/v1`、`DEEPSEEK` 用 `https://api.deepseek.com`，`OPENAI_COMPATIBLE` 必须填写。
+
+节点失败时的错误码（写在节点运行记录的 `errorCode`）分两类：
+
+| 类别 | 错误码 | 是否重试 |
+|---|---|---|
+| 模型 / 凭证解析失败（配置问题） | `MODEL_NOT_FOUND`、`CREDENTIAL_REVOKED`、`CREDENTIAL_DECRYPTION_ERROR`、`CREDENTIAL_BASE_URL_REQUIRED`、`PROVIDER_NOT_SUPPORTED` | 否 |
+| 供应商调用失败 | `AUTH_ERROR`、`INSUFFICIENT_BALANCE`、`INVALID_REQUEST`、`EMPTY_RESPONSE` | 否 |
+| 供应商调用失败（临时问题） | `RATE_LIMIT`、`TIMEOUT`、`NETWORK_ERROR`、`PROVIDER_UNAVAILABLE` | 是 |
+
+执行日志里 LLM 节点开始时记录 `modelId / modelName / provider / credentialId`，不记录密钥和提示词。
+
 旧版节点（只有 `provider` / `model`）会在画布和属性面板提示"需重新选择模型"，选择新模型后旧字段会被移除；旧节点不能测试也不能发布。
 
 ## 常见问题
@@ -277,12 +300,15 @@ LLM 节点只保存模型中心里的模型 id，不再保存 provider、模型�
 | run 一直是 `PENDING` | worker 没启动或 Redis 没运行；worker 启动后会消费积压的任务 |
 | `GET /runs/{id}` 返回 404 | 填成了工作流 ID，应填 run 接口返回的运行 ID |
 | 改了引擎代码但行为没变 | 共享包没重新构建 |
-| 启动时报 `Invalid environment variables` | `.env` 缺少必填项（如 `DATABASE_URL`），对照 `apps/api/.env.example` |
+| 启动时报 `Invalid environment variables` | `.env` 缺少必填项（如 `DATABASE_URL`、`CREDENTIAL_ENCRYPTION_KEY`），对照 `apps/api/.env.example` |
+| LLM 节点 `CREDENTIAL_DECRYPTION_ERROR` | worker 和 API 的 `CREDENTIAL_ENCRYPTION_KEY` 不一致，或主密钥被更换过 |
+| LLM 节点 `AUTH_ERROR` | 凭证里的 API Key 不对；在模型凭证页更新密钥即可，下次运行生效 |
 
 ## 已知限制
 
 - 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理、模型凭证和模型管理）目前没有用户认证，只适合本地开发。
-- worker 调用模型时暂时不解密凭证，而是按凭证的供应商取 `.env` 中的配置（`DEEPSEEK` → `DEEPSEEK_*`，`OPENAI` → `OPENAI_*`，`OPENAI_COMPATIBLE` → `CUSTOM_LLM_*`），凭证里保存的密钥和 Base URL 尚未生效；不支持更换加密主密钥（Key Rotation）。
+- 不支持更换加密主密钥（Key Rotation），也不能测试凭证是否可用（连接测试）。
+- 每个 LLM 节点执行时都会查一次库并解密，同一次运行里引用同一模型的多个节点不共享结果。
 - 模型需要手动登记，不会从供应商的 `/v1/models` 自动拉取；目前只有对话模型（`CHAT`）。
 - API Key 可以读取同一工作流下由编辑器创建的 PUBLISHED 运行结果。
 - 版本化之前创建的运行（显示为"旧版运行"）保留只读，不会重新执行；若被重新执行会以 `WORKFLOW_VERSION_MISSING` 失败。

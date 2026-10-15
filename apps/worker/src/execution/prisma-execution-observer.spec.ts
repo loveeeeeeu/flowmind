@@ -3,13 +3,16 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 import type { ExecutionLogService } from './execution-log.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 
-function setup() {
+const modelRow = { modelName: 'deepseek-chat', credentialId: 'cred-1', credential: { provider: 'DEEPSEEK' } };
+
+function setup(model: unknown = modelRow) {
   let created = 0;
   const prisma = {
     nodeRun: {
       create: vi.fn(async () => ({ id: `node-run-${created++}` })),
       update: vi.fn(async () => undefined),
     },
+    model: { findUnique: vi.fn(async () => model) },
   };
   const logs = { log: vi.fn(async () => undefined) };
   const observer = new PrismaExecutionObserver(
@@ -25,7 +28,7 @@ const body: WorkflowNode = { id: 'body', type: 'template', data: { template: 'se
 const llm: WorkflowNode = {
   id: 'llm',
   type: 'llm',
-  data: { provider: 'deepseek', model: 'deepseek-chat', prompt: 'private user text' },
+  data: { modelId: 'model-1', prompt: 'private user text' },
 };
 
 describe('PrismaExecutionObserver', () => {
@@ -59,8 +62,8 @@ describe('PrismaExecutionObserver', () => {
     });
   });
 
-  it('logs node start with safe node facts only, linked to its node run', async () => {
-    const { logs, observer } = setup();
+  it('logs node start with safe node and model facts only, linked to its node run', async () => {
+    const { prisma, logs, observer } = setup();
 
     await observer.onNodeStart({ node: llm, sequence: 1, attempt: 1 });
 
@@ -73,11 +76,32 @@ describe('PrismaExecutionObserver', () => {
         nodeType: 'llm',
         sequence: 1,
         attempt: 1,
-        provider: 'deepseek',
-        model: 'deepseek-chat',
+        modelId: 'model-1',
+        modelName: 'deepseek-chat',
+        provider: 'DEEPSEEK',
+        credentialId: 'cred-1',
       },
     });
     expect(JSON.stringify(logs.log.mock.calls)).not.toContain('private user text');
+    // Metadata only: the secret columns are never even read.
+    expect(JSON.stringify(prisma.model.findUnique.mock.calls)).not.toMatch(/secret/i);
+  });
+
+  it('still logs the modelId when the model lookup finds nothing or fails', async () => {
+    const missing = setup(null);
+    await missing.observer.onNodeStart({ node: llm, sequence: 1, attempt: 1 });
+
+    const failing = setup();
+    failing.prisma.model.findUnique.mockRejectedValueOnce(new Error('db down'));
+    await failing.observer.onNodeStart({ node: llm, sequence: 1, attempt: 1 });
+
+    for (const { logs } of [missing, failing]) {
+      expect(logs.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: { nodeId: 'llm', nodeType: 'llm', sequence: 1, attempt: 1, modelId: 'model-1' },
+        }),
+      );
+    }
   });
 
   it('records each retry attempt as its own node run, WARN while retrying, INFO on success', async () => {
