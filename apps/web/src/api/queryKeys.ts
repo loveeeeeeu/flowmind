@@ -18,6 +18,8 @@ export const queryKeys = {
   },
   credentials: {
     list: ['credentials', 'list'] as const,
+    // Live provider data: fetched only while the import dialog is open, never cached.
+    remoteModels: (credentialId: string) => ['credentials', credentialId, 'remote-models'] as const,
   },
   // Invalidate `all` after any model write or credential revoke: `available` depends on both.
   models: {

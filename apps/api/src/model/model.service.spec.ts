@@ -1,4 +1,5 @@
 import { apiError } from '../common/api-error.js';
+import type { CredentialConnectionService } from '../credential/credential-connection.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { AVAILABLE_MODEL, MODEL_CREDENTIAL, MODEL_SUMMARY, ModelService } from './model.service.js';
@@ -11,20 +12,28 @@ const knownError = (code: string) =>
 function setup({
   credential = { id: 'cred-1', revokedAt: null } as { id: string; revokedAt: Date | null } | null,
   disableCount = 1,
+  remoteIds = ['gpt-5', 'gpt-5-mini'],
 } = {}) {
   const prisma = {
     credential: { findUnique: vi.fn(async () => credential) },
     model: {
-      create: vi.fn(async () => ({ id: 'model-1' })),
-      findMany: vi.fn(async () => []),
+      create: vi.fn(async (args: { data: { modelName: string } }) => ({ modelName: args.data.modelName })),
+      findMany: vi.fn(async () => [] as Array<{ modelName: string }>),
       findUnique: vi.fn(async () => null as unknown),
       update: vi.fn(async () => ({ id: 'model-1' })),
       updateMany: vi.fn(async () => ({ count: disableCount })),
     },
+    $transaction: vi.fn(async (operations: Array<Promise<unknown>>) => Promise.all(operations)),
   };
-  const service = new ModelService(prisma as unknown as PrismaService);
+  const connection = {
+    fetchRemoteModels: vi.fn(async () => remoteIds.map((id) => ({ id }))),
+  };
+  const service = new ModelService(
+    prisma as unknown as PrismaService,
+    connection as unknown as CredentialConnectionService,
+  );
 
-  return { service, prisma };
+  return { service, prisma, connection };
 }
 
 type Call = Record<string, unknown> & { data: Record<string, unknown> };
@@ -74,6 +83,74 @@ describe('ModelService.create', () => {
     await expect(service.create('cred-1', { name: 'M', modelName: 'gpt-4.1' })).rejects.toThrow(
       apiError.conflict('MODEL_NAME_CONFLICT', 'Model "gpt-4.1" already exists for this credential'),
     );
+  });
+});
+
+describe('ModelService.importModels', () => {
+  const gpt5 = { modelName: 'gpt-5', name: 'GPT-5', contextWindow: 128000, supportsTemperature: true };
+  const mini = { modelName: 'gpt-5-mini', name: 'GPT-5 Mini' };
+
+  it('re-fetches the remote list, then creates every model as CHAT in one transaction', async () => {
+    const { service, prisma, connection } = setup();
+
+    const created = await service.importModels('cred-1', { models: [gpt5, mini] });
+
+    expect(connection.fetchRemoteModels).toHaveBeenCalledWith('cred-1');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.model.create).toHaveBeenCalledWith({
+      data: { credentialId: 'cred-1', type: 'CHAT', ...gpt5 },
+      select: MODEL_SUMMARY,
+    });
+    expect(created).toEqual([{ modelName: 'gpt-5' }, { modelName: 'gpt-5-mini' }]);
+  });
+
+  it('rejects a modelName the provider does not list, writing nothing', async () => {
+    const { service, prisma } = setup();
+
+    await expect(
+      service.importModels('cred-1', { models: [gpt5, { modelName: 'totally-fake-model', name: 'Fake' }] }),
+    ).rejects.toThrow(
+      apiError.badRequest('REMOTE_MODEL_NOT_FOUND', 'The provider does not list "totally-fake-model"'),
+    );
+    expect(prisma.model.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects models that already exist locally before calling the provider', async () => {
+    const { service, prisma, connection } = setup();
+    prisma.model.findMany.mockResolvedValueOnce([{ modelName: 'gpt-5' }]);
+
+    await expect(service.importModels('cred-1', { models: [gpt5, mini] })).rejects.toThrow(
+      apiError.conflict('MODEL_NAME_CONFLICT', 'Model "gpt-5" already exists for this credential'),
+    );
+    expect(connection.fetchRemoteModels).not.toHaveBeenCalled();
+    expect(prisma.model.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects the same modelName twice in one request', async () => {
+    const { service, connection } = setup();
+
+    await expect(service.importModels('cred-1', { models: [gpt5, gpt5] })).rejects.toMatchObject({
+      response: { code: 'VALIDATION_FAILED' },
+    });
+    expect(connection.fetchRemoteModels).not.toHaveBeenCalled();
+  });
+
+  it('maps a concurrent unique violation to MODEL_NAME_CONFLICT, not a Prisma error', async () => {
+    const { service, prisma } = setup();
+    prisma.$transaction.mockRejectedValueOnce(knownError('P2002'));
+
+    await expect(service.importModels('cred-1', { models: [gpt5] })).rejects.toMatchObject({
+      response: { code: 'MODEL_NAME_CONFLICT' },
+    });
+  });
+
+  it('lets connection errors (revoked credential, provider down) through unchanged', async () => {
+    const { service, connection, prisma } = setup();
+    const revoked = apiError.badRequest('CREDENTIAL_REVOKED', 'Credential has been revoked');
+    connection.fetchRemoteModels.mockRejectedValueOnce(revoked);
+
+    await expect(service.importModels('cred-1', { models: [gpt5] })).rejects.toBe(revoked);
+    expect(prisma.model.create).not.toHaveBeenCalled();
   });
 });
 

@@ -14,3 +14,14 @@ export function formatContextWindow(tokens: number | null) {
 
   return String(tokens);
 }
+
+/** Form input -> token count. null: left empty; undefined: not a positive integer. */
+export function parseContextWindow(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed === '') {
+    return null;
+  }
+
+  return /^\d+$/.test(trimmed) && Number(trimmed) > 0 ? Number(trimmed) : undefined;
+}

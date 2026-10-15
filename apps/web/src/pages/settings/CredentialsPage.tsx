@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCredentials, revokeCredential } from '../../api/credentials';
+import { getCredentials, revokeCredential, testCredential } from '../../api/credentials';
 import { queryKeys } from '../../api/queryKeys';
 import { SettingsTabs } from '../../settings/SettingsTabs';
 import { CredentialFormDialog } from '../../settings/credentials/CredentialFormDialog';
+import { describeProviderError } from '../../settings/credentials/providerErrors';
 import { getProviderOption } from '../../settings/credentials/providers';
+import { ImportModelsDialog } from '../../settings/models/ImportModelsDialog';
 import type { Credential } from '../../types/credential';
 import { formatRunTime } from '../../workflow/execution/runUtils';
 
@@ -14,6 +16,7 @@ type DialogState = { mode: 'create' } | { mode: 'edit'; credential: Credential }
 export function CredentialsPage() {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [discoveringCredential, setDiscoveringCredential] = useState<Credential | null>(null);
 
   const credentialsQuery = useQuery({
     queryKey: queryKeys.credentials.list,
@@ -72,57 +75,17 @@ export function CredentialsPage() {
 
       {credentialsQuery.isSuccess && credentialsQuery.data.length > 0 && (
         <ul className="credential-grid">
-          {credentialsQuery.data.map((credential) => {
-            const provider = getProviderOption(credential.provider);
-            const revoking = revokeMutation.isPending && revokeMutation.variables === credential.id;
-
-            return (
-              <li key={credential.id} className={`credential-card ${credential.revokedAt ? 'revoked' : ''}`}>
-                <div className="credential-card-head">
-                  <span className="credential-name">{credential.name}</span>
-                  <span className="credential-provider">{provider.label}</span>
-                  {credential.revokedAt && <span className="credential-revoked-tag">已撤销</span>}
-                </div>
-                <dl className="credential-fields">
-                  <dt>Base URL</dt>
-                  <dd className={credential.baseUrl ? 'mono' : ''}>{credential.baseUrl ?? '官方地址'}</dd>
-                  <dt>API Key</dt>
-                  <dd className="mono">••••••••••••</dd>
-                </dl>
-                <div className="credential-card-foot">
-                  <span className="credential-meta">
-                    {credential.revokedAt
-                      ? `撤销于 ${formatRunTime(credential.revokedAt)}`
-                      : `更新于 ${formatRunTime(credential.updatedAt)}`}
-                  </span>
-                  <div className="credential-actions">
-                    <Link className="subtle-button" to={`/settings/models?credential=${credential.id}`}>
-                      管理模型
-                    </Link>
-                    {!credential.revokedAt && (
-                      <>
-                        <button
-                          type="button"
-                          className="subtle-button"
-                          onClick={() => setDialog({ mode: 'edit', credential })}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          type="button"
-                          className="subtle-button credential-revoke"
-                          disabled={revoking}
-                          onClick={() => revoke(credential)}
-                        >
-                          {revoking ? '撤销中…' : '撤销'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
+          {credentialsQuery.data.map((credential) => (
+            // updatedAt in the key: an edited credential starts without the old test result.
+            <CredentialCard
+              key={`${credential.id}:${credential.updatedAt}`}
+              credential={credential}
+              revoking={revokeMutation.isPending && revokeMutation.variables === credential.id}
+              onEdit={() => setDialog({ mode: 'edit', credential })}
+              onRevoke={() => revoke(credential)}
+              onDiscover={() => setDiscoveringCredential(credential)}
+            />
+          ))}
         </ul>
       )}
 
@@ -132,6 +95,92 @@ export function CredentialsPage() {
           onClose={() => setDialog(null)}
         />
       )}
+
+      {discoveringCredential && (
+        <ImportModelsDialog
+          credential={discoveringCredential}
+          onClose={() => setDiscoveringCredential(null)}
+        />
+      )}
     </main>
+  );
+}
+
+interface CredentialCardProps {
+  credential: Credential;
+  revoking: boolean;
+  onEdit: () => void;
+  onRevoke: () => void;
+  onDiscover: () => void;
+}
+
+/** Testing is diagnosis only: the result is not saved and never changes the credential. */
+function CredentialCard({ credential, revoking, onEdit, onRevoke, onDiscover }: CredentialCardProps) {
+  const provider = getProviderOption(credential.provider);
+  const testMutation = useMutation({ mutationFn: () => testCredential(credential.id) });
+
+  return (
+    <li className={`credential-card ${credential.revokedAt ? 'revoked' : ''}`}>
+      <div className="credential-card-head">
+        <span className="credential-name">{credential.name}</span>
+        <span className="credential-provider">{provider.label}</span>
+        {credential.revokedAt && <span className="credential-revoked-tag">已撤销</span>}
+      </div>
+      <dl className="credential-fields">
+        <dt>Base URL</dt>
+        <dd className={credential.baseUrl ? 'mono' : ''}>{credential.baseUrl ?? '官方地址'}</dd>
+        <dt>API Key</dt>
+        <dd className="mono">••••••••••••</dd>
+      </dl>
+
+      {testMutation.isPending && <p className="credential-test-result">正在测试连接…</p>}
+      {testMutation.isSuccess && <p className="credential-test-result success">✓ 连接成功</p>}
+      {testMutation.isError && (
+        <p className="credential-test-result error">✕ {describeProviderError(testMutation.error)}</p>
+      )}
+
+      <div className="credential-card-foot">
+        <span className="credential-meta">
+          {credential.revokedAt
+            ? `撤销于 ${formatRunTime(credential.revokedAt)}`
+            : `更新于 ${formatRunTime(credential.updatedAt)}`}
+        </span>
+        <div className="credential-actions">
+          <Link className="subtle-button" to={`/settings/models?credential=${credential.id}`}>
+            管理模型
+          </Link>
+          {!credential.revokedAt && (
+            <>
+              <button
+                type="button"
+                className="subtle-button"
+                disabled={testMutation.isPending}
+                onClick={() => testMutation.mutate()}
+              >
+                {testMutation.isPending ? '测试中…' : '测试连接'}
+              </button>
+              <button
+                type="button"
+                className="subtle-button"
+                onClick={onDiscover}
+              >
+                发现模型
+              </button>
+              <button type="button" className="subtle-button" onClick={onEdit}>
+                编辑
+              </button>
+              <button
+                type="button"
+                className="subtle-button credential-revoke"
+                disabled={revoking}
+                onClick={onRevoke}
+              >
+                {revoking ? '撤销中…' : '撤销'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }

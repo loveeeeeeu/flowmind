@@ -1,7 +1,13 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { CredentialCrypto, decodeMasterKey, WORKFLOW_EXECUTION_QUEUE } from '@flowmind/shared';
+import {
+  CredentialCrypto,
+  decodeMasterKey,
+  OpenAICompatibleProvider,
+  ProviderRegistry,
+  WORKFLOW_EXECUTION_QUEUE,
+} from '@flowmind/shared';
 import { createWorkflowEngine, WorkflowEngine } from '@flowmind/workflow-core';
 import { fileURLToPath } from 'node:url';
 import { CodeRunnerService } from './code/code-runner.service.js';
@@ -12,8 +18,6 @@ import { RunRecoveryService } from './execution/run-recovery.service.js';
 import { RunStateService } from './execution/run-state.service.js';
 import { WorkflowExecutionService } from './execution/workflow-execution.service.js';
 import { WorkflowRunProcessor } from './execution/workflow-run.processor.js';
-import { ProviderRegistry } from './llm/provider-registry.js';
-import { OpenAICompatibleProvider } from './llm/providers/openai-compatible.provider.js';
 import { RuntimeModelResolver } from './llm/runtime-model-resolver.js';
 import { WorkerLlmClient } from './llm/worker-llm-client.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -47,8 +51,14 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
         new CredentialCrypto(decodeMasterKey(config.get<string>('CREDENTIAL_ENCRYPTION_KEY'))),
     },
     RuntimeModelResolver,
-    OpenAICompatibleProvider,
-    ProviderRegistry,
+    {
+      provide: ProviderRegistry,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new ProviderRegistry(
+          new OpenAICompatibleProvider({ generateTimeoutMs: config.get<number>('LLM_TIMEOUT_MS') }),
+        ),
+    },
     WorkerLlmClient,
     CodeRunnerService,
     {

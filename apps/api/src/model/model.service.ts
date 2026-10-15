@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { apiError } from '../common/api-error.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { CredentialConnectionService } from '../credential/credential-connection.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateModelDto } from './dto/create-model.dto.js';
+import type { ImportModelsDto } from './dto/import-models.dto.js';
 import type { UpdateModelDto } from './dto/update-model.dto.js';
 
 export const MODEL_SUMMARY = {
@@ -45,29 +47,73 @@ export const AVAILABLE_MODEL = {
  */
 @Injectable()
 export class ModelService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly connection: CredentialConnectionService,
+  ) {}
 
+  /** Manual add: any modelName, for providers whose GET /models is missing or incomplete. */
   async create(credentialId: string, dto: CreateModelDto) {
     await this.assertUsableCredential(credentialId);
 
     try {
       return await this.prisma.model.create({
-        data: {
-          credentialId,
-          name: dto.name,
-          modelName: dto.modelName,
-          type: 'CHAT',
-          contextWindow: dto.contextWindow,
-          supportsTemperature: dto.supportsTemperature,
-        },
+        data: modelData(credentialId, dto),
         select: MODEL_SUMMARY,
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw apiError.conflict(
-          'MODEL_NAME_CONFLICT',
-          `Model "${dto.modelName}" already exists for this credential`,
-        );
+      if (isUniqueViolation(error)) {
+        throw nameConflict([dto.modelName]);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Import from the provider: unlike create, every modelName must be one of the provider's
+   * current model ids, re-fetched here instead of trusting the client's list. All or nothing.
+   */
+  async importModels(credentialId: string, dto: ImportModelsDto) {
+    const names = dto.models.map((model) => model.modelName);
+    const repeated = names.filter((name, index) => names.indexOf(name) !== index);
+
+    if (repeated.length > 0) {
+      throw apiError.badRequest('VALIDATION_FAILED', `Model "${repeated[0]}" is listed more than once`);
+    }
+
+    const existing = await this.prisma.model.findMany({
+      where: { credentialId, modelName: { in: names } },
+      select: { modelName: true },
+    });
+
+    if (existing.length > 0) {
+      throw nameConflict(existing.map((model) => model.modelName));
+    }
+
+    // Also rejects unknown and revoked credentials before anything is written.
+    const remote = new Set(
+      (await this.connection.fetchRemoteModels(credentialId)).map((model) => model.id),
+    );
+    const missing = names.filter((name) => !remote.has(name));
+
+    if (missing.length > 0) {
+      throw apiError.badRequest(
+        'REMOTE_MODEL_NOT_FOUND',
+        `The provider does not list ${missing.map((name) => `"${name}"`).join(', ')}`,
+      );
+    }
+
+    try {
+      return await this.prisma.$transaction(
+        dto.models.map((model) =>
+          this.prisma.model.create({ data: modelData(credentialId, model), select: MODEL_SUMMARY }),
+        ),
+      );
+    } catch (error) {
+      // Added concurrently since the check above.
+      if (isUniqueViolation(error)) {
+        throw nameConflict(names);
       }
 
       throw error;
@@ -160,6 +206,31 @@ export class ModelService {
       throw apiError.badRequest('CREDENTIAL_REVOKED', 'Cannot add a model to a revoked credential');
     }
   }
+}
+
+function modelData(credentialId: string, dto: CreateModelDto) {
+  return {
+    credentialId,
+    name: dto.name,
+    modelName: dto.modelName,
+    type: 'CHAT' as const,
+    contextWindow: dto.contextWindow,
+    supportsTemperature: dto.supportsTemperature,
+  };
+}
+
+/** @@unique([credentialId, modelName]) */
+function isUniqueViolation(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+function nameConflict(modelNames: string[]) {
+  return apiError.conflict(
+    'MODEL_NAME_CONFLICT',
+    modelNames.length === 1
+      ? `Model "${modelNames[0]}" already exists for this credential`
+      : `Models ${modelNames.map((name) => `"${name}"`).join(', ')} already exist for this credential`,
+  );
 }
 
 function modelNotFound(id: string) {

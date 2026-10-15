@@ -306,7 +306,10 @@ a { color: inherit; }
 .credential-fields dt { color:#9aa4b6; }
 .credential-fields dd { overflow:hidden; margin:0; color:#4f5c73; text-overflow:ellipsis; white-space:nowrap; }
 .credential-fields dd.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.credential-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; }
+.credential-card-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; min-height:30px; }
+.credential-test-result { margin:0; padding:7px 10px; border:1px solid #e2e7f0; border-radius:8px; background:#f5f7fb; color:#7b879d; font-size:12px; line-height:1.5; }
+.credential-test-result.success { border-color:#c9ecd9; background:#ebf9f1; color:#398262; }
+.credential-test-result.error { border-color:#ffd5dc; background:#fff2f4; color:#c63755; }
 .credential-meta { color:#9aa4b6; font-size:12px; }
 .credential-actions { display:flex; gap:6px; }
 .credential-actions button { padding:5px 11px; font-size:12px; }
@@ -348,7 +351,8 @@ a { color: inherit; }
 .model-center-credential-meta { color:#9aa4b6; font-size:12px; }
 .model-center-panel { display:grid; gap:14px; padding:18px 20px; border:1px solid #e2e7f0; border-radius:12px; background:#fff; box-shadow:0 1px 2px rgba(30,50,90,.03); }
 .model-center-panel-head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.model-center-panel-head .primary-button { flex-shrink:0; padding:7px 13px; font-size:13px; }
+.model-center-panel-actions { display:flex; flex-shrink:0; gap:8px; }
+.model-center-panel-actions button { padding:7px 13px; font-size:13px; }
 .model-center-panel-title { display:grid; gap:5px; min-width:0; }
 .model-center-base-url { overflow:hidden; color:#7b879d; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
 .model-center-base-url.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -364,5 +368,24 @@ a { color: inherit; }
 .model-table td:last-child { width:1%; }
 .model-status { padding:2px 7px; border:1px solid #e2e7f0; border-radius:7px; background:#f5f7fb; color:#7b879d; font-size:11px; font-weight:600; }
 .model-status.enabled { border-color:#c9ecd9; background:#ebf9f1; color:#398262; }
+
+.modal-card.import-models-dialog { width:min(640px, calc(100vw - 48px)); }
+.import-models-dialog .empty-state { margin:0; }
+.import-models-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; color:#7b879d; font-size:12px; }
+.settings-dialog-body .import-models-toolbar input { width:220px; padding:7px 10px; font-size:12px; }
+.import-model-list { display:grid; gap:6px; max-height:min(46vh, 420px); margin:0; padding:2px; overflow-y:auto; list-style:none; }
+.import-model { border:1px solid #e2e7f0; border-radius:8px; background:#fff; }
+.import-model.selected { border-color:#9fb5fb; background:#f7f9ff; }
+.settings-dialog-body label.import-model-row { display:flex; align-items:center; gap:9px; padding:9px 11px; font-weight:500; cursor:pointer; }
+.settings-dialog-body .import-model-row input { width:15px; height:15px; margin:0; padding:0; accent-color:#3868e9; }
+.settings-dialog-body .import-model-row input:disabled { cursor:default; }
+.import-model-id { flex:1; min-width:0; overflow:hidden; color:#1c2434; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.import-model-fields { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto; align-items:end; gap:10px; padding:0 11px 11px 35px; }
+.settings-dialog-body .import-model-fields label { gap:5px; color:#7b879d; font-size:12px; font-weight:500; }
+.settings-dialog-body .import-model-fields input { padding:7px 9px; font-size:12px; }
+.settings-dialog-body .import-model-fields input[aria-invalid="true"] { border-color:#c63755; }
+.settings-dialog-body .import-model-fields label.settings-dialog-check { padding-bottom:8px; white-space:nowrap; }
+.settings-dialog-body .import-model-fields .settings-dialog-check input { padding:0; }
+.import-model-empty { padding:14px; color:#9aa4b6; font-size:12px; text-align:center; }
 
 @media (max-width: 1050px){.execution-side{width:240px}.workspace-page{padding:30px 24px}.global-nav-links{margin-left:0}.global-nav-links a:nth-child(n+3){display:none}.node-library{width:180px}.properties-panel{width:300px}}

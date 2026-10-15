@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateModelDto } from './dto/create-model.dto.js';
+import { ImportModelsDto } from './dto/import-models.dto.js';
 import { UpdateModelDto } from './dto/update-model.dto.js';
 import { ModelService } from './model.service.js';
 
@@ -24,6 +25,14 @@ export class CredentialModelController {
   @Post()
   create(@Param('credentialId') credentialId: string, @Body() dto: CreateModelDto) {
     return this.models.create(credentialId, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Import selected provider models (each modelName must be listed by GET /models now)',
+  })
+  @Post('import')
+  importModels(@Param('credentialId') credentialId: string, @Body() dto: ImportModelsDto) {
+    return this.models.importModels(credentialId, dto);
   }
 
   @ApiOperation({ summary: "List a credential's models, disabled ones included (last)" })

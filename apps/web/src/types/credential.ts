@@ -19,6 +19,14 @@ export interface CreateCredentialInput {
   secret: string;
 }
 
+/** GET /credentials/:id/remote-models: what the provider's GET /models lists right now. */
+export interface RemoteModel {
+  /** The provider's model id; becomes modelName when imported. */
+  id: string;
+  /** A model with this modelName already exists under the credential. */
+  imported: boolean;
+}
+
 /** Omitted fields are kept; omitting secret keeps the stored one. */
 export interface UpdateCredentialInput {
   name?: string;

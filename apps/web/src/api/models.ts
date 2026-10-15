@@ -17,6 +17,15 @@ export function createModel(credentialId: string, input: CreateModelInput): Prom
   });
 }
 
+/** All or nothing; every modelName must be listed by the provider at import time. */
+export function importModels(credentialId: string, models: CreateModelInput[]): Promise<Model[]> {
+  return request<Model[]>(`/credentials/${credentialId}/models/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ models }),
+  });
+}
+
 export function updateModel(id: string, input: UpdateModelInput): Promise<Model> {
   return request<Model>(`/models/${id}`, {
     method: 'PATCH',

@@ -6,22 +6,13 @@ import { createModel, updateModel } from '../../api/models';
 import { queryKeys } from '../../api/queryKeys';
 import type { Credential } from '../../types/credential';
 import type { Model } from '../../types/model';
+import { parseContextWindow } from './modelFormat';
 
 interface ModelFormDialogProps {
   credential: Credential;
   /** Edit this model's metadata; create a new one when absent. */
   model?: Model;
   onClose: () => void;
-}
-
-function parseContextWindow(value: string) {
-  const trimmed = value.trim();
-
-  if (trimmed === '') {
-    return null;
-  }
-
-  return /^\d+$/.test(trimmed) && Number(trimmed) > 0 ? Number(trimmed) : undefined;
 }
 
 function errorText(error: Error, modelName: string) {

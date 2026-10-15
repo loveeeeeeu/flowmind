@@ -6,12 +6,13 @@ import { disableModel, getCredentialModels, updateModel } from '../../api/models
 import { queryKeys } from '../../api/queryKeys';
 import { SettingsTabs } from '../../settings/SettingsTabs';
 import { getProviderOption } from '../../settings/credentials/providers';
+import { ImportModelsDialog } from '../../settings/models/ImportModelsDialog';
 import { ModelFormDialog } from '../../settings/models/ModelFormDialog';
 import { formatContextWindow } from '../../settings/models/modelFormat';
 import type { Credential } from '../../types/credential';
 import type { Model } from '../../types/model';
 
-type DialogState = { mode: 'create' } | { mode: 'edit'; model: Model } | null;
+type DialogState = { mode: 'create' } | { mode: 'import' } | { mode: 'edit'; model: Model } | null;
 
 export function ModelCenterPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -116,14 +117,24 @@ function CredentialModels({ credential }: { credential: Credential }) {
             {credential.baseUrl ?? '官方地址'}
           </span>
         </div>
-        <button
-          type="button"
-          className="primary-button"
-          disabled={revoked}
-          onClick={() => setDialog({ mode: 'create' })}
-        >
-          添加模型
-        </button>
+        <div className="model-center-panel-actions">
+          <button
+            type="button"
+            className="subtle-button"
+            disabled={revoked}
+            onClick={() => setDialog({ mode: 'import' })}
+          >
+            从供应商导入
+          </button>
+          <button
+            type="button"
+            className="primary-button"
+            disabled={revoked}
+            onClick={() => setDialog({ mode: 'create' })}
+          >
+            添加模型
+          </button>
+        </div>
       </header>
 
       {revoked && (
@@ -139,7 +150,9 @@ function CredentialModels({ credential }: { credential: Credential }) {
       )}
       {modelsQuery.isSuccess && modelsQuery.data.length === 0 && (
         <div className="empty-state">
-          {revoked ? '这个凭证下没有模型。' : '还没有模型。添加一个这个凭证能调用的模型，例如 gpt-4.1-mini。'}
+          {revoked
+            ? '这个凭证下没有模型。'
+            : '还没有模型。可以从供应商导入，或手动添加一个这个凭证能调用的模型，例如 gpt-4.1-mini。'}
         </div>
       )}
 
@@ -198,7 +211,10 @@ function CredentialModels({ credential }: { credential: Credential }) {
         </table>
       )}
 
-      {dialog && (
+      {dialog?.mode === 'import' && (
+        <ImportModelsDialog credential={credential} onClose={() => setDialog(null)} />
+      )}
+      {(dialog?.mode === 'create' || dialog?.mode === 'edit') && (
         <ModelFormDialog
           credential={credential}
           model={dialog.mode === 'edit' ? dialog.model : undefined}

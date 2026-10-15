@@ -1,6 +1,4 @@
-import { LlmProviderError } from './errors/llm-provider.error.js';
-import { ProviderRegistry } from './provider-registry.js';
-import type { OpenAICompatibleProvider } from './providers/openai-compatible.provider.js';
+import { type LlmProvider, LlmProviderError, ProviderRegistry } from '@flowmind/shared';
 import type { ResolvedModelConfig, RuntimeModelResolver } from './runtime-model-resolver.js';
 import { WorkerLlmClient } from './worker-llm-client.js';
 
@@ -21,7 +19,7 @@ function setup(model: ResolvedModelConfig | Error) {
     return model;
   });
   const generate = vi.fn(async () => ({ text: 'hi', usage: { totalTokens: 3 }, raw: {} }));
-  const registry = new ProviderRegistry({ generate } as unknown as OpenAICompatibleProvider);
+  const registry = new ProviderRegistry({ generate } as unknown as LlmProvider);
   const client = new WorkerLlmClient({ resolve } as unknown as RuntimeModelResolver, registry);
 
   return { client, resolve, generate };

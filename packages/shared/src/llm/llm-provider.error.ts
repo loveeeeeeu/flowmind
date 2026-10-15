@@ -1,13 +1,20 @@
 export type LlmProviderErrorCode =
+  // Configuration: the credential cannot be called as configured.
+  | 'CREDENTIAL_BASE_URL_REQUIRED'
+  | 'PROVIDER_NOT_SUPPORTED'
+  // Provider HTTP responses.
   | 'AUTH_ERROR'
   | 'RATE_LIMIT'
   | 'INSUFFICIENT_BALANCE'
   | 'INVALID_REQUEST'
+  | 'ENDPOINT_NOT_FOUND'
   | 'PROVIDER_UNAVAILABLE'
-  | 'TIMEOUT'
-  | 'NETWORK_ERROR'
+  | 'INVALID_PROVIDER_RESPONSE'
   | 'EMPTY_RESPONSE'
-  | 'UNKNOWN';
+  | 'UNKNOWN'
+  // Transport.
+  | 'TIMEOUT'
+  | 'NETWORK_ERROR';
 
 interface LlmProviderErrorOptions {
   code: LlmProviderErrorCode;
@@ -17,6 +24,7 @@ interface LlmProviderErrorOptions {
   cause?: unknown;
 }
 
+/** `retryable` is what the workflow engine's retry policy reads. Messages never contain the API key. */
 export class LlmProviderError extends Error {
   readonly code: LlmProviderErrorCode;
   readonly status?: number;

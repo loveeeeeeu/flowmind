@@ -1,7 +1,10 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GatewayTimeoutException,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -28,9 +31,24 @@ export const API_ERROR_CODES = [
   'CREDENTIAL_NOT_FOUND',
   'CREDENTIAL_REVOKED',
   'CREDENTIAL_BASE_URL_REQUIRED',
+  'CREDENTIAL_DECRYPTION_ERROR',
   'MODEL_NOT_FOUND',
   'MODEL_NAME_CONFLICT',
+  'MODEL_ALREADY_EXISTS',
   'MODEL_DISABLED',
+  'REMOTE_MODEL_NOT_FOUND',
+  // Calling a provider (connection test, model discovery). Same codes as failed LLM nodes.
+  'PROVIDER_NOT_SUPPORTED',
+  'AUTH_ERROR',
+  'RATE_LIMIT',
+  'INSUFFICIENT_BALANCE',
+  'INVALID_REQUEST',
+  'ENDPOINT_NOT_FOUND',
+  'PROVIDER_UNAVAILABLE',
+  'INVALID_PROVIDER_RESPONSE',
+  'TIMEOUT',
+  'NETWORK_ERROR',
+  'PROVIDER_ERROR',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
@@ -59,4 +77,11 @@ export const apiError = {
     new NotFoundException(body(404, 'Not Found', code, message)),
   conflict: (code: ApiErrorCode, message: string) =>
     new ConflictException(body(409, 'Conflict', code, message)),
+  internal: (code: ApiErrorCode, message: string) =>
+    new InternalServerErrorException(body(500, 'Internal Server Error', code, message)),
+  /** An upstream service (a model provider) answered with an error. */
+  badGateway: (code: ApiErrorCode, message: string) =>
+    new BadGatewayException(body(502, 'Bad Gateway', code, message)),
+  gatewayTimeout: (code: ApiErrorCode, message: string) =>
+    new GatewayTimeoutException(body(504, 'Gateway Timeout', code, message)),
 };

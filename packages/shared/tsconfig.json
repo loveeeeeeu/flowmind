@@ -11,7 +11,7 @@
     "outDir": "./dist",
     "skipLibCheck": true,
     "strict": true,
-    "types": ["node"]
+    "types": ["vitest/globals", "node"]
   },
   "include": ["src"]
 }

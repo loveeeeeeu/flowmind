@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { ProviderRegistry, resolveProviderBaseUrl } from '@flowmind/shared';
 import type { LlmClient, LlmGenerateRequest, LlmGenerateResponse } from '@flowmind/workflow-core';
-import { ProviderRegistry, resolveBaseUrl } from './provider-registry.js';
 import { RuntimeModelResolver } from './runtime-model-resolver.js';
 
 /**
@@ -20,7 +20,7 @@ export class WorkerLlmClient implements LlmClient {
     const provider = this.registry.get(model.provider);
 
     const result = await provider.generate({
-      baseUrl: resolveBaseUrl(model.provider, model.baseUrl),
+      baseUrl: resolveProviderBaseUrl(model),
       apiKey: model.apiKey,
       model: model.modelName,
       prompt: request.prompt,

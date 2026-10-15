@@ -6,6 +6,7 @@ function summarize(body: string) {
   return body.length > MAX_BODY_LENGTH ? `${body.slice(0, MAX_BODY_LENGTH)}...` : body;
 }
 
+/** `body` must already be redacted: parts of it end up in the message. */
 export function createHttpProviderError(status: number, body: string) {
   switch (status) {
     case 400:
@@ -32,6 +33,15 @@ export function createHttpProviderError(status: number, body: string) {
         status,
         retryable: false,
         message: 'LLM provider balance is insufficient',
+      });
+
+    // Usually a wrong Base URL (missing /v1), or an unknown model name on chat calls.
+    case 404:
+      return new LlmProviderError({
+        code: 'ENDPOINT_NOT_FOUND',
+        status,
+        retryable: false,
+        message: `LLM provider returned 404 Not Found: ${summarize(body)}`,
       });
 
     case 429:
