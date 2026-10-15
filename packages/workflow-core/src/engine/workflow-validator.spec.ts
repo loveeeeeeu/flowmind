@@ -168,3 +168,41 @@ describe('WorkflowValidator', () => {
     ).toThrow('loop-back edge must come from the body branch');
   });
 });
+
+describe('WorkflowValidator LLM node config', () => {
+  const validator = new WorkflowValidator(['start', 'llm', 'end']);
+
+  function validateLlm(data: Record<string, unknown>) {
+    return validator.validate(
+      new WorkflowGraph({
+        nodes: [start, { id: 'llm', type: 'llm', data }, end],
+        edges: [
+          { source: 'start', target: 'llm' },
+          { source: 'llm', target: 'end' },
+        ],
+      }),
+    );
+  }
+
+  it('accepts a node referencing a model by id', () => {
+    expect(() => validateLlm({ modelId: 'model-1', prompt: 'Hi' })).not.toThrow();
+  });
+
+  it.each([
+    ['an unselected model', { modelId: '', prompt: 'Hi' }],
+    ['a missing modelId', { prompt: 'Hi' }],
+    ['a non-string modelId', { modelId: 42, prompt: 'Hi' }],
+  ])('rejects %s', (_name, data) => {
+    expect(() => validateLlm(data)).toThrow('LLM node llm requires modelId');
+  });
+
+  it('points legacy provider/model nodes at Model Center', () => {
+    expect(() => validateLlm({ provider: 'deepseek', model: 'deepseek-chat', prompt: 'Hi' })).toThrow(
+      'LLM node llm uses the legacy provider/model configuration; select a model from Model Center',
+    );
+  });
+
+  it('requires a prompt', () => {
+    expect(() => validateLlm({ modelId: 'model-1', prompt: '  ' })).toThrow('LLM node llm requires prompt');
+  });
+});

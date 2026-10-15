@@ -28,6 +28,7 @@ export class WorkflowValidator {
 
     this.validateReachability(graph, startNode.id, endNode.id);
     this.validateNodeTypes(graph);
+    this.validateNodeConfig(graph);
     this.validateRuntimeStructure(graph);
 
     return { startNode, endNode, executionPlan };
@@ -135,6 +136,36 @@ export class WorkflowValidator {
       if (!this.supportedNodeTypes.has(node.type)) {
         throw new WorkflowValidationError(`Unsupported node type: ${node.type}`);
       }
+    }
+  }
+
+  /**
+   * Shape only. Whether a modelId exists or is usable needs the database, so the API checks that
+   * separately (resource validation).
+   */
+  private validateNodeConfig(graph: WorkflowGraph) {
+    for (const node of graph.getNodes()) {
+      if (node.type === 'llm') {
+        this.validateLlmNode(node);
+      }
+    }
+  }
+
+  private validateLlmNode(node: WorkflowNode) {
+    const { modelId, prompt, provider, model } = node.data;
+
+    if (typeof modelId !== 'string' || !modelId.trim()) {
+      const legacy = typeof provider === 'string' || typeof model === 'string';
+
+      throw new WorkflowValidationError(
+        legacy
+          ? `LLM node ${node.id} uses the legacy provider/model configuration; select a model from Model Center`
+          : `LLM node ${node.id} requires modelId`,
+      );
+    }
+
+    if (typeof prompt !== 'string' || !prompt.trim()) {
+      throw new WorkflowValidationError(`LLM node ${node.id} requires prompt`);
     }
   }
 

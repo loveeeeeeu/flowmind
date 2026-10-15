@@ -16,9 +16,6 @@ export const queryKeys = {
   apiKeys: {
     list: (workflowId: string) => ['workflowApiKeys', workflowId] as const,
   },
-  llm: {
-    providers: ['llm', 'providers'] as const,
-  },
   credentials: {
     list: ['credentials', 'list'] as const,
   },

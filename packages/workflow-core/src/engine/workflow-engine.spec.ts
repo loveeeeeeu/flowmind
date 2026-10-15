@@ -9,7 +9,7 @@ describe('WorkflowEngine', () => {
 
   beforeEach(() => {
     generate = vi.fn(async (request: LlmGenerateRequest) => ({
-      text: `Mock response from ${request.provider}`,
+      text: `Mock response from ${request.modelId}`,
     }));
 
     engine = createWorkflowEngine({
@@ -110,7 +110,7 @@ describe('WorkflowEngine', () => {
     expect(result.variables.name).toBe('FlowMind');
   });
 
-  it('executes llm node with rendered prompts and provider', async () => {
+  it('executes llm node with rendered prompts and its modelId', async () => {
     const canvas: WorkflowCanvas = {
       nodes: [
         { id: 'start', type: 'start', data: {} },
@@ -118,8 +118,7 @@ describe('WorkflowEngine', () => {
           id: 'llm',
           type: 'llm',
           data: {
-            provider: 'deepseek',
-            model: 'test-model',
+            modelId: 'model-1',
             systemPrompt: 'You are helping {{name}}.',
             prompt: 'Hello {{name}}',
             temperature: 0.3,
@@ -137,28 +136,27 @@ describe('WorkflowEngine', () => {
     const result = await engine.execute(canvas, { name: 'FlowMind' });
   
     expect(generate).toHaveBeenCalledWith({
-      provider: 'deepseek',
-      model: 'test-model',
+      modelId: 'model-1',
       prompt: 'Hello FlowMind',
       systemPrompt: 'You are helping FlowMind.',
       temperature: 0.3,
     });
-    expect(result.result).toEqual({ result: 'Mock response from deepseek' });
+    expect(result.result).toEqual({ result: 'Mock response from model-1' });
   });
   
-  it('routes different llm nodes to different providers', async () => {
+  it('routes different llm nodes to different models', async () => {
     const canvas: WorkflowCanvas = {
       nodes: [
         { id: 'start', type: 'start', data: {} },
         {
           id: 'llm-a',
           type: 'llm',
-          data: { provider: 'deepseek', model: 'm1', prompt: 'Hello {{name}}', outputVariable: 'a' },
+          data: { modelId: 'model-a', prompt: 'Hello {{name}}', outputVariable: 'a' },
         },
         {
           id: 'llm-b',
           type: 'llm',
-          data: { provider: 'custom', model: 'm2', prompt: 'Echo {{a}}', outputVariable: 'b' },
+          data: { modelId: 'model-b', prompt: 'Echo {{a}}', outputVariable: 'b' },
         },
         { id: 'end', type: 'end', data: { outputVariable: 'b' } },
       ],
@@ -173,20 +171,24 @@ describe('WorkflowEngine', () => {
   
     expect(generate).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ provider: 'deepseek', prompt: 'Hello FlowMind' }),
+      expect.objectContaining({ modelId: 'model-a', prompt: 'Hello FlowMind' }),
     );
     expect(generate).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ provider: 'custom', prompt: 'Echo Mock response from deepseek' }),
+      expect.objectContaining({ modelId: 'model-b', prompt: 'Echo Mock response from model-a' }),
     );
-    expect(result.result).toEqual({ result: 'Mock response from custom' });
+    expect(result.result).toEqual({ result: 'Mock response from model-b' });
   });
   
-  it('rejects llm node without provider', async () => {
+  it('rejects a legacy provider/model llm node before running anything', async () => {
     const canvas: WorkflowCanvas = {
       nodes: [
         { id: 'start', type: 'start', data: {} },
-        { id: 'llm', type: 'llm', data: { model: 'm', prompt: 'hi', outputVariable: 'a' } },
+        {
+          id: 'llm',
+          type: 'llm',
+          data: { provider: 'deepseek', model: 'm', prompt: 'hi', outputVariable: 'a' },
+        },
         { id: 'end', type: 'end', data: { outputVariable: 'a' } },
       ],
       edges: [
@@ -195,7 +197,9 @@ describe('WorkflowEngine', () => {
       ],
     };
   
-    await expect(engine.execute(canvas, {})).rejects.toThrow('LLM node llm has no provider');
+    await expect(engine.execute(canvas, {})).rejects.toThrow(
+      'LLM node llm uses the legacy provider/model configuration',
+    );
     expect(generate).not.toHaveBeenCalled();
   });
   
@@ -206,7 +210,7 @@ describe('WorkflowEngine', () => {
         {
           id: 'llm',
           type: 'llm',
-          data: { provider: 'deepseek', model: 'm', prompt: 'hi', temperature: 3, outputVariable: 'a' },
+          data: { modelId: 'model-1', prompt: 'hi', temperature: 3, outputVariable: 'a' },
         },
         { id: 'end', type: 'end', data: { outputVariable: 'a' } },
       ],
@@ -333,7 +337,7 @@ describe('WorkflowEngine', () => {
         {
           id: 'llm',
           type: 'llm',
-          data: { provider: 'deepseek', model: 'm', prompt: 'hi', outputVariable: 'a' },
+          data: { modelId: 'model-1', prompt: 'hi', outputVariable: 'a' },
         },
         { id: 'magic', type: 'magic', data: {} },
         { id: 'end', type: 'end', data: { outputVariable: 'a' } },

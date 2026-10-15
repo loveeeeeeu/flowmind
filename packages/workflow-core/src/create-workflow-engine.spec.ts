@@ -5,11 +5,16 @@ import type { NodeExecutionEvent, NodeFailureEvent } from './ports/execution-obs
 import type { LlmClient } from './ports/llm-client.js';
 import { SUPPORTED_NODE_TYPES } from './node-types.js';
 
+// Node types whose config the validator checks need a minimal valid shape.
+const MINIMAL_DATA: Record<string, Record<string, unknown>> = {
+  llm: { modelId: 'model-1', prompt: 'Hi' },
+};
+
 function canvasWith(type: string): WorkflowCanvas {
   return {
     nodes: [
       { id: 'start', type: 'start', data: {} },
-      { id: 'node', type, data: {} },
+      { id: 'node', type, data: MINIMAL_DATA[type] ?? {} },
       { id: 'end', type: 'end', data: {} },
     ],
     edges: [
@@ -73,7 +78,7 @@ describe('createWorkflowEngine node retry', () => {
   const llmCanvas = canvasWithNode({
     id: 'llm',
     type: 'llm',
-    data: { provider: 'deepseek', model: 'deepseek-chat', prompt: 'Hi', outputVariable: 'answer' },
+    data: { modelId: 'model-1', prompt: 'Hi', outputVariable: 'answer' },
   });
 
   function providerError(code: string, retryable: boolean) {

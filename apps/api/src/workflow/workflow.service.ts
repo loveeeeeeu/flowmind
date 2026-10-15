@@ -11,6 +11,7 @@ import type { WorkflowCanvas } from '@flowmind/workflow-core';
 import type { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 import { WorkflowVersionService } from './workflow-version.service.js';
+import { WorkflowResourceValidator } from './workflow-resource-validator.service.js';
 import type { TestWorkflowDto } from './dto/test-workflow.dto.js';
 
 type WorkflowRecord = Awaited<ReturnType<WorkflowService['findOne']>>;
@@ -22,6 +23,7 @@ export class WorkflowService {
     private readonly executionService: ExecutionService,
     private readonly workflowPlanService: WorkflowPlanService,
     private readonly workflowVersionService: WorkflowVersionService,
+    private readonly resourceValidator: WorkflowResourceValidator,
   ) {}
 
   create(dto: CreateWorkflowDto) {
@@ -144,27 +146,33 @@ export class WorkflowService {
       throw apiError.badRequest('WORKFLOW_DRAFT_MISSING', 'Workflow has no draft canvas');
     }
 
-    return this.workflowPlanService.createExecutionPlan(
-      workflow.draftCanvas as unknown as WorkflowCanvas,
-    );
+    return this.validateCanvas(workflow.draftCanvas as unknown as WorkflowCanvas);
   }
 
   /**
-   * Publishes the draft saved on the server (never a canvas sent by the client). Only static
-   * structure is checked: publishing never executes nodes or calls external services.
+   * Publishes the draft saved on the server (never a canvas sent by the client). Checks structure
+   * and referenced resources; publishing never executes nodes or calls external services.
    */
   async publish(id: string) {
     const workflow = await this.findOne(id);
     const canvas = this.ensurePublishable(workflow);
 
-    // Validated outside the transaction (pure CPU); the revision ties the result to this canvas.
-    this.workflowPlanService.createExecutionPlan(canvas);
+    // Validated outside the transaction; the revision ties the result to this canvas.
+    await this.validateCanvas(canvas);
 
     return this.workflowVersionService.publishValidatedDraft({
       workflowId: workflow.id,
       canvas,
       expectedDraftRevision: workflow.draftRevision,
     });
+  }
+
+  /** Static rules first (pure, from workflow-core), then the resources they reference (database). */
+  private async validateCanvas(canvas: WorkflowCanvas) {
+    const plan = this.workflowPlanService.createExecutionPlan(canvas);
+    await this.resourceValidator.validateForDraft(canvas);
+
+    return plan;
   }
 
   private ensurePublishable(workflow: WorkflowRecord): WorkflowCanvas {
@@ -195,8 +203,8 @@ export class WorkflowService {
       edges: dto.canvas.edges,
     } as unknown as WorkflowCanvas;
 
-    // An invalid graph is rejected here instead of being queued just to fail in the worker.
-    this.workflowPlanService.createExecutionPlan(canvas);
+    // Rejected here (e.g. MODEL_DISABLED) instead of being queued just to fail in the worker.
+    await this.validateCanvas(canvas);
 
     return this.executionService.createDraftRun({
       workflowId: workflow.id,

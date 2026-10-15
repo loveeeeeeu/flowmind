@@ -30,6 +30,7 @@ export const API_ERROR_CODES = [
   'CREDENTIAL_BASE_URL_REQUIRED',
   'MODEL_NOT_FOUND',
   'MODEL_NAME_CONFLICT',
+  'MODEL_DISABLED',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

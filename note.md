@@ -682,4 +682,14 @@ model表（以及存入credential id，工作流定义不需要credential id，�
 ## 运行链路：
 modelId → Model → Credential（检查撤销）→ 解密 → 调用供应商
 
-#
+# LLM 节点 v2（从 provider + model 改为只存 modelId）
+一句话总结：上节课建好了模型中心，这节课让 LLM 节点真正用上它。节点不再保存"哪个供应商、哪个模型名"，只保存一个 modelId。运行时再顺着 modelId → Model → Credential → 供应商 这条链去找真正要调用的东西。
+## 两层校验：静态校验 vs 资源校验（本课重点）
+- 静态（core，不查库）：有没有 modelId、prompt；旧版配置给专门提示 → WORKFLOW_INVALID
+- 资源（API，查库）：模型存在？启用？凭证没撤销？→ MODEL_NOT_FOUND / MODEL_DISABLED / CREDENTIAL_REVOKED
+也可以按另一个维度分类：
+--运行前（校验 / 测试草稿 / 发布）
+--运行时（worker 执行节点时）
+## 职责拆分
+LlmExecutor（依赖接口而不是具体实现） 只认 modelId → WorkerLlmClient 查库解析 → Provider 发请求
+过渡：现在按 provider 类型取 .env，第 4 课换成解密凭证

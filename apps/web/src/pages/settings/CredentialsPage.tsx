@@ -56,7 +56,7 @@ export function CredentialsPage() {
       </header>
 
       <p className="credentials-notice">
-        LLM 节点暂时仍使用服务器环境变量中配置的模型；接入凭证会在后续版本完成。
+        LLM 节点已从模型中心选择模型，但调用时的 API Key 暂时仍取自服务器环境变量中同一供应商的配置；改为使用这里保存的密钥会在下一版本完成。
       </p>
 
       {credentialsQuery.isPending && <div className="empty-state">正在加载凭证…</div>}

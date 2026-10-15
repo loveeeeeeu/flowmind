@@ -22,14 +22,10 @@ export class LlmExecutor implements NodeExecutor {
   }
 
   async execute(node: WorkflowNode, context: ExecutionContext) {
-    const { provider, model, systemPrompt, prompt, temperature, outputVariable } = node.data;
+    const { modelId, systemPrompt, prompt, temperature, outputVariable } = node.data;
 
-    if (typeof provider !== 'string' || !provider.trim()) {
-      throw new WorkflowExecutionError(`LLM node ${node.id} has no provider`);
-    }
-
-    if (typeof model !== 'string' || !model.trim()) {
-      throw new WorkflowExecutionError(`LLM node ${node.id} has no model`);
+    if (typeof modelId !== 'string' || !modelId.trim()) {
+      throw new WorkflowExecutionError(`LLM node ${node.id} requires modelId`);
     }
 
     if (typeof prompt !== 'string' || !prompt.trim()) {
@@ -64,8 +60,7 @@ export class LlmExecutor implements NodeExecutor {
         : undefined;
 
     const result = await this.llmClient.generate({
-      provider,
-      model,
+      modelId,
       prompt: renderedPrompt,
       systemPrompt: renderedSystemPrompt,
       temperature,
@@ -73,6 +68,6 @@ export class LlmExecutor implements NodeExecutor {
 
     context.setVariable(outputVariable, result.text);
 
-    return { output: { provider, model, text: result.text, usage: result.usage } };
+    return { output: { modelId, text: result.text, usage: result.usage } };
   }
 }

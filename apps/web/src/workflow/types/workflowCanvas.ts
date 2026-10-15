@@ -10,9 +10,16 @@ export type EndNodeData = BaseNodeData & {
   outputVariable?: string;
 };
 
+/**
+ * The node references a Model Center entry by id only: provider, endpoint, secret and even the
+ * provider's model name are resolved at run time. '' means no model selected yet.
+ */
 export type LlmNodeData = BaseNodeData & {
+  modelId: string;
+  /** Legacy (before Model Center). Read only to prompt a migration; removed once a model is picked. */
   provider?: string;
-  model: string;
+  /** Legacy, see provider. */
+  model?: string;
   systemPrompt?: string;
   prompt: string;
   temperature?: number;

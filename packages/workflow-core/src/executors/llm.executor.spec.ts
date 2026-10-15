@@ -10,18 +10,17 @@ describe('LlmExecutor', () => {
 
   beforeEach(() => {
     generate = vi.fn(async (request: LlmGenerateRequest) => ({
-      text: `hello from ${request.provider}`,
+      text: `hello from ${request.modelId}`,
     }));
     executor = new LlmExecutor({ generate }, new VariableResolver());
   });
 
-  it('passes provider to llm client and writes output variable', async () => {
+  it('passes only modelId and rendered prompts to the llm client', async () => {
     const node: WorkflowNode = {
       id: 'llm',
       type: 'llm',
       data: {
-        provider: 'deepseek',
-        model: 'test',
+        modelId: 'model-1',
         prompt: 'Hello {{name}}',
         temperature: 0.5,
         outputVariable: 'answer',
@@ -32,14 +31,26 @@ describe('LlmExecutor', () => {
     const { output } = await executor.execute(node, context);
 
     expect(generate).toHaveBeenCalledWith({
-      provider: 'deepseek',
-      model: 'test',
+      modelId: 'model-1',
       prompt: 'Hello FlowMind',
       systemPrompt: undefined,
       temperature: 0.5,
     });
-    expect(context.getVariable('answer')).toBe('hello from deepseek');
-    expect(output).toMatchObject({ provider: 'deepseek', text: 'hello from deepseek' });
+    expect(context.getVariable('answer')).toBe('hello from model-1');
+    expect(output).toEqual({ modelId: 'model-1', text: 'hello from model-1', usage: undefined });
+  });
+
+  it('ignores legacy provider/model fields and requires modelId', async () => {
+    const node: WorkflowNode = {
+      id: 'llm',
+      type: 'llm',
+      data: { provider: 'deepseek', model: 'deepseek-chat', prompt: 'hi', outputVariable: 'a' },
+    };
+
+    await expect(executor.execute(node, new ExecutionContext({}))).rejects.toThrow(
+      'LLM node llm requires modelId',
+    );
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it('does not call llm when prompt variable is missing', async () => {
@@ -47,8 +58,7 @@ describe('LlmExecutor', () => {
       id: 'llm',
       type: 'llm',
       data: {
-        provider: 'deepseek',
-        model: 'test',
+        modelId: 'model-1',
         prompt: 'Hello {{missing}}',
         outputVariable: 'answer',
       },

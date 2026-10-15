@@ -2,6 +2,7 @@ import { apiError } from '../common/api-error.js';
 import type { ExecutionService } from '../execution/execution.service.js';
 import { WorkflowPlanService } from '../execution/workflow-plan.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { WorkflowResourceValidator } from './workflow-resource-validator.service.js';
 import type { WorkflowVersionService } from './workflow-version.service.js';
 import { WorkflowService } from './workflow.service.js';
 
@@ -42,15 +43,19 @@ function createService({
     publishValidatedDraft: vi.fn(async () => ({ id: 'version-1', version: 1 })),
     findLatest: vi.fn(async () => latestVersion),
   };
+  const resources = { validateForDraft: vi.fn(async () => undefined) };
   const service = new WorkflowService(
     prisma as unknown as PrismaService,
     execution as unknown as ExecutionService,
     new WorkflowPlanService(),
     versions as unknown as WorkflowVersionService,
+    resources as unknown as WorkflowResourceValidator,
   );
 
-  return { service, prisma, execution, versions };
+  return { service, prisma, execution, versions, resources };
 }
+
+const modelDisabled = apiError.badRequest('MODEL_DISABLED', 'LLM node llm uses a disabled model; select another model');
 
 describe('WorkflowService.updateCanvas', () => {
   it('saves the draft and bumps its revision', async () => {
@@ -89,12 +94,22 @@ describe('WorkflowService.publish', () => {
     expect(prisma.workflow.update).not.toHaveBeenCalled();
   });
 
-  it('rejects a structurally invalid draft without creating a version', async () => {
-    const { service, versions } = createService({ draftCanvas: invalidCanvas });
+  it('rejects a structurally invalid draft without checking resources or creating a version', async () => {
+    const { service, versions, resources } = createService({ draftCanvas: invalidCanvas });
 
     await expect(service.publish('workflow-1')).rejects.toThrow(
       apiError.badRequest('WORKFLOW_INVALID', 'Workflow must have exactly one end node'),
     );
+    expect(resources.validateForDraft).not.toHaveBeenCalled();
+    expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
+  });
+
+  it('checks referenced resources and creates no version when one is unusable', async () => {
+    const { service, versions, resources } = createService();
+    resources.validateForDraft.mockRejectedValueOnce(modelDisabled);
+
+    await expect(service.publish('workflow-1')).rejects.toThrow(modelDisabled);
+    expect(resources.validateForDraft).toHaveBeenCalledWith(validCanvas);
     expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
   });
 
@@ -150,6 +165,17 @@ describe('WorkflowService.testRun', () => {
     ).rejects.toThrow(
       apiError.badRequest('WORKFLOW_INVALID', 'Workflow must have exactly one end node'),
     );
+    expect(execution.createDraftRun).not.toHaveBeenCalled();
+  });
+
+  it('checks referenced resources before queuing, so a disabled model fails fast', async () => {
+    const { service, execution, resources } = createService();
+    resources.validateForDraft.mockRejectedValueOnce(modelDisabled);
+
+    await expect(service.testRun('workflow-1', { input: {}, canvas: validCanvas })).rejects.toThrow(
+      modelDisabled,
+    );
+    expect(resources.validateForDraft).toHaveBeenCalledWith(validCanvas);
     expect(execution.createDraftRun).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react';
-import type { LlmProviderInfo } from '../../api/llm';
 import {
   CONDITION_OPERATORS,
   HTTP_METHODS,
@@ -11,21 +9,15 @@ import {
   type VariableSourceType,
 } from '../types/workflowCanvas';
 import { JsonObjectEditor } from './JsonObjectEditor';
+import { LlmProperties } from './LlmProperties';
+import { Field } from './PanelField';
 
 interface PropertiesPanelProps {
   node: WorkflowNode | null;
-  providers: LlmProviderInfo[];
   onNodeDataChange: (nodeId: string, patch: Partial<WorkflowNodeData>) => void;
+  /** Replaces data wholesale, for edits that must remove keys (e.g. legacy LLM fields). */
+  onNodeDataReplace: (nodeId: string, data: WorkflowNodeData) => void;
   onDeleteNode: (nodeId: string) => void;
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="panel-field">
-      <div className="panel-field-label">{label}</div>
-      {children}
-    </label>
-  );
 }
 
 function DeleteNodeButton({ onClick }: { onClick: () => void }) {
@@ -42,8 +34,8 @@ function toOptionalNumber(value: string) {
 
 export function PropertiesPanel({
   node,
-  providers,
   onNodeDataChange,
+  onNodeDataReplace,
   onDeleteNode,
 }: PropertiesPanelProps) {
   if (!node) {
@@ -65,81 +57,16 @@ export function PropertiesPanel({
   );
 
   if (node.type === 'llm') {
-    const currentProvider = node.data.provider ?? '';
-    const isUnknownProvider =
-      currentProvider !== '' && !providers.some((provider) => provider.id === currentProvider);
-
     return (
       <aside className="properties-panel">
         <h3>LLM 调用</h3>
         {labelField}
 
-        <Field label="模型供应商">
-          <select
-            value={currentProvider}
-            onChange={(event) => onNodeDataChange(node.id, { provider: event.target.value })}
-          >
-            <option value="" disabled>
-              选择模型供应商
-            </option>
-            {providers.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.id}
-              </option>
-            ))}
-            {isUnknownProvider && (
-              <option value={currentProvider}>{currentProvider}（未配置）</option>
-            )}
-          </select>
-        </Field>
-
-        <Field label="模型">
-          <input
-            placeholder="deepseek-flash"
-            value={node.data.model ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { model: event.target.value })}
-          />
-        </Field>
-
-        <Field label="系统提示词">
-          <textarea
-            rows={4}
-            placeholder="你是一个乐于助人的助手。"
-            value={node.data.systemPrompt ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { systemPrompt: event.target.value })}
-          />
-        </Field>
-
-        <Field label="用户提示词">
-          <textarea
-            rows={10}
-            placeholder="使用 {{变量名}} 引用变量"
-            value={node.data.prompt ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { prompt: event.target.value })}
-          />
-        </Field>
-
-        <Field label="温度（0 ~ 2）">
-          <input
-            type="number"
-            min={0}
-            max={2}
-            step={0.1}
-            placeholder="0.7"
-            value={node.data.temperature ?? ''}
-            onChange={(event) =>
-              onNodeDataChange(node.id, { temperature: toOptionalNumber(event.target.value) })
-            }
-          />
-        </Field>
-
-        <Field label="输出变量">
-          <input
-            placeholder="answer"
-            value={node.data.outputVariable ?? ''}
-            onChange={(event) => onNodeDataChange(node.id, { outputVariable: event.target.value })}
-          />
-        </Field>
+        <LlmProperties
+          node={node}
+          onNodeDataChange={onNodeDataChange}
+          onNodeDataReplace={onNodeDataReplace}
+        />
 
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>

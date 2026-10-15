@@ -69,7 +69,7 @@ pnpm install
 Copy-Item apps/api/.env.example apps/api/.env
 ```
 
-编辑 `apps/api/.env`，至少确认 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`；要用 LLM 节点再填对应的 `*_API_KEY`。
+编辑 `apps/api/.env`，至少确认 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`；要用 LLM 节点还需在模型中心登记模型，并填写对应供应商的 `*_API_KEY`（见下文"LLM 节点"）。
 
 生成模型凭证的加密主密钥，填入 `CREDENTIAL_ENCRYPTION_KEY`（必填，缺少或格式不对 API 会拒绝启动）：
 
@@ -199,7 +199,7 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 | `WORKFLOW_NOT_PUBLISHED` | 400 | 还没有发布版本 |
 | `WORKFLOW_ARCHIVED` | 400 | 工作流已归档 |
 
-编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`、`CREDENTIAL_NOT_FOUND`、`CREDENTIAL_REVOKED`、`CREDENTIAL_BASE_URL_REQUIRED`、`MODEL_NOT_FOUND`、`MODEL_NAME_CONFLICT`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
+编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`、`CREDENTIAL_NOT_FOUND`、`CREDENTIAL_REVOKED`、`CREDENTIAL_BASE_URL_REQUIRED`、`MODEL_NOT_FOUND`、`MODEL_DISABLED`、`MODEL_NAME_CONFLICT`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
 
 ## 模型凭证（Credentials）
 
@@ -247,6 +247,27 @@ Credential: OpenAI Production
 
 撤销凭证不会改动它下面模型的 `enabled`；凭证状态和模型状态分别看。
 
+## LLM 节点
+
+LLM 节点只保存模型中心里的模型 id，不再保存 provider、模型名、凭证或密钥：
+
+```json
+{ "modelId": "cm...", "systemPrompt": "...", "prompt": "{{prompt}}", "temperature": 0.7, "outputVariable": "answer" }
+```
+
+运行时按 `modelId → Model → Credential → 供应商` 解析。属性面板的模型下拉框只列出可选模型（`GET /models/available`），按凭证分组显示为"凭证 / 模型"；模型声明不支持温度时隐藏温度输入，运行时也不发送，但节点上的值保留。
+
+两层校验：
+
+| 校验 | 时机 | 失败时 |
+|---|---|---|
+| 静态校验（workflow-core） | 校验、测试草稿、发布 | `WORKFLOW_INVALID`：未选择模型、提示词为空、仍是旧版配置 |
+| 资源校验（API 查库） | 校验、测试草稿、发布 | 400：`MODEL_NOT_FOUND`、`MODEL_DISABLED`、`CREDENTIAL_REVOKED` |
+
+已发布版本不再做资源校验：模型停用后仍能运行；凭证撤销后运行时节点以 `CREDENTIAL_REVOKED` 失败且不重试。
+
+旧版节点（只有 `provider` / `model`）会在画布和属性面板提示"需重新选择模型"，选择新模型后旧字段会被移除；旧节点不能测试也不能发布。
+
 ## 常见问题
 
 | 现象 | 原因与处理 |
@@ -261,7 +282,7 @@ Credential: OpenAI Production
 ## 已知限制
 
 - 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理、模型凭证和模型管理）目前没有用户认证，只适合本地开发。
-- LLM 节点暂时仍使用 `.env` 中的 `*_API_KEY`，尚未接入模型中心；不支持更换加密主密钥（Key Rotation）。
+- worker 调用模型时暂时不解密凭证，而是按凭证的供应商取 `.env` 中的配置（`DEEPSEEK` → `DEEPSEEK_*`，`OPENAI` → `OPENAI_*`，`OPENAI_COMPATIBLE` → `CUSTOM_LLM_*`），凭证里保存的密钥和 Base URL 尚未生效；不支持更换加密主密钥（Key Rotation）。
 - 模型需要手动登记，不会从供应商的 `/v1/models` 自动拉取；目前只有对话模型（`CHAT`）。
 - API Key 可以读取同一工作流下由编辑器创建的 PUBLISHED 运行结果。
 - 版本化之前创建的运行（显示为"旧版运行"）保留只读，不会重新执行；若被重新执行会以 `WORKFLOW_VERSION_MISSING` 失败。

@@ -17,7 +17,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getLlmProviders } from '../api/llm';
+import { getAvailableModels } from '../api/models';
 import { getWorkflowVersion, publishWorkflow, updateWorkflowCanvas } from '../api/workflow';
 import { queryKeys } from '../api/queryKeys';
 import type { WorkflowDetail } from '../types/workflow';
@@ -51,6 +51,7 @@ import { useExecutionState } from './execution/useExecutionState';
 import { VersionHistory } from './version/VersionHistory';
 import { VersionPreviewBanner } from './version/VersionPreviewBanner';
 import { hasUnpublishedChanges } from './version/publishState';
+import { AvailableModelsContext } from './llm/llmNodeData';
 
 const nodeTypes = {
   start: StartNode,
@@ -100,10 +101,18 @@ interface WorkflowCanvasEditorProps {
 
 export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const queryClient = useQueryClient();
-  const providersQuery = useQuery({
-    queryKey: queryKeys.llm.providers,
-    queryFn: getLlmProviders,
+  // Shared (same key) with the LLM properties panel; canvas nodes read it through context.
+  const availableModelsQuery = useQuery({
+    queryKey: queryKeys.models.available,
+    queryFn: getAvailableModels,
   });
+  const availableModels = useMemo(
+    () =>
+      availableModelsQuery.data
+        ? new Map(availableModelsQuery.data.map((model) => [model.id, model]))
+        : undefined,
+    [availableModelsQuery.data],
+  );
 
   const [nodes, setNodes] = useNodesState<WorkflowNode>(
     withDeleteRules(workflow.draftCanvas?.nodes ?? defaultNodes),
@@ -267,8 +276,8 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       position: { x: 300, y: 300 },
       data: {
         label: 'LLM',
-        provider: 'deepseek',
-        model: 'deepseek-flash',
+        // Never preselected: the user picks which (possibly paid) model to call.
+        modelId: '',
         systemPrompt: 'You are a helpful assistant.',
         prompt: '{{prompt}}',
         temperature: 0.7,
@@ -399,6 +408,13 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
           },
         } as WorkflowNode;
       }),
+    );
+    setIsDirty(true);
+  }
+
+  function replaceNodeData(nodeId: string, data: WorkflowNodeData) {
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => (node.id === nodeId ? ({ ...node, data } as WorkflowNode) : node)),
     );
     setIsDirty(true);
   }
@@ -582,35 +598,37 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
       />
 
         <div className="canvas-stage">
-          {/* Keyed by what is shown so each switch remounts and fits the view to that canvas. */}
-          <ReactFlow
-            key={previewVersion?.id ?? 'draft'}
-            nodes={isPreviewing ? (previewVersion?.canvas.nodes ?? []) : renderedNodes}
-            edges={isPreviewing ? (previewVersion?.canvas.edges ?? []) : edges}
-            nodeTypes={nodeTypes}
-            onInit={setFlow}
-            onNodesChange={isPreviewing ? undefined : handleNodesChange}
-            onEdgesChange={isPreviewing ? undefined : handleEdgesChange}
-            onConnect={isPreviewing ? undefined : onConnect}
-            isValidConnection={isValidConnection}
-            nodesDraggable={!isPreviewing}
-            nodesConnectable={!isPreviewing}
-            elementsSelectable={!isPreviewing}
-            deleteKeyCode={isPreviewing ? null : ['Backspace', 'Delete']}
-            onNodeClick={isPreviewing ? undefined : (_, node) => setSelectedNodeId(node.id)}
-            onPaneClick={isPreviewing ? undefined : () => setSelectedNodeId(null)}
-            fitView
-          >
-            <Background color="#d9e0eb" gap={18} size={1} />
-            <Controls showInteractive={!isPreviewing} />
-            <MiniMap zoomable pannable />
-          </ReactFlow>
+          <AvailableModelsContext.Provider value={availableModels}>
+            {/* Keyed by what is shown so each switch remounts and fits the view to that canvas. */}
+            <ReactFlow
+              key={previewVersion?.id ?? 'draft'}
+              nodes={isPreviewing ? (previewVersion?.canvas.nodes ?? []) : renderedNodes}
+              edges={isPreviewing ? (previewVersion?.canvas.edges ?? []) : edges}
+              nodeTypes={nodeTypes}
+              onInit={setFlow}
+              onNodesChange={isPreviewing ? undefined : handleNodesChange}
+              onEdgesChange={isPreviewing ? undefined : handleEdgesChange}
+              onConnect={isPreviewing ? undefined : onConnect}
+              isValidConnection={isValidConnection}
+              nodesDraggable={!isPreviewing}
+              nodesConnectable={!isPreviewing}
+              elementsSelectable={!isPreviewing}
+              deleteKeyCode={isPreviewing ? null : ['Backspace', 'Delete']}
+              onNodeClick={isPreviewing ? undefined : (_, node) => setSelectedNodeId(node.id)}
+              onPaneClick={isPreviewing ? undefined : () => setSelectedNodeId(null)}
+              fitView
+            >
+              <Background color="#d9e0eb" gap={18} size={1} />
+              <Controls showInteractive={!isPreviewing} />
+              <MiniMap zoomable pannable />
+            </ReactFlow>
+          </AvailableModelsContext.Provider>
         </div>
 
         <PropertiesPanel
           node={isPreviewing ? null : selectedNode}
-          providers={providersQuery.data ?? []}
           onNodeDataChange={updateNodeData}
+          onNodeDataReplace={replaceNodeData}
           onDeleteNode={deleteNode}
         />
 
