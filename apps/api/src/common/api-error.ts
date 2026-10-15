@@ -28,6 +28,8 @@ export const API_ERROR_CODES = [
   'CREDENTIAL_NOT_FOUND',
   'CREDENTIAL_REVOKED',
   'CREDENTIAL_BASE_URL_REQUIRED',
+  'MODEL_NOT_FOUND',
+  'MODEL_NAME_CONFLICT',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

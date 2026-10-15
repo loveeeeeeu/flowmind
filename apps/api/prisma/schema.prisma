@@ -55,6 +55,11 @@ enum CredentialProvider {
   OPENAI_COMPATIBLE
 }
 
+// Only chat models exist for now (LLM node). EMBEDDING / RERANK arrive with RAG.
+enum ModelType {
+  CHAT
+}
+
 model Workflow {
   id          String         @id @default(cuid())
   name        String
@@ -125,6 +130,40 @@ model Credential {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  models Model[]
+}
+
+// A model callable through one credential. LLM nodes will reference it by id only, so its
+// identity (credentialId + modelName) never changes after creation; everything else is metadata.
+// Never deleted, only disabled: published versions may still reference the id.
+model Model {
+  id String @id @default(cuid())
+
+  // Restrict: credentials are only revoked, so a hard delete must not silently take models
+  // (and the versions referencing them) along.
+  credentialId String
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+
+  // Display name for FlowMind users, free to change.
+  name      String
+  // Exact identifier sent to the provider API ("model": "gpt-4.1-mini"). Immutable.
+  modelName String
+
+  type ModelType @default(CHAT)
+
+  // Capability hints for the UI, not used to execute.
+  contextWindow       Int?
+  supportsTemperature Boolean @default(true)
+
+  // false: hidden from new node configuration; versions that already use it keep running.
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Also serves as the credentialId index.
+  @@unique([credentialId, modelName])
 }
 
 // Immutable snapshot created by publishing. No update or delete API: runs must stay reproducible.

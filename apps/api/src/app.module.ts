@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ExternalApiModule } from './external-api/external-api.module.js';
 import { ApiKeyModule } from './api-key/api-key.module.js';
 import { CredentialModule } from './credential/credential.module.js';
+import { ModelModule } from './model/model.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { CredentialModule } from './credential/credential.module.js';
     ApiKeyModule,
     ExternalApiModule,
     CredentialModule,
+    ModelModule,
   ],
 })
 export class AppModule {}

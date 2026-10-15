@@ -676,3 +676,10 @@ Auth Tag secretAuthTag（16 字节）|封条                      |数据库    
 2.解密流程：拿主密钥 + IV + 封条去开密文。只要有一点不对（密文被改过、封条被改过、钥匙不对），decipher.final() 就会直接报错，绝不会返回一个错误的结果。
 3.为什么每次都要换一个随机 IV？ 这样同一个 Key 加密两次，得到的密文也不一样，攻击者没法通过"这两条密文相同"推断出"这两个凭证用的是同一个 Key"
 
+# 模型中心
+一句话概括：上节课的凭证解决"用什么连上供应商"，这节课解决"连上之后能调用哪些模型"。整条链路是 Provider（供应商）→ Credential（凭证）→ Model（模型）。以后 LLM 节点只保存 modelId，运行时顺着这条链找到密钥，再去调用供应商。
+model表（以及存入credential id，工作流定义不需要credential id，用Model id反查credential id即可）
+## 运行链路：
+modelId → Model → Credential（检查撤销）→ 解密 → 调用供应商
+
+#

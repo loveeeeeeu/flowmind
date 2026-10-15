@@ -300,19 +300,59 @@ a { color: inherit; }
 .credential-meta { color:#9aa4b6; font-size:12px; }
 .credential-actions { display:flex; gap:6px; }
 .credential-actions button { padding:5px 11px; font-size:12px; }
+.credential-actions a.subtle-button { border:1px solid #dce2ee; border-radius:7px; text-decoration:none; transition:.16s ease; }
+.credential-actions a.subtle-button:hover { border-color:#9fb5fb; background:#f7f9ff; color:#3868e9; }
 .credential-actions .credential-revoke { color:#c63755; }
 .credential-actions .credential-revoke:hover:not(:disabled) { border-color:#ffc2cd; background:#fff2f4; }
 
-.modal-card.credential-dialog { width:min(520px, calc(100vw - 48px)); }
-.credential-dialog-body { display:grid; gap:14px; padding:26px 28px; }
-.credential-dialog-body h2 { margin:0; color:#273650; font-size:18px; }
-.credential-dialog-body label { display:grid; gap:7px; color:#4f5c73; font-size:13px; font-weight:600; }
-.credential-dialog-body input, .credential-dialog-body select { padding:10px 11px; border:1px solid #dce2ee; border-radius:7px; background:#fff; color:#1c2434; font-size:13px; }
-.credential-dialog-body select:disabled { background:#f5f7fb; color:#7b879d; }
-.credential-dialog-body input:focus, .credential-dialog-body select:focus { outline:none; border-color:#3868e9; box-shadow:0 0 0 3px rgba(56,104,233,.12); }
-.credential-dialog-hint { color:#9aa4b6; font-size:12px; font-weight:400; }
-.credential-dialog-error { margin:0; color:#c63755; font-size:12px; }
-.credential-dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
-.credential-dialog-actions button { padding:8px 14px; font-size:13px; }
+.modal-card.settings-dialog { width:min(520px, calc(100vw - 48px)); }
+.settings-dialog-body { display:grid; gap:14px; padding:26px 28px; }
+.settings-dialog-body h2 { margin:0; color:#273650; font-size:18px; }
+.settings-dialog-body label { display:grid; gap:7px; color:#4f5c73; font-size:13px; font-weight:600; }
+.settings-dialog-body input, .settings-dialog-body select { padding:10px 11px; border:1px solid #dce2ee; border-radius:7px; background:#fff; color:#1c2434; font-size:13px; }
+.settings-dialog-body select:disabled { background:#f5f7fb; color:#7b879d; }
+.settings-dialog-body input:focus, .settings-dialog-body select:focus { outline:none; border-color:#3868e9; box-shadow:0 0 0 3px rgba(56,104,233,.12); }
+.settings-dialog-hint { color:#9aa4b6; font-size:12px; font-weight:400; }
+.settings-dialog-error { margin:0; color:#c63755; font-size:12px; }
+.settings-dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
+.settings-dialog-actions button { padding:8px 14px; font-size:13px; }
+.settings-dialog-context { margin:-6px 0 0; color:#7b879d; font-size:12px; }
+.settings-dialog-body input:disabled { background:#f5f7fb; color:#7b879d; }
+.settings-dialog-body label.settings-dialog-check { display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer; }
+.settings-dialog-check input { width:15px; height:15px; margin:0; accent-color:#3868e9; }
+
+.settings-tabs { display:flex; gap:4px; margin-bottom:22px; border-bottom:1px solid #e2e7f0; }
+.settings-tabs a { margin-bottom:-1px; padding:9px 4px; border-bottom:2px solid transparent; color:#7b879d; font-size:14px; font-weight:600; text-decoration:none; }
+.settings-tabs a + a { margin-left:18px; }
+.settings-tabs a:hover { color:#1c2434; }
+.settings-tabs a.active { border-bottom-color:#3868e9; color:#3868e9; }
+
+.model-center { display:grid; grid-template-columns:240px minmax(0,1fr); gap:18px; align-items:start; }
+.model-center-credentials { display:grid; gap:4px; margin:0; padding:8px; border:1px solid #e2e7f0; border-radius:12px; background:#fff; list-style:none; }
+.model-center-credential { display:grid; gap:3px; width:100%; padding:9px 11px; border-color:transparent; text-align:left; }
+.model-center-credential:hover:not(:disabled) { border-color:transparent; background:#f5f7fb; }
+.model-center-credential.active, .model-center-credential.active:hover:not(:disabled) { border-color:transparent; background:#edf3ff; }
+.model-center-credential-name { overflow:hidden; color:#1c2434; font-size:13px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+.model-center-credential.active .model-center-credential-name { color:#3868e9; }
+.model-center-credential.revoked .model-center-credential-name { color:#9aa4b6; }
+.model-center-credential-meta { color:#9aa4b6; font-size:12px; }
+.model-center-panel { display:grid; gap:14px; padding:18px 20px; border:1px solid #e2e7f0; border-radius:12px; background:#fff; box-shadow:0 1px 2px rgba(30,50,90,.03); }
+.model-center-panel-head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.model-center-panel-head .primary-button { flex-shrink:0; padding:7px 13px; font-size:13px; }
+.model-center-panel-title { display:grid; gap:5px; min-width:0; }
+.model-center-base-url { overflow:hidden; color:#7b879d; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.model-center-base-url.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.model-center-revoked { margin:0; padding:9px 12px; border:1px solid #ffd5dc; border-radius:8px; background:#fff2f4; color:#c63755; font-size:12px; }
+.model-center-panel .empty-state, .model-center-panel .error-message { margin:0; }
+.model-table { width:100%; border-collapse:collapse; font-size:13px; }
+.model-table th { padding:8px 10px; border-bottom:1px solid #e2e7f0; color:#9aa4b6; font-size:12px; font-weight:600; text-align:left; white-space:nowrap; }
+.model-table td { padding:11px 10px; border-bottom:1px solid #eef1f6; color:#4f5c73; white-space:nowrap; }
+.model-table tbody tr:last-child td { border-bottom:0; }
+.model-table td.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; }
+.model-table-name { color:#1c2434; font-weight:600; }
+.model-table tr.disabled td { color:#9aa4b6; }
+.model-table td:last-child { width:1%; }
+.model-status { padding:2px 7px; border:1px solid #e2e7f0; border-radius:7px; background:#f5f7fb; color:#7b879d; font-size:11px; font-weight:600; }
+.model-status.enabled { border-color:#c9ecd9; background:#ebf9f1; color:#398262; }
 
 @media (max-width: 1050px){.execution-side{width:240px}.workspace-page{padding:30px 24px}.global-nav-links{margin-left:0}.global-nav-links a:nth-child(n+3){display:none}.node-library{width:180px}.properties-panel{width:300px}}

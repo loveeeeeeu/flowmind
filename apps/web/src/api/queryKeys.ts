@@ -22,6 +22,13 @@ export const queryKeys = {
   credentials: {
     list: ['credentials', 'list'] as const,
   },
+  // Invalidate `all` after any model write or credential revoke: `available` depends on both.
+  models: {
+    all: ['models'] as const,
+    byCredential: (credentialId: string) => ['models', 'credential', credentialId] as const,
+    available: ['models', 'available'] as const,
+    detail: (id: string) => ['models', 'detail', id] as const,
+  },
   runs: {
     all: ['runs'] as const,
     detail: (runId: string) => ['runs', 'detail', runId] as const,

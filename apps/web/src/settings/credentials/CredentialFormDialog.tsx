@@ -63,12 +63,12 @@ export function CredentialFormDialog({ credential, onClose }: CredentialFormDial
   return createPortal(
     <div className="modal-backdrop" role="presentation">
       <div
-        className="modal-card credential-dialog"
+        className="modal-card settings-dialog"
         role="dialog"
         aria-modal="true"
         aria-label={isEdit ? '编辑凭证' : '添加凭证'}
       >
-        <form className="credential-dialog-body" onSubmit={handleSubmit}>
+        <form className="settings-dialog-body" onSubmit={handleSubmit}>
           <h2>{isEdit ? '编辑凭证' : '添加凭证'}</h2>
 
           <label>
@@ -95,7 +95,7 @@ export function CredentialFormDialog({ credential, onClose }: CredentialFormDial
                 </option>
               ))}
             </select>
-            {isEdit && <span className="credential-dialog-hint">供应商创建后不可修改；需要更换请新建凭证。</span>}
+            {isEdit && <span className="settings-dialog-hint">供应商创建后不可修改；需要更换请新建凭证。</span>}
           </label>
 
           <label>
@@ -107,7 +107,7 @@ export function CredentialFormDialog({ credential, onClose }: CredentialFormDial
               spellCheck={false}
               onChange={(event) => setBaseUrl(event.target.value)}
             />
-            <span className="credential-dialog-hint">
+            <span className="settings-dialog-hint">
               {baseUrlRequired
                 ? '自建或第三方的 OpenAI 兼容接口地址，例如 vLLM、Ollama。'
                 : '留空使用官方地址；使用代理或中转服务时再填写。'}
@@ -125,16 +125,16 @@ export function CredentialFormDialog({ credential, onClose }: CredentialFormDial
               placeholder={isEdit ? '留空则保留当前密钥' : 'sk-…'}
               onChange={(event) => setSecret(event.target.value)}
             />
-            <span className="credential-dialog-hint">
+            <span className="settings-dialog-hint">
               加密后保存，保存后任何人（包括你自己）都无法在页面上再次查看原文。
             </span>
           </label>
 
           {saveMutation.isError && (
-            <p className="credential-dialog-error">保存失败：{saveMutation.error.message}</p>
+            <p className="settings-dialog-error">保存失败：{saveMutation.error.message}</p>
           )}
 
-          <div className="credential-dialog-actions">
+          <div className="settings-dialog-actions">
             <button type="button" className="subtle-button" onClick={onClose}>
               取消
             </button>

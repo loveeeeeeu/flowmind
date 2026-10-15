@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCredentials, revokeCredential } from '../../api/credentials';
 import { queryKeys } from '../../api/queryKeys';
+import { SettingsTabs } from '../../settings/SettingsTabs';
 import { CredentialFormDialog } from '../../settings/credentials/CredentialFormDialog';
 import { getProviderOption } from '../../settings/credentials/providers';
 import type { Credential } from '../../types/credential';
@@ -20,7 +22,11 @@ export function CredentialsPage() {
 
   const revokeMutation = useMutation({
     mutationFn: revokeCredential,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list });
+      // A revoked credential's models drop out of /models/available.
+      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all });
+    },
   });
 
   function revoke(credential: Credential) {
@@ -35,6 +41,7 @@ export function CredentialsPage() {
 
   return (
     <main className="workspace-page credentials-page">
+      <SettingsTabs />
       <header className="page-title-row">
         <div>
           <p className="page-eyebrow">SETTINGS</p>
@@ -88,25 +95,30 @@ export function CredentialsPage() {
                       ? `撤销于 ${formatRunTime(credential.revokedAt)}`
                       : `更新于 ${formatRunTime(credential.updatedAt)}`}
                   </span>
-                  {!credential.revokedAt && (
-                    <div className="credential-actions">
-                      <button
-                        type="button"
-                        className="subtle-button"
-                        onClick={() => setDialog({ mode: 'edit', credential })}
-                      >
-                        编辑
-                      </button>
-                      <button
-                        type="button"
-                        className="subtle-button credential-revoke"
-                        disabled={revoking}
-                        onClick={() => revoke(credential)}
-                      >
-                        {revoking ? '撤销中…' : '撤销'}
-                      </button>
-                    </div>
-                  )}
+                  <div className="credential-actions">
+                    <Link className="subtle-button" to={`/settings/models?credential=${credential.id}`}>
+                      管理模型
+                    </Link>
+                    {!credential.revokedAt && (
+                      <>
+                        <button
+                          type="button"
+                          className="subtle-button"
+                          onClick={() => setDialog({ mode: 'edit', credential })}
+                        >
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          className="subtle-button credential-revoke"
+                          disabled={revoking}
+                          onClick={() => revoke(credential)}
+                        >
+                          {revoking ? '撤销中…' : '撤销'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </li>
             );

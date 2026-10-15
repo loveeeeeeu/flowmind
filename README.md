@@ -199,7 +199,7 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 | `WORKFLOW_NOT_PUBLISHED` | 400 | 还没有发布版本 |
 | `WORKFLOW_ARCHIVED` | 400 | 工作流已归档 |
 
-编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`、`CREDENTIAL_NOT_FOUND`、`CREDENTIAL_REVOKED`、`CREDENTIAL_BASE_URL_REQUIRED`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
+编辑器接口另有：`WORKFLOW_DRAFT_MISSING`、`WORKFLOW_INVALID`、`WORKFLOW_NO_UNPUBLISHED_CHANGES`、`DRAFT_CHANGED_DURING_PUBLISH`、`WORKFLOW_PUBLISH_CONFLICT`、`WORKFLOW_VERSION_NOT_FOUND`、`API_KEY_NOT_FOUND`、`CREDENTIAL_NOT_FOUND`、`CREDENTIAL_REVOKED`、`CREDENTIAL_BASE_URL_REQUIRED`、`MODEL_NOT_FOUND`、`MODEL_NAME_CONFLICT`，完整列表见 `apps/api/src/common/api-error.ts`。运行失败的原因不是 HTTP 错误，而是写在运行记录的 `error.code` 里（如旧版运行没有绑定版本时为 `WORKFLOW_VERSION_MISSING`）。
 
 ## 模型凭证（Credentials）
 
@@ -216,6 +216,37 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 - 画布、版本、运行记录和执行日志只会保存凭证 id，永远不保存密钥本身。
 - 和外部调用的 API Key 不同：那个只需要校验，所以只存哈希；模型凭证要在调用供应商时还原原文，所以只能加密。
 
+## 模型中心（Models）
+
+凭证只说明"怎么连上供应商"，模型说明"能调用哪些模型"。前端"模型设置 → 模型中心"（`/settings/models`）按凭证分组管理：
+
+```text
+Credential: OpenAI Production
+  ├── GPT-4.1 Mini   (modelName: gpt-4.1-mini)
+  └── GPT-4.1        (modelName: gpt-4.1)
+```
+
+| 接口 | 说明 |
+|---|---|
+| `POST /credentials/:credentialId/models` | 添加模型；已撤销的凭证不能添加（`CREDENTIAL_REVOKED`） |
+| `GET /credentials/:credentialId/models` | 管理列表，包含已停用的模型（排在后面） |
+| `GET /models/available` | 可选模型：`enabled = true` 且凭证未撤销，给节点配置用 |
+| `GET /models/:id` | 模型详情，附带凭证的 `id / name / provider / baseUrl / revokedAt` |
+| `PATCH /models/:id` | 修改 `name / contextWindow / supportsTemperature / enabled` |
+| `DELETE /models/:id` | 停用（不是删除），返回 204 |
+
+- `modelName` 是原样发给供应商 API 的模型标识（如 `gpt-4.1-mini`），`name` 只是显示名。同一凭证下 `modelName` 唯一（`MODEL_NAME_CONFLICT`），不同凭证可以重复。
+- `modelName` 和所属凭证创建后不能改：之后 LLM 节点只保存模型 id，改了就等于悄悄换掉已发布版本调用的模型。要换模型就新建一个。
+- 模型永不物理删除，数据库也禁止硬删除还挂着模型的凭证（外键 `RESTRICT`）。
+- 两种"不可用"互相独立：
+
+| 状态 | 新节点能否选择 | 已发布版本能否运行 |
+|---|---|---|
+| 模型停用（`enabled = false`） | 不能 | 能 |
+| 凭证撤销（`revokedAt` 有值） | 不能 | 不能（运行失败） |
+
+撤销凭证不会改动它下面模型的 `enabled`；凭证状态和模型状态分别看。
+
 ## 常见问题
 
 | 现象 | 原因与处理 |
@@ -229,8 +260,9 @@ curl http://localhost:3000/api/v1/runs/<runId> -H "Authorization: Bearer fm_xxx"
 
 ## 已知限制
 
-- 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理、模型凭证管理）目前没有用户认证，只适合本地开发。
-- LLM 节点暂时仍使用 `.env` 中的 `*_API_KEY`，尚未接入模型凭证；不支持更换加密主密钥（Key Rotation）。
+- 编辑器使用的内部接口（工作流 CRUD、发布、API Key 管理、模型凭证和模型管理）目前没有用户认证，只适合本地开发。
+- LLM 节点暂时仍使用 `.env` 中的 `*_API_KEY`，尚未接入模型中心；不支持更换加密主密钥（Key Rotation）。
+- 模型需要手动登记，不会从供应商的 `/v1/models` 自动拉取；目前只有对话模型（`CHAT`）。
 - API Key 可以读取同一工作流下由编辑器创建的 PUBLISHED 运行结果。
 - 版本化之前创建的运行（显示为"旧版运行"）保留只读，不会重新执行；若被重新执行会以 `WORKFLOW_VERSION_MISSING` 失败。
 - Code 节点使用 worker_threads + vm 隔离，不是安全沙箱，不要执行不可信代码。
