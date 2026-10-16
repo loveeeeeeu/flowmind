@@ -4,6 +4,7 @@ import { queryKeys } from '../../api/queryKeys';
 import { formatRunTime } from '../execution/runUtils';
 
 interface VersionHistoryProps {
+  projectId: string;
   workflowId: string;
   latestVersionId: string | null;
   previewVersionId: string | null;
@@ -13,6 +14,7 @@ interface VersionHistoryProps {
 
 /** Versions only appear through publish, which invalidates this list; no polling needed. */
 export function VersionHistory({
+  projectId,
   workflowId,
   latestVersionId,
   previewVersionId,
@@ -20,8 +22,8 @@ export function VersionHistory({
   onClose,
 }: VersionHistoryProps) {
   const versionsQuery = useQuery({
-    queryKey: queryKeys.versions.list(workflowId),
-    queryFn: () => getWorkflowVersions(workflowId),
+    queryKey: queryKeys.versions.list(projectId, workflowId),
+    queryFn: () => getWorkflowVersions(projectId, workflowId),
   });
 
   return (

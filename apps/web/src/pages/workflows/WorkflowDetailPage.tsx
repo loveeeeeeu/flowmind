@@ -7,19 +7,19 @@ import type { UpdateWorkflowInput } from '../../types/workflow';
 import { ApiKeyList } from '../../workflow/api-keys/ApiKeyList';
 
 export function WorkflowDetailPage() {
-  const { id = '' } = useParams();
+  const { projectId = '', id = '' } = useParams();
   const queryClient = useQueryClient();
 
   const workflowQuery = useQuery({
-    queryKey: queryKeys.workflows.detail(id),
-    queryFn: () => getWorkflow(id),
-    enabled: Boolean(id),
+    queryKey: queryKeys.workflows.detail(projectId, id),
+    queryFn: () => getWorkflow(projectId, id),
+    enabled: Boolean(projectId && id),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: UpdateWorkflowInput) => updateWorkflow(id, input),
+    mutationFn: (input: UpdateWorkflowInput) => updateWorkflow(projectId, id, input),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all(projectId) });
     },
   });
 
@@ -60,7 +60,7 @@ export function WorkflowDetailPage() {
             <span>工作流应用</span>
           </div>
         </div>
-        <Link className="primary-button detail-editor-link" to={`/workflows/${id}/editor`}>打开编排器</Link>
+        <Link className="primary-button detail-editor-link" to={`/projects/${projectId}/workflows/${id}/editor`}>打开编排器</Link>
       </header>
 
       <WorkflowEditForm
@@ -78,7 +78,7 @@ export function WorkflowDetailPage() {
         <div className="saved-message">已保存更改。</div>
       )}
 
-      <ApiKeyList workflowId={workflow.id} hasPublishedVersion={workflow.latestVersion !== null} />
+      <ApiKeyList projectId={projectId} workflowId={workflow.id} hasPublishedVersion={workflow.latestVersion !== null} />
     </main>
   );
 }

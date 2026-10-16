@@ -62,8 +62,8 @@ export class CredentialConnectionService {
     private readonly registry: ProviderRegistry,
   ) {}
 
-  async test(credentialId: string) {
-    await this.withProvider(credentialId, 'test connection', (provider, connection) =>
+  async test(projectId: string, credentialId: string) {
+    await this.withProvider(projectId, credentialId, 'test connection', (provider, connection) =>
       provider.testConnection(connection),
     );
 
@@ -71,8 +71,8 @@ export class CredentialConnectionService {
   }
 
   /** The provider's current models, flagged when already registered locally. */
-  async listRemoteModels(credentialId: string): Promise<RemoteModel[]> {
-    const remote = await this.fetchRemoteModels(credentialId);
+  async listRemoteModels(projectId: string, credentialId: string): Promise<RemoteModel[]> {
+    const remote = await this.fetchRemoteModels(projectId, credentialId);
     const local = await this.prisma.model.findMany({
       where: { credentialId },
       select: { modelName: true },
@@ -82,19 +82,20 @@ export class CredentialConnectionService {
     return remote.map((model) => ({ ...model, imported: localNames.has(model.id) }));
   }
 
-  fetchRemoteModels(credentialId: string): Promise<RemoteModelInfo[]> {
-    return this.withProvider(credentialId, 'list models', (provider, connection) =>
+  fetchRemoteModels(projectId: string, credentialId: string): Promise<RemoteModelInfo[]> {
+    return this.withProvider(projectId, credentialId, 'list models', (provider, connection) =>
       provider.listModels(connection),
     );
   }
 
   private async withProvider<T>(
+    projectId: string,
     credentialId: string,
     action: string,
     call: (provider: LlmProvider, connection: ProviderConnection) => Promise<T>,
   ): Promise<T> {
-    const credential = await this.prisma.credential.findUnique({
-      where: { id: credentialId },
+    const credential = await this.prisma.credential.findFirst({
+      where: { id: credentialId, projectId },
       select: {
         provider: true,
         baseUrl: true,

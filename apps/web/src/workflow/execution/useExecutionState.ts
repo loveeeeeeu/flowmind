@@ -27,15 +27,15 @@ function useRunDetail(runId: string | null) {
  * Lives in the editor rather than the panel: the canvas overlay and the panel must show the
  * same "viewed" run. Server state stays in TanStack Query; only ids and UI flags are local.
  */
-export function useExecutionState(workflowId: string) {
+export function useExecutionState(projectId: string, workflowId: string) {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const historyQuery = useQuery({
-    queryKey: queryKeys.runs.workflowHistory(workflowId),
-    queryFn: () => getWorkflowRuns(workflowId),
+    queryKey: queryKeys.runs.workflowHistory(projectId, workflowId),
+    queryFn: () => getWorkflowRuns(projectId, workflowId),
   });
   const history = historyQuery.data;
 
@@ -62,10 +62,10 @@ export function useExecutionState(workflowId: string) {
   useEffect(() => {
     if (historyIsBehind) {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.runs.workflowHistory(workflowId),
+        queryKey: queryKeys.runs.workflowHistory(projectId, workflowId),
       });
     }
-  }, [historyIsBehind, queryClient, workflowId]);
+  }, [historyIsBehind, projectId, queryClient, workflowId]);
 
   // Draft tests and published runs share one history, trace and polling; only the source differs.
   async function followRun(run: WorkflowRunSummary) {
@@ -73,18 +73,18 @@ export function useExecutionState(workflowId: string) {
     setSelectedRunId(null);
     setIsOpen(true);
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.runs.workflowHistory(workflowId),
+      queryKey: queryKeys.runs.workflowHistory(projectId, workflowId),
     });
   }
 
   const runMutation = useMutation({
-    mutationFn: (input: Record<string, unknown>) => createWorkflowRun(workflowId, input),
+    mutationFn: (input: Record<string, unknown>) => createWorkflowRun(projectId, workflowId, input),
     onSuccess: followRun,
   });
 
   const testRunMutation = useMutation({
     mutationFn: ({ input, canvas }: { input: Record<string, unknown>; canvas: WorkflowCanvas }) =>
-      createWorkflowTestRun(workflowId, input, canvas),
+      createWorkflowTestRun(projectId, workflowId, input, canvas),
     onSuccess: followRun,
   });
 

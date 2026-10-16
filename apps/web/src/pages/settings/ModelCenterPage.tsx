@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCredentials } from '../../api/credentials';
 import { disableModel, getCredentialModels, updateModel } from '../../api/models';
@@ -15,11 +15,12 @@ import type { Model } from '../../types/model';
 type DialogState = { mode: 'create' } | { mode: 'import' } | { mode: 'edit'; model: Model } | null;
 
 export function ModelCenterPage() {
+  const { projectId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const credentialsQuery = useQuery({
-    queryKey: queryKeys.credentials.list,
-    queryFn: getCredentials,
+    queryKey: queryKeys.credentials.list(projectId),
+    queryFn: () => getCredentials(projectId),
   });
 
   const credentials = credentialsQuery.data ?? [];
@@ -70,27 +71,27 @@ export function ModelCenterPage() {
               </li>
             ))}
           </ul>
-          <CredentialModels key={selected.id} credential={selected} />
+          <CredentialModels key={selected.id} projectId={projectId} credential={selected} />
         </div>
       )}
     </main>
   );
 }
 
-function CredentialModels({ credential }: { credential: Credential }) {
+function CredentialModels({ projectId, credential }: { projectId: string; credential: Credential }) {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogState>(null);
   const revoked = credential.revokedAt !== null;
 
   const modelsQuery = useQuery({
-    queryKey: queryKeys.models.byCredential(credential.id),
-    queryFn: () => getCredentialModels(credential.id),
+    queryKey: queryKeys.models.byCredential(projectId, credential.id),
+    queryFn: () => getCredentialModels(projectId, credential.id),
   });
 
   const toggleMutation = useMutation({
     mutationFn: (model: Model) =>
-      model.enabled ? disableModel(model.id) : updateModel(model.id, { enabled: true }).then(() => undefined),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.models.all }),
+      model.enabled ? disableModel(projectId, model.id) : updateModel(projectId, model.id, { enabled: true }).then(() => undefined),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.models.all(projectId) }),
   });
 
   function toggle(model: Model) {
@@ -212,10 +213,11 @@ function CredentialModels({ credential }: { credential: Credential }) {
       )}
 
       {dialog?.mode === 'import' && (
-        <ImportModelsDialog credential={credential} onClose={() => setDialog(null)} />
+        <ImportModelsDialog projectId={projectId} credential={credential} onClose={() => setDialog(null)} />
       )}
       {(dialog?.mode === 'create' || dialog?.mode === 'edit') && (
         <ModelFormDialog
+          projectId={projectId}
           credential={credential}
           model={dialog.mode === 'edit' ? dialog.model : undefined}
           onClose={() => setDialog(null)}

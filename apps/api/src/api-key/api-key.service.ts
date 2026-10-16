@@ -22,8 +22,8 @@ export class ApiKeyService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** The only response that ever contains the raw key; the database keeps just its hash. */
-  async create(workflowId: string, name: string) {
-    await this.assertWorkflowExists(workflowId);
+  async create(projectId: string, workflowId: string, name: string) {
+    await this.assertWorkflowExists(projectId, workflowId);
 
     const { prefix, key, keyHash } = generateApiKey();
     const record = await this.prisma.workflowApiKey.create({
@@ -34,8 +34,8 @@ export class ApiKeyService {
     return { ...record, key };
   }
 
-  async list(workflowId: string) {
-    await this.assertWorkflowExists(workflowId);
+  async list(projectId: string, workflowId: string) {
+    await this.assertWorkflowExists(projectId, workflowId);
 
     return this.prisma.workflowApiKey.findMany({
       where: { workflowId },
@@ -45,7 +45,8 @@ export class ApiKeyService {
   }
 
   /** Soft revoke: the row stays so runs keep pointing to the key that created them. */
-  async revoke(workflowId: string, keyId: string) {
+  async revoke(projectId: string, workflowId: string, keyId: string) {
+    await this.assertWorkflowExists(projectId, workflowId);
     const result = await this.prisma.workflowApiKey.updateMany({
       where: { id: keyId, workflowId, revokedAt: null },
       data: { revokedAt: new Date() },
@@ -93,9 +94,9 @@ export class ApiKeyService {
       });
   }
 
-  private async assertWorkflowExists(workflowId: string) {
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id: workflowId },
+  private async assertWorkflowExists(projectId: string, workflowId: string) {
+    const workflow = await this.prisma.workflow.findFirst({
+      where: { id: workflowId, projectId },
       select: { id: true },
     });
 

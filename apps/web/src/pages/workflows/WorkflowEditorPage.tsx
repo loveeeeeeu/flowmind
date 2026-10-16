@@ -5,12 +5,12 @@ import { queryKeys } from '../../api/queryKeys';
 import { WorkflowCanvasEditor } from '../../workflow/WorkflowCanvasEditor';
 
 export function WorkflowEditorPage() {
-  const { id = '' } = useParams();
+  const { projectId = '', id = '' } = useParams();
 
   const workflowQuery = useQuery({
-    queryKey: queryKeys.workflows.detail(id),
-    queryFn: () => getWorkflow(id),
-    enabled: Boolean(id),
+    queryKey: queryKeys.workflows.detail(projectId, id),
+    queryFn: () => getWorkflow(projectId, id),
+    enabled: Boolean(projectId && id),
   });
 
   if (!id) {
@@ -32,5 +32,5 @@ export function WorkflowEditorPage() {
     );
   }
 
-  return <WorkflowCanvasEditor key={workflowQuery.data.id} workflow={workflowQuery.data} />;
+  return <WorkflowCanvasEditor key={workflowQuery.data.id} projectId={projectId} workflow={workflowQuery.data} />;
 }

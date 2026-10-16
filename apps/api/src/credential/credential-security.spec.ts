@@ -11,6 +11,12 @@ import { WorkflowResourceValidator } from '../workflow/workflow-resource-validat
 const RAW_SECRET = 'flowmind-super-secret-test-value-12345';
 const SENSITIVE_FIELDS = ['secret', 'encryptedSecret', 'secretIv', 'secretAuthTag', RAW_SECRET];
 
+function getCallSelect(mockFn: unknown): Record<string, unknown> {
+  const calls = (mockFn as { mock: { calls: unknown[][] } }).mock.calls;
+  const firstArg = calls[0]?.[0] as { select?: Record<string, unknown> } | undefined;
+  return firstArg?.select ?? {};
+}
+
 describe('Sprint 9 Security & Boundary Invariants', () => {
   const masterKeyBase64 = randomBytes(32).toString('base64');
   const cryptoService = new CredentialCryptoService({
@@ -54,8 +60,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
         secret: RAW_SECRET,
       });
 
-      const callArgs = prismaMock.credential.create.mock.calls[0][0];
-      const selectKeys = Object.keys(callArgs.select);
+      const selectKeys = Object.keys(getCallSelect(prismaMock.credential.create));
 
       for (const field of SENSITIVE_FIELDS) {
         expect(selectKeys).not.toContain(field);
@@ -66,8 +71,8 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
       await credentialService.findOne('cred-test-1');
       await credentialService.findAll();
 
-      const findOneSelect = Object.keys(prismaMock.credential.findUnique.mock.calls[0][0].select);
-      const findAllSelect = Object.keys(prismaMock.credential.findMany.mock.calls[0][0].select);
+      const findOneSelect = Object.keys(getCallSelect(prismaMock.credential.findUnique));
+      const findAllSelect = Object.keys(getCallSelect(prismaMock.credential.findMany));
 
       for (const field of SENSITIVE_FIELDS) {
         expect(findOneSelect).not.toContain(field);
@@ -78,7 +83,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     it('update() preserves secret confidentiality on update', async () => {
       await credentialService.update('cred-test-1', { name: 'New Name' });
 
-      const updateSelect = Object.keys(prismaMock.credential.update.mock.calls[0][0].select);
+      const updateSelect = Object.keys(getCallSelect(prismaMock.credential.update));
       for (const field of SENSITIVE_FIELDS) {
         expect(updateSelect).not.toContain(field);
       }
@@ -123,20 +128,22 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     it('findOne() specifies explicit whitelist for credential relation without ciphertext', async () => {
       await modelService.findOne('model-1');
 
-      const select = prismaModelMock.model.findUnique.mock.calls[0][0].select;
+      const select = getCallSelect(prismaModelMock.model.findUnique) as {
+        credential?: { select?: Record<string, unknown> };
+      };
       const serializedSelect = JSON.stringify(select);
 
       for (const field of ['secret', 'encryptedSecret', 'secretIv', 'secretAuthTag']) {
         expect(serializedSelect).not.toContain(field);
       }
-      expect(select.credential.select).toBeDefined();
-      expect(select.credential.select.encryptedSecret).toBeUndefined();
+      expect(select.credential?.select).toBeDefined();
+      expect(select.credential?.select?.['encryptedSecret']).toBeUndefined();
     });
 
     it('findAvailable() never queries credential secrets', async () => {
       await modelService.findAvailable();
 
-      const select = prismaModelMock.model.findMany.mock.calls[0][0].select;
+      const select = getCallSelect(prismaModelMock.model.findMany);
       const serialized = JSON.stringify(select);
 
       for (const field of ['secret', 'encryptedSecret', 'secretIv', 'secretAuthTag']) {

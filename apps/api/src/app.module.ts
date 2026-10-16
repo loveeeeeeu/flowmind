@@ -9,6 +9,8 @@ import { ExternalApiModule } from './external-api/external-api.module.js';
 import { ApiKeyModule } from './api-key/api-key.module.js';
 import { CredentialModule } from './credential/credential.module.js';
 import { ModelModule } from './model/model.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { ProjectModule } from './project/project.module.js';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { ModelModule } from './model/model.module.js';
     }),
     PrismaModule,
     HealthModule,
+    AuthModule,
+    ProjectModule,
     WorkflowModule,
     ApiKeyModule,
     ExternalApiModule,
@@ -35,3 +39,4 @@ import { ModelModule } from './model/model.module.js';
   ],
 })
 export class AppModule {}
+

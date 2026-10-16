@@ -96,15 +96,16 @@ function isCanvasChange(change: NodeChange | EdgeChange) {
 }
 
 interface WorkflowCanvasEditorProps {
+  projectId: string;
   workflow: WorkflowDetail;
 }
 
-export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
+export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEditorProps) {
   const queryClient = useQueryClient();
   // Shared (same key) with the LLM properties panel; canvas nodes read it through context.
   const availableModelsQuery = useQuery({
-    queryKey: queryKeys.models.available,
-    queryFn: getAvailableModels,
+    queryKey: queryKeys.models.available(projectId),
+    queryFn: () => getAvailableModels(projectId),
   });
   const availableModels = useMemo(
     () =>
@@ -125,14 +126,14 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   const [flow, setFlow] = useState<ReactFlowInstance<WorkflowNode, WorkflowEdge> | null>(null);
   const [isVersionsOpen, setIsVersionsOpen] = useState(false);
   const [previewVersionId, setPreviewVersionId] = useState<string | null>(null);
-  const execution = useExecutionState(workflow.id);
+  const execution = useExecutionState(projectId, workflow.id);
 
   // Read-only preview of a published version. It only switches what the canvas displays:
   // the draft's nodes/edges/isDirty are never replaced, so "返回草稿" loses nothing.
   const isPreviewing = previewVersionId !== null;
   const previewQuery = useQuery({
-    queryKey: queryKeys.versions.detail(workflow.id, previewVersionId ?? ''),
-    queryFn: () => getWorkflowVersion(workflow.id, previewVersionId as string),
+    queryKey: queryKeys.versions.detail(projectId, workflow.id, previewVersionId ?? ''),
+    queryFn: () => getWorkflowVersion(projectId, workflow.id, previewVersionId as string),
     enabled: isPreviewing,
     // Versions are immutable.
     staleTime: Infinity,
@@ -435,22 +436,22 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
   }
 
   const saveCanvasMutation = useMutation({
-    mutationFn: () => updateWorkflowCanvas(workflow.id, toPersistedCanvas(nodes, edges)),
+    mutationFn: () => updateWorkflowCanvas(projectId, workflow.id, toPersistedCanvas(nodes, edges)),
     onSuccess: async () => {
       setIsDirty(false);
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.workflows.detail(workflow.id),
+        queryKey: queryKeys.workflows.detail(projectId, workflow.id),
       });
     },
   });
 
   const publishMutation = useMutation({
-    mutationFn: () => publishWorkflow(workflow.id),
+    mutationFn: () => publishWorkflow(projectId, workflow.id),
     // The header and the run button read latestVersion from the refetched detail, not from here.
     onSuccess: () =>
       Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflow.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.versions.list(workflow.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.workflows.detail(projectId, workflow.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.versions.list(projectId, workflow.id) }),
       ]),
   });
 
@@ -493,7 +494,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
     <div className="workflow-editor">
       <header className="editor-toolbar">
         <div className="editor-identity">
-          <Link className="editor-back" to={`/workflows/${workflow.id}`} aria-label="返回工作流详情">
+          <Link className="editor-back" to={`/projects/${projectId}/workflows/${workflow.id}`} aria-label="返回工作流详情">
             ‹
           </Link>
           <span className="editor-workflow-icon">⌘</span>
@@ -634,6 +635,7 @@ export function WorkflowCanvasEditor({ workflow }: WorkflowCanvasEditorProps) {
 
         {isVersionsOpen && (
           <VersionHistory
+            projectId={projectId}
             workflowId={workflow.id}
             latestVersionId={latestVersion?.id ?? null}
             previewVersionId={previewVersionId}

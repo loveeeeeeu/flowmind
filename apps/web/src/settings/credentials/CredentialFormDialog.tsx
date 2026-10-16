@@ -7,6 +7,7 @@ import type { Credential, CredentialProvider } from '../../types/credential';
 import { CREDENTIAL_PROVIDERS, getProviderOption } from './providers';
 
 interface CredentialFormDialogProps {
+  projectId: string;
   /** Edit this credential; create a new one when absent. */
   credential?: Credential;
   onClose: () => void;
@@ -16,7 +17,7 @@ interface CredentialFormDialogProps {
  * The secret input always starts empty: the API never returns a secret, so editing can only
  * replace it. gcTime 0 drops the mutation (and the submitted secret) as soon as the dialog closes.
  */
-export function CredentialFormDialog({ credential, onClose }: CredentialFormDialogProps) {
+export function CredentialFormDialog({ projectId, credential, onClose }: CredentialFormDialogProps) {
   const queryClient = useQueryClient();
   const isEdit = credential !== undefined;
   const [name, setName] = useState(credential?.name ?? '');
@@ -32,16 +33,16 @@ export function CredentialFormDialog({ credential, onClose }: CredentialFormDial
       const trimmedBaseUrl = baseUrl.trim() || null;
 
       return isEdit
-        ? updateCredential(credential.id, {
+        ? updateCredential(projectId, credential.id, {
             name: name.trim(),
             baseUrl: trimmedBaseUrl,
             ...(secret.trim() ? { secret: secret.trim() } : {}),
           })
-        : createCredential({ name: name.trim(), provider, baseUrl: trimmedBaseUrl, secret: secret.trim() });
+        : createCredential(projectId, { name: name.trim(), provider, baseUrl: trimmedBaseUrl, secret: secret.trim() });
     },
     gcTime: 0,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list(projectId) });
       onClose();
     },
   });

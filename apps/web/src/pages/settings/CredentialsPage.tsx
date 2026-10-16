@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCredentials, revokeCredential, testCredential } from '../../api/credentials';
 import { queryKeys } from '../../api/queryKeys';
@@ -14,21 +14,22 @@ import { formatRunTime } from '../../workflow/execution/runUtils';
 type DialogState = { mode: 'create' } | { mode: 'edit'; credential: Credential } | null;
 
 export function CredentialsPage() {
+  const { projectId = '' } = useParams();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [discoveringCredential, setDiscoveringCredential] = useState<Credential | null>(null);
 
   const credentialsQuery = useQuery({
-    queryKey: queryKeys.credentials.list,
-    queryFn: getCredentials,
+    queryKey: queryKeys.credentials.list(projectId),
+    queryFn: () => getCredentials(projectId),
   });
 
   const revokeMutation = useMutation({
-    mutationFn: revokeCredential,
+    mutationFn: (credentialId: string) => revokeCredential(projectId, credentialId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list(projectId) });
       // A revoked credential's models drop out of /models/available.
-      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all(projectId) });
     },
   });
 
@@ -79,6 +80,7 @@ export function CredentialsPage() {
             // updatedAt in the key: an edited credential starts without the old test result.
             <CredentialCard
               key={`${credential.id}:${credential.updatedAt}`}
+              projectId={projectId}
               credential={credential}
               revoking={revokeMutation.isPending && revokeMutation.variables === credential.id}
               onEdit={() => setDialog({ mode: 'edit', credential })}
@@ -91,6 +93,7 @@ export function CredentialsPage() {
 
       {dialog && (
         <CredentialFormDialog
+          projectId={projectId}
           credential={dialog.mode === 'edit' ? dialog.credential : undefined}
           onClose={() => setDialog(null)}
         />
@@ -98,6 +101,7 @@ export function CredentialsPage() {
 
       {discoveringCredential && (
         <ImportModelsDialog
+          projectId={projectId}
           credential={discoveringCredential}
           onClose={() => setDiscoveringCredential(null)}
         />
@@ -107,6 +111,7 @@ export function CredentialsPage() {
 }
 
 interface CredentialCardProps {
+  projectId: string;
   credential: Credential;
   revoking: boolean;
   onEdit: () => void;
@@ -115,9 +120,9 @@ interface CredentialCardProps {
 }
 
 /** Testing is diagnosis only: the result is not saved and never changes the credential. */
-function CredentialCard({ credential, revoking, onEdit, onRevoke, onDiscover }: CredentialCardProps) {
+function CredentialCard({ projectId, credential, revoking, onEdit, onRevoke, onDiscover }: CredentialCardProps) {
   const provider = getProviderOption(credential.provider);
-  const testMutation = useMutation({ mutationFn: () => testCredential(credential.id) });
+  const testMutation = useMutation({ mutationFn: () => testCredential(projectId, credential.id) });
 
   return (
     <li className={`credential-card ${credential.revokedAt ? 'revoked' : ''}`}>
@@ -146,7 +151,7 @@ function CredentialCard({ credential, revoking, onEdit, onRevoke, onDiscover }: 
             : `更新于 ${formatRunTime(credential.updatedAt)}`}
         </span>
         <div className="credential-actions">
-          <Link className="subtle-button" to={`/settings/models?credential=${credential.id}`}>
+          <Link className="subtle-button" to={`/projects/${projectId}/settings/models?credential=${credential.id}`}>
             管理模型
           </Link>
           {!credential.revokedAt && (

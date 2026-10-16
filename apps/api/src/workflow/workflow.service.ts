@@ -26,27 +26,31 @@ export class WorkflowService {
     private readonly resourceValidator: WorkflowResourceValidator,
   ) {}
 
-  create(dto: CreateWorkflowDto) {
+  create(projectId: string, dto: CreateWorkflowDto) {
     return this.prisma.workflow.create({
       data: {
+        projectId,
         name: dto.name,
         description: dto.description,
       },
     });
   }
 
-  async findAll(query: QueryWorkflowDto) {
+  async findAll(projectId: string, query: QueryWorkflowDto) {
     const { page, pageSize, keyword } = query;
     const skip = (page - 1) * pageSize;
 
-    const where: Prisma.WorkflowWhereInput = keyword
-      ? {
-          OR: [
-            { name: { contains: keyword, mode: 'insensitive' } },
-            { description: { contains: keyword, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+    const where: Prisma.WorkflowWhereInput = {
+      projectId,
+      ...(keyword
+        ? {
+            OR: [
+              { name: { contains: keyword, mode: 'insensitive' } },
+              { description: { contains: keyword, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.workflow.findMany({
@@ -69,9 +73,14 @@ export class WorkflowService {
     };
   }
 
-  async findOne(id: string) {
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id },
+  /**
+   * Project-scoped lookup. Returns 404 if the workflow exists in another project
+   * to avoid revealing that the id is valid — identical to "not found" from the
+   * caller's perspective.
+   */
+  async findOne(projectId: string, id: string) {
+    const workflow = await this.prisma.workflow.findFirst({
+      where: { id, projectId },
     });
 
     if (!workflow) {
@@ -82,9 +91,9 @@ export class WorkflowService {
   }
 
   /** Detail for the editor: the draft plus a summary of the latest published version. */
-  async findDetail(id: string) {
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id },
+  async findDetail(projectId: string, id: string) {
+    const workflow = await this.prisma.workflow.findFirst({
+      where: { id, projectId },
       include: {
         versions: {
           orderBy: { version: 'desc' },
@@ -103,8 +112,8 @@ export class WorkflowService {
     return { ...rest, latestVersion: versions[0] ?? null };
   }
 
-  async update(id: string, dto: UpdateWorkflowDto) {
-    await this.findOne(id);
+  async update(projectId: string, id: string, dto: UpdateWorkflowDto) {
+    await this.findOne(projectId, id);
 
     return this.prisma.workflow.update({
       where: { id },
@@ -115,8 +124,8 @@ export class WorkflowService {
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(projectId: string, id: string) {
+    await this.findOne(projectId, id);
 
     return this.prisma.workflow.delete({
       where: { id },
@@ -127,8 +136,8 @@ export class WorkflowService {
    * Saving only touches the mutable draft; published versions are never rewritten. Every save
    * bumps the revision, even with an identical canvas: cheap, and never misses a change.
    */
-  async updateCanvas(id: string, dto: UpdateWorkflowCanvasDto) {
-    await this.findOne(id);
+  async updateCanvas(projectId: string, id: string, dto: UpdateWorkflowCanvasDto) {
+    await this.findOne(projectId, id);
 
     return this.prisma.workflow.update({
       where: { id },
@@ -139,26 +148,26 @@ export class WorkflowService {
     });
   }
 
-  async validateWorkflow(id: string) {
-    const workflow = await this.findOne(id);
+  async validateWorkflow(projectId: string, id: string) {
+    const workflow = await this.findOne(projectId, id);
 
     if (!workflow.draftCanvas) {
       throw apiError.badRequest('WORKFLOW_DRAFT_MISSING', 'Workflow has no draft canvas');
     }
 
-    return this.validateCanvas(workflow.draftCanvas as unknown as WorkflowCanvas);
+    return this.validateCanvas(projectId, workflow.draftCanvas as unknown as WorkflowCanvas);
   }
 
   /**
    * Publishes the draft saved on the server (never a canvas sent by the client). Checks structure
    * and referenced resources; publishing never executes nodes or calls external services.
    */
-  async publish(id: string) {
-    const workflow = await this.findOne(id);
+  async publish(projectId: string, id: string) {
+    const workflow = await this.findOne(projectId, id);
     const canvas = this.ensurePublishable(workflow);
 
     // Validated outside the transaction; the revision ties the result to this canvas.
-    await this.validateCanvas(canvas);
+    await this.validateCanvas(projectId, canvas);
 
     return this.workflowVersionService.publishValidatedDraft({
       workflowId: workflow.id,
@@ -168,9 +177,9 @@ export class WorkflowService {
   }
 
   /** Static rules first (pure, from workflow-core), then the resources they reference (database). */
-  private async validateCanvas(canvas: WorkflowCanvas) {
+  private async validateCanvas(projectId: string, canvas: WorkflowCanvas) {
     const plan = this.workflowPlanService.createExecutionPlan(canvas);
-    await this.resourceValidator.validateForDraft(canvas);
+    await this.resourceValidator.validateForDraft(projectId, canvas);
 
     return plan;
   }
@@ -191,8 +200,8 @@ export class WorkflowService {
    * Debug run of the editor's current canvas, saved or not. Creates a run with its own snapshot
    * and never a WorkflowVersion, so testing does not flood the version history.
    */
-  async testRun(id: string, dto: TestWorkflowDto) {
-    const workflow = await this.findOne(id);
+  async testRun(projectId: string, id: string, dto: TestWorkflowDto) {
+    const workflow = await this.findOne(projectId, id);
 
     if (workflow.status === 'ARCHIVED') {
       throw apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be tested');
@@ -204,7 +213,7 @@ export class WorkflowService {
     } as unknown as WorkflowCanvas;
 
     // Rejected here (e.g. MODEL_DISABLED) instead of being queued just to fail in the worker.
-    await this.validateCanvas(canvas);
+    await this.validateCanvas(projectId, canvas);
 
     return this.executionService.createDraftRun({
       workflowId: workflow.id,
@@ -217,8 +226,8 @@ export class WorkflowService {
    * Binds the run to the latest published version at creation time, so later draft edits or
    * newer publishes never change what this run executes. The draft is never run here.
    */
-  async runWorkflow(id: string, dto: RunWorkflowDto) {
-    const workflow = await this.findOne(id);
+  async runWorkflow(projectId: string, id: string, dto: RunWorkflowDto) {
+    const workflow = await this.findOne(projectId, id);
 
     if (workflow.status === 'ARCHIVED') {
       throw apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be run');
@@ -238,8 +247,8 @@ export class WorkflowService {
     });
   }
 
-  async findRuns(id: string) {
-    await this.findOne(id);
+  async findRuns(projectId: string, id: string) {
+    await this.findOne(projectId, id);
     return this.executionService.findWorkflowRuns(id);
   }
 }

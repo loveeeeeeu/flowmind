@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import {
   keepPreviousData,
   useMutation,
@@ -10,6 +10,7 @@ import { createWorkflow, deleteWorkflow, getWorkflows } from '../../api/workflow
 import { queryKeys } from '../../api/queryKeys';
 import { CreateWorkflowForm } from '../../components/CreateWorkflowForm';
 import { WorkflowSearchForm } from '../../components/WorkflowSearchForm';
+import type { CreateWorkflowInput } from '../../types/workflow';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -24,6 +25,7 @@ function getPositiveInt(value: string | null, fallback: number, max = Infinity) 
 }
 
 export function WorkflowListPage() {
+  const { projectId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = getPositiveInt(searchParams.get('page'), 1);
   const pageSize = getPositiveInt(searchParams.get('pageSize'), 10, 100);
@@ -33,23 +35,24 @@ export function WorkflowListPage() {
   const queryClient = useQueryClient();
 
   const workflowQuery = useQuery({
-    queryKey: queryKeys.workflows.list(page, pageSize, keyword),
-    queryFn: () => getWorkflows(page, pageSize, keyword),
+    queryKey: queryKeys.workflows.list(projectId, page, pageSize, keyword),
+    queryFn: () => getWorkflows(projectId, page, pageSize, keyword),
+    enabled: Boolean(projectId),
     placeholderData: keepPreviousData,
   });
 
   const createMutation = useMutation({
-    mutationFn: createWorkflow,
+    mutationFn: (input: CreateWorkflowInput) => createWorkflow(projectId, input),
     onSuccess: async () => {
       setShowCreateForm(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all(projectId) });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteWorkflow,
+    mutationFn: (id: string) => deleteWorkflow(projectId, id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all(projectId) });
     },
   });
 
@@ -135,11 +138,11 @@ export function WorkflowListPage() {
           return (
             <article key={workflow.id} className="app-card">
               <div className="app-card-header"><span className="app-icon">✦</span><span className="app-status">{workflow.status === 'PUBLISHED' ? '已发布' : '草稿'}</span></div>
-              <Link to={`/workflows/${workflow.id}`} className="app-card-title"><strong>{workflow.name}</strong></Link>
+              <Link to={`/projects/${projectId}/workflows/${workflow.id}`} className="app-card-title"><strong>{workflow.name}</strong></Link>
               <p>{workflow.description ?? '尚未添加应用描述'}</p>
               <div className="app-card-footer">
                 <span>工作流 · 最近编辑</span>
-                <div className="card-actions"><Link to={`/workflows/${workflow.id}/editor`}>编排</Link>
+                <div className="card-actions"><Link to={`/projects/${projectId}/workflows/${workflow.id}/editor`}>编排</Link>
                   <button
                     className="icon-delete"
                     disabled={deleting}

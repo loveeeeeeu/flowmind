@@ -9,6 +9,7 @@ import type { Model } from '../../types/model';
 import { parseContextWindow } from './modelFormat';
 
 interface ModelFormDialogProps {
+  projectId: string;
   credential: Credential;
   /** Edit this model's metadata; create a new one when absent. */
   model?: Model;
@@ -24,7 +25,7 @@ function errorText(error: Error, modelName: string) {
 }
 
 /** modelName is read-only when editing: published LLM nodes call whatever the id points at. */
-export function ModelFormDialog({ credential, model, onClose }: ModelFormDialogProps) {
+export function ModelFormDialog({ projectId, credential, model, onClose }: ModelFormDialogProps) {
   const queryClient = useQueryClient();
   const isEdit = model !== undefined;
   const [name, setName] = useState(model?.name ?? '');
@@ -38,14 +39,14 @@ export function ModelFormDialog({ credential, model, onClose }: ModelFormDialogP
   const saveMutation = useMutation({
     mutationFn: () => {
       if (isEdit) {
-        return updateModel(model.id, {
+        return updateModel(projectId, model.id, {
           name: name.trim(),
           contextWindow: parsedContextWindow ?? null,
           supportsTemperature,
         });
       }
 
-      return createModel(credential.id, {
+      return createModel(projectId, credential.id, {
         name: name.trim(),
         modelName: modelName.trim(),
         ...(parsedContextWindow ? { contextWindow: parsedContextWindow } : {}),
@@ -53,7 +54,7 @@ export function ModelFormDialog({ credential, model, onClose }: ModelFormDialogP
       });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all(projectId) });
       onClose();
     },
   });

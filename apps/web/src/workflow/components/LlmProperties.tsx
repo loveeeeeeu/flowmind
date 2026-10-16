@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { getAvailableModels } from '../../api/models';
 import { queryKeys } from '../../api/queryKeys';
@@ -34,9 +34,11 @@ function groupByCredential(models: AvailableModel[]) {
 
 /** The canvas stores only modelId; provider and model name below are display-only. */
 export function LlmProperties({ node, onNodeDataChange, onNodeDataReplace }: LlmPropertiesProps) {
+  const { projectId = '' } = useParams();
   const modelsQuery = useQuery({
-    queryKey: queryKeys.models.available,
-    queryFn: getAvailableModels,
+    queryKey: queryKeys.models.available(projectId),
+    queryFn: () => getAvailableModels(projectId),
+    enabled: Boolean(projectId),
   });
 
   const { data } = node;

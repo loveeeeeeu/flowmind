@@ -1,32 +1,32 @@
 export const queryKeys = {
   workflows: {
-    all: ['workflows'] as const,
-    lists: () => ['workflows', 'list'] as const,
-    list: (page: number, pageSize: number, keyword: string) =>
-      ['workflows', 'list', { page, pageSize, keyword }] as const,
-    detail: (id: string) => ['workflows', 'detail', id] as const,
+    all: (projectId: string) => ['workflows', projectId] as const,
+    lists: (projectId: string) => ['workflows', projectId, 'list'] as const,
+    list: (projectId: string, page: number, pageSize: number, keyword: string) =>
+      ['workflows', projectId, 'list', { page, pageSize, keyword }] as const,
+    detail: (projectId: string, id: string) => ['workflows', projectId, 'detail', id] as const,
   },
   // Outside the workflow detail key: invalidating the detail after every save must not refetch
   // immutable version snapshots.
   versions: {
-    list: (workflowId: string) => ['workflowVersions', workflowId, 'list'] as const,
-    detail: (workflowId: string, versionId: string) =>
-      ['workflowVersions', workflowId, 'detail', versionId] as const,
+    list: (projectId: string, workflowId: string) => ['workflowVersions', projectId, workflowId, 'list'] as const,
+    detail: (projectId: string, workflowId: string, versionId: string) =>
+      ['workflowVersions', projectId, workflowId, 'detail', versionId] as const,
   },
   apiKeys: {
-    list: (workflowId: string) => ['workflowApiKeys', workflowId] as const,
+    list: (projectId: string, workflowId: string) => ['workflowApiKeys', projectId, workflowId] as const,
   },
   credentials: {
-    list: ['credentials', 'list'] as const,
+    list: (projectId: string) => ['credentials', projectId, 'list'] as const,
     // Live provider data: fetched only while the import dialog is open, never cached.
-    remoteModels: (credentialId: string) => ['credentials', credentialId, 'remote-models'] as const,
+    remoteModels: (projectId: string, credentialId: string) => ['credentials', projectId, credentialId, 'remote-models'] as const,
   },
   // Invalidate `all` after any model write or credential revoke: `available` depends on both.
   models: {
-    all: ['models'] as const,
-    byCredential: (credentialId: string) => ['models', 'credential', credentialId] as const,
-    available: ['models', 'available'] as const,
-    detail: (id: string) => ['models', 'detail', id] as const,
+    all: (projectId: string) => ['models', projectId] as const,
+    byCredential: (projectId: string, credentialId: string) => ['models', projectId, 'credential', credentialId] as const,
+    available: (projectId: string) => ['models', projectId, 'available'] as const,
+    detail: (projectId: string, id: string) => ['models', projectId, 'detail', id] as const,
   },
   runs: {
     all: ['runs'] as const,
@@ -34,6 +34,6 @@ export const queryKeys = {
     // Status is part of the key so a status change (e.g. RUNNING -> SUCCESS) triggers one more
     // fetch after polling stops, picking up the final "运行成功/运行失败" entry.
     logs: (runId: string, status: string) => ['runs', 'detail', runId, 'logs', status] as const,
-    workflowHistory: (workflowId: string) => ['runs', 'workflow', workflowId] as const,
+    workflowHistory: (projectId: string, workflowId: string) => ['runs', projectId, 'workflow', workflowId] as const,
   },
 };

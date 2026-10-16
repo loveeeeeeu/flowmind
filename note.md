@@ -731,4 +731,31 @@ Adapter 负责"怎么调用"：拿到配置就发 HTTP 请求，自己什么都�
 如果各自写各自的解析逻辑，用户体验崩溃：用户在控制台测了一万次都显示“连接成功”，但一跑工作流就莫名其妙报 404，找不出原因
 我们把解析逻辑写成一个唯一的纯函数，抽象到 `@flowmind/shared` 包里
 
-#
+# Auth + Project + RBAC
+本节课先做 Project 资源归属与隔离
+## 问题：多用户情况下，这个 Workflow 到底是谁的？这个 Credential 属于谁？用户 A 为什么不能看到用户 B 的东西？
+## 数据模型
+```
+User ──< ProjectMember >── Project
+                               ├─ Workflow
+                               └─ Credential ──< Model
+ProjectMember = 谁在这个 Project 里，以及是什么角色
+ProjectMember.role：预留 OWNER / EDITOR / VIEWER
+```
+## 接口
+```
+POST /projects
+→ 创建项目
+→ 当前用户自动成为 OWNER
+
+GET /projects
+→ 返回当前用户参与的项目列表
+
+GET /projects/:projectId
+→ 获取一个项目
+→ 只有项目成员才能找到它
+```
+## 数据隔离
+所有资源查询携带：projectId。项目 A 无法通过项目 B 的资源 ID 读取、修改或执行 B 的资源，通常返回 404
+
+# 

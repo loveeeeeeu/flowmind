@@ -13,6 +13,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ProjectRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
 enum WorkflowStatus {
   DRAFT
   PUBLISHED
@@ -60,12 +66,57 @@ enum ModelType {
   CHAT
 }
 
+model User {
+  id    String  @id @default(cuid())
+  email String  @unique
+  name  String?
+
+  memberships ProjectMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id   String @id @default(cuid())
+  name String
+
+  members     ProjectMember[]
+  workflows   Workflow[]
+  credentials Credential[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProjectMember {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role ProjectRole
+
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
+}
+
 model Workflow {
   id          String         @id @default(cuid())
   name        String
   description String?
   // PUBLISHED means "at least one version exists"; the draft can still have unpublished edits.
   status      WorkflowStatus @default(DRAFT)
+
+  // Belongs to exactly one project; set at creation time, never changed.
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Mutable working copy edited in the canvas editor. Never executed by published runs.
   draftCanvas Json?
@@ -79,6 +130,8 @@ model Workflow {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 // A key that lets external callers run one workflow's published version. The raw key
@@ -119,6 +172,10 @@ model Credential {
   // Null means the provider's official endpoint; required for OPENAI_COMPATIBLE (checked in the service).
   baseUrl  String?
 
+  // Belongs to exactly one project; set at creation time, never changed.
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   // base64 ciphertext, 12-byte IV (random per encryption, not secret) and 16-byte GCM auth tag.
   encryptedSecret String
   secretIv        String
@@ -132,6 +189,8 @@ model Credential {
   updatedAt DateTime @updatedAt
 
   models Model[]
+
+  @@index([projectId])
 }
 
 // A model callable through one credential. LLM nodes will reference it by id only, so its

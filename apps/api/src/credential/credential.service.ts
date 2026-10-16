@@ -15,6 +15,7 @@ const CREDENTIAL_SUMMARY = {
   name: true,
   provider: true,
   baseUrl: true,
+  projectId: true,
   revokedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -29,12 +30,13 @@ export class CredentialService {
   ) {}
 
   /** Unlike workflow API keys nothing is shown once: the user already has the provider key. */
-  async create(dto: CreateCredentialDto) {
+  async create(projectId: string, dto: CreateCredentialDto) {
     const baseUrl = dto.baseUrl ?? null;
     assertBaseUrl(dto.provider, baseUrl);
 
     return this.prisma.credential.create({
       data: {
+        projectId,
         name: dto.name,
         provider: dto.provider,
         baseUrl,
@@ -45,16 +47,18 @@ export class CredentialService {
   }
 
   /** Includes revoked credentials so the UI can explain why a version that uses one fails. */
-  findAll() {
+  findAll(projectId: string) {
     return this.prisma.credential.findMany({
+      where: { projectId },
       orderBy: { createdAt: 'desc' },
       select: CREDENTIAL_SUMMARY,
     });
   }
 
-  async findOne(id: string) {
-    const credential = await this.prisma.credential.findUnique({
-      where: { id },
+  /** Project-scoped lookup — cross-project id returns NOT_FOUND, not 403. */
+  async findOne(projectId: string, id: string) {
+    const credential = await this.prisma.credential.findFirst({
+      where: { id, projectId },
       select: CREDENTIAL_SUMMARY,
     });
 
@@ -66,9 +70,9 @@ export class CredentialService {
   }
 
   /** Omitted fields are kept. A new secret is encrypted and overwrites the old ciphertext unread. */
-  async update(id: string, dto: UpdateCredentialDto) {
-    const current = await this.prisma.credential.findUnique({
-      where: { id },
+  async update(projectId: string, id: string, dto: UpdateCredentialDto) {
+    const current = await this.prisma.credential.findFirst({
+      where: { id, projectId },
       select: { provider: true, baseUrl: true, revokedAt: true },
     });
 
@@ -97,7 +101,17 @@ export class CredentialService {
    * Soft delete. Published versions keep the id in their canvas JSON (no foreign key can protect
    * it), so the row stays and runs can fail with CREDENTIAL_REVOKED instead of a dangling id.
    */
-  async revoke(id: string) {
+  async revoke(projectId: string, id: string) {
+    // Verify project ownership first.
+    const exists = await this.prisma.credential.findFirst({
+      where: { id, projectId },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      throw notFound(id);
+    }
+
     const result = await this.prisma.credential.updateMany({
       where: { id, revokedAt: null },
       data: { revokedAt: new Date() },

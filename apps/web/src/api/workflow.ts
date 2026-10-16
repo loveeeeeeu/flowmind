@@ -11,6 +11,7 @@ import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
 import { request } from './client';
 
 export function getWorkflows(
+  projectId: string,
   page = 1,
   pageSize = 10,
   keyword = '',
@@ -24,40 +25,39 @@ export function getWorkflows(
     params.set('keyword', keyword);
   }
 
-  return request<WorkflowListResponse>(`/workflows?${params.toString()}`);
+  return request<WorkflowListResponse>(`/projects/${projectId}/workflows?${params.toString()}`);
 }
 
-export function getWorkflow(id: string): Promise<WorkflowDetail> {
-  return request<WorkflowDetail>(`/workflows/${id}`);
+export function getWorkflow(projectId: string, id: string): Promise<WorkflowDetail> {
+  return request<WorkflowDetail>(`/projects/${projectId}/workflows/${id}`);
 }
 
-export function createWorkflow(input: CreateWorkflowInput): Promise<Workflow> {
-  return request<Workflow>('/workflows', {
+export function createWorkflow(projectId: string, input: CreateWorkflowInput): Promise<Workflow> {
+  return request<Workflow>(`/projects/${projectId}/workflows`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
 }
 
-export function updateWorkflow(
-  id: string,
+export function updateWorkflow(projectId: string, id: string,
   input: UpdateWorkflowInput,
 ): Promise<Workflow> {
-  return request<Workflow>(`/workflows/${id}`, {
+  return request<Workflow>(`/projects/${projectId}/workflows/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
 }
 
-export function deleteWorkflow(id: string): Promise<Workflow> {
-  return request<Workflow>(`/workflows/${id}`, {
+export function deleteWorkflow(projectId: string, id: string): Promise<Workflow> {
+  return request<Workflow>(`/projects/${projectId}/workflows/${id}`, {
     method: 'DELETE',
   });
 }
 
-export function updateWorkflowCanvas(id: string, canvas: WorkflowCanvas): Promise<Workflow> {
-  return request<Workflow>(`/workflows/${id}/canvas`, {
+export function updateWorkflowCanvas(projectId: string, id: string, canvas: WorkflowCanvas): Promise<Workflow> {
+  return request<Workflow>(`/projects/${projectId}/workflows/${id}/canvas`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(canvas),
@@ -65,19 +65,18 @@ export function updateWorkflowCanvas(id: string, canvas: WorkflowCanvas): Promis
 }
 
 /** No body on purpose: the server publishes the draft it has saved, never an unsaved canvas. */
-export function publishWorkflow(id: string): Promise<WorkflowVersionSummary> {
-  return request<WorkflowVersionSummary>(`/workflows/${id}/publish`, {
+export function publishWorkflow(projectId: string, id: string): Promise<WorkflowVersionSummary> {
+  return request<WorkflowVersionSummary>(`/projects/${projectId}/workflows/${id}/publish`, {
     method: 'POST',
   });
 }
 
-export function getWorkflowVersions(workflowId: string): Promise<WorkflowVersionSummary[]> {
-  return request<WorkflowVersionSummary[]>(`/workflows/${workflowId}/versions`);
+export function getWorkflowVersions(projectId: string, workflowId: string): Promise<WorkflowVersionSummary[]> {
+  return request<WorkflowVersionSummary[]>(`/projects/${projectId}/workflows/${workflowId}/versions`);
 }
 
-export function getWorkflowVersion(
-  workflowId: string,
+export function getWorkflowVersion(projectId: string, workflowId: string,
   versionId: string,
 ): Promise<WorkflowVersionDetail> {
-  return request<WorkflowVersionDetail>(`/workflows/${workflowId}/versions/${versionId}`);
+  return request<WorkflowVersionDetail>(`/projects/${projectId}/workflows/${workflowId}/versions/${versionId}`);
 }

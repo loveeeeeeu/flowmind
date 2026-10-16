@@ -10,6 +10,7 @@ import type { Credential } from '../../types/credential';
 import { parseContextWindow } from './modelFormat';
 
 interface ImportModelsDialogProps {
+  projectId: string;
   credential: Credential;
   onClose: () => void;
 }
@@ -39,14 +40,14 @@ function importErrorText(error: Error) {
  * Discover -> select -> confirm metadata -> import. Fetching the list writes nothing; the server
  * re-checks every selected id against the provider before creating models.
  */
-export function ImportModelsDialog({ credential, onClose }: ImportModelsDialogProps) {
+export function ImportModelsDialog({ projectId, credential, onClose }: ImportModelsDialogProps) {
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, ImportDraft>>({});
   const [search, setSearch] = useState('');
 
   const remoteQuery = useQuery({
-    queryKey: queryKeys.credentials.remoteModels(credential.id),
-    queryFn: () => getRemoteModels(credential.id),
+    queryKey: queryKeys.credentials.remoteModels(projectId, credential.id),
+    queryFn: () => getRemoteModels(projectId, credential.id),
     retry: false,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -55,6 +56,7 @@ export function ImportModelsDialog({ credential, onClose }: ImportModelsDialogPr
   const importMutation = useMutation({
     mutationFn: () =>
       importModels(
+        projectId,
         credential.id,
         Object.entries(drafts).map(([modelName, draft]) => {
           const contextWindow = parseContextWindow(draft.contextWindow);
@@ -68,7 +70,7 @@ export function ImportModelsDialog({ credential, onClose }: ImportModelsDialogPr
         }),
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.models.all(projectId) });
       onClose();
     },
   });

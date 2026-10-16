@@ -53,8 +53,8 @@ export class ModelService {
   ) {}
 
   /** Manual add: any modelName, for providers whose GET /models is missing or incomplete. */
-  async create(credentialId: string, dto: CreateModelDto) {
-    await this.assertUsableCredential(credentialId);
+  async create(projectId: string, credentialId: string, dto: CreateModelDto) {
+    await this.assertUsableCredential(projectId, credentialId);
 
     try {
       return await this.prisma.model.create({
@@ -74,7 +74,7 @@ export class ModelService {
    * Import from the provider: unlike create, every modelName must be one of the provider's
    * current model ids, re-fetched here instead of trusting the client's list. All or nothing.
    */
-  async importModels(credentialId: string, dto: ImportModelsDto) {
+  async importModels(projectId: string, credentialId: string, dto: ImportModelsDto) {
     const names = dto.models.map((model) => model.modelName);
     const repeated = names.filter((name, index) => names.indexOf(name) !== index);
 
@@ -93,7 +93,7 @@ export class ModelService {
 
     // Also rejects unknown and revoked credentials before anything is written.
     const remote = new Set(
-      (await this.connection.fetchRemoteModels(credentialId)).map((model) => model.id),
+      (await this.connection.fetchRemoteModels(projectId, credentialId)).map((model) => model.id),
     );
     const missing = names.filter((name) => !remote.has(name));
 
@@ -121,9 +121,9 @@ export class ModelService {
   }
 
   /** Management view: disabled models included (listed last) so they can be re-enabled. */
-  async findByCredential(credentialId: string) {
-    const credential = await this.prisma.credential.findUnique({
-      where: { id: credentialId },
+  async findByCredential(projectId: string, credentialId: string) {
+    const credential = await this.prisma.credential.findFirst({
+      where: { id: credentialId, projectId },
       select: { id: true },
     });
 
@@ -138,17 +138,18 @@ export class ModelService {
     });
   }
 
-  findAvailable() {
+  /** Model picker: only models in this project, enabled, credential not revoked. */
+  findAvailable(projectId: string) {
     return this.prisma.model.findMany({
-      where: { enabled: true, credential: { revokedAt: null } },
+      where: { enabled: true, credential: { projectId, revokedAt: null } },
       orderBy: [{ credential: { name: 'asc' } }, { name: 'asc' }],
       select: AVAILABLE_MODEL,
     });
   }
 
-  async findOne(id: string) {
-    const model = await this.prisma.model.findUnique({
-      where: { id },
+  async findOne(projectId: string, id: string) {
+    const model = await this.prisma.model.findFirst({
+      where: { id, credential: { projectId } },
       select: { ...MODEL_SUMMARY, credential: { select: MODEL_CREDENTIAL } },
     });
 
@@ -159,7 +160,8 @@ export class ModelService {
     return model;
   }
 
-  async update(id: string, dto: UpdateModelDto) {
+  async update(projectId: string, id: string, dto: UpdateModelDto) {
+    await this.findOne(projectId, id);
     try {
       return await this.prisma.model.update({
         where: { id },
@@ -181,7 +183,8 @@ export class ModelService {
   }
 
   /** Disable, never delete: published versions may still reference the id. */
-  async disable(id: string) {
+  async disable(projectId: string, id: string) {
+    await this.findOne(projectId, id);
     const result = await this.prisma.model.updateMany({
       where: { id, enabled: true },
       data: { enabled: false },
@@ -192,9 +195,9 @@ export class ModelService {
     }
   }
 
-  private async assertUsableCredential(credentialId: string) {
-    const credential = await this.prisma.credential.findUnique({
-      where: { id: credentialId },
+  private async assertUsableCredential(projectId: string, credentialId: string) {
+    const credential = await this.prisma.credential.findFirst({
+      where: { id: credentialId, projectId },
       select: { revokedAt: true },
     });
 

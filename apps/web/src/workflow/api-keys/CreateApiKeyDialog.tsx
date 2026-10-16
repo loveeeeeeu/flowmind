@@ -5,6 +5,7 @@ import { createWorkflowApiKey } from '../../api/apiKeys';
 import { queryKeys } from '../../api/queryKeys';
 
 interface CreateApiKeyDialogProps {
+  projectId: string;
   workflowId: string;
   onClose: () => void;
 }
@@ -15,16 +16,16 @@ type CopyState = 'idle' | 'copied' | 'failed';
  * Shows the raw key exactly once. It lives only in this dialog's mutation result, which is
  * dropped when the dialog unmounts; the server cannot show it again because it only has a hash.
  */
-export function CreateApiKeyDialog({ workflowId, onClose }: CreateApiKeyDialogProps) {
+export function CreateApiKeyDialog({ projectId, workflowId, onClose }: CreateApiKeyDialogProps) {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [copyState, setCopyState] = useState<CopyState>('idle');
 
   const createMutation = useMutation({
-    mutationFn: (keyName: string) => createWorkflowApiKey(workflowId, keyName),
+    mutationFn: (keyName: string) => createWorkflowApiKey(projectId, workflowId, keyName),
     gcTime: 0,
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.list(workflowId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.list(projectId, workflowId) }),
   });
   const createdKey = createMutation.data?.key ?? null;
 

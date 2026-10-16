@@ -8,23 +8,24 @@ import { formatRunTime } from '../execution/runUtils';
 import { CreateApiKeyDialog } from './CreateApiKeyDialog';
 
 interface ApiKeyListProps {
+  projectId: string;
   workflowId: string;
   hasPublishedVersion: boolean;
 }
 
-export function ApiKeyList({ workflowId, hasPublishedVersion }: ApiKeyListProps) {
+export function ApiKeyList({ projectId, workflowId, hasPublishedVersion }: ApiKeyListProps) {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
 
   const keysQuery = useQuery({
-    queryKey: queryKeys.apiKeys.list(workflowId),
-    queryFn: () => getWorkflowApiKeys(workflowId),
+    queryKey: queryKeys.apiKeys.list(projectId, workflowId),
+    queryFn: () => getWorkflowApiKeys(projectId, workflowId),
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (keyId: string) => revokeWorkflowApiKey(workflowId, keyId),
+    mutationFn: (keyId: string) => revokeWorkflowApiKey(projectId, workflowId, keyId),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.list(workflowId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.list(projectId, workflowId) }),
   });
 
   function revoke(apiKey: WorkflowApiKey) {
@@ -104,7 +105,7 @@ export function ApiKeyList({ workflowId, hasPublishedVersion }: ApiKeyListProps)
       )}
 
       {isCreating && (
-        <CreateApiKeyDialog workflowId={workflowId} onClose={() => setIsCreating(false)} />
+        <CreateApiKeyDialog projectId={projectId} workflowId={workflowId} onClose={() => setIsCreating(false)} />
       )}
     </section>
   );

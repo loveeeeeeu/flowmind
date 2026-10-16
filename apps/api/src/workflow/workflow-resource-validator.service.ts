@@ -9,12 +9,15 @@ import { PrismaService } from '../prisma/prisma.service.js';
  *
  * Only for new executions of the editor's canvas (publish, test run). A published version that
  * references a model disabled later still runs; a revoked credential fails at run time instead.
+ *
+ * The projectId parameter enforces isolation: a model belonging to a different project's
+ * credential is treated as not found (MODEL_NOT_FOUND, not a 403) to prevent existence probing.
  */
 @Injectable()
 export class WorkflowResourceValidator {
   constructor(private readonly prisma: PrismaService) {}
 
-  async validateForDraft(canvas: WorkflowCanvas) {
+  async validateForDraft(projectId: string, canvas: WorkflowCanvas) {
     const llmNodes = canvas.nodes
       .filter((node) => node.type === 'llm')
       .map((node) => ({ nodeId: node.id, modelId: node.data.modelId as string }));
@@ -24,8 +27,13 @@ export class WorkflowResourceValidator {
     }
 
     // One query however many nodes share a model.
+    // The credential.projectId join enforces project isolation: a modelId from another
+    // project simply returns no row → MODEL_NOT_FOUND (not 403).
     const models = await this.prisma.model.findMany({
-      where: { id: { in: [...new Set(llmNodes.map((node) => node.modelId))] } },
+      where: {
+        id: { in: [...new Set(llmNodes.map((node) => node.modelId))] },
+        credential: { projectId },
+      },
       select: { id: true, enabled: true, credential: { select: { revokedAt: true } } },
     });
     const modelsById = new Map(models.map((model) => [model.id, model]));
