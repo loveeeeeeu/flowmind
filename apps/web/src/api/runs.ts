@@ -28,12 +28,12 @@ export function createWorkflowTestRun(
   });
 }
 
-export function getWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
-  return request<WorkflowRunDetail>(`/runs/${runId}`);
+export function getWorkflowRun(projectId: string, runId: string): Promise<WorkflowRunDetail> {
+  return request<WorkflowRunDetail>(`/projects/${projectId}/runs/${runId}`);
 }
 
-export function getWorkflowRunLogs(runId: string): Promise<ExecutionLog[]> {
-  return request<ExecutionLog[]>(`/runs/${runId}/logs`);
+export function getWorkflowRunLogs(projectId: string, runId: string): Promise<ExecutionLog[]> {
+  return request<ExecutionLog[]>(`/projects/${projectId}/runs/${runId}/logs`);
 }
 
 export function getWorkflowRuns(projectId: string, workflowId: string): Promise<WorkflowRunSummary[]> {

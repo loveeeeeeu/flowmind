@@ -21,6 +21,7 @@ import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 import { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { TestWorkflowDto } from './dto/test-workflow.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
 
 /**
  * All workflow management routes are scoped under a project.
@@ -29,7 +30,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
  */
 @ApiTags('Workflows')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
 @Controller('projects/:projectId/workflows')
 export class WorkflowController {
   constructor(

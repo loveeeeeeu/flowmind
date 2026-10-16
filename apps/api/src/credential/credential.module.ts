@@ -4,8 +4,10 @@ import { CredentialConnectionService } from './credential-connection.service.js'
 import { CredentialCryptoService } from './credential-crypto.service.js';
 import { CredentialController } from './credential.controller.js';
 import { CredentialService } from './credential.service.js';
+import { ProjectModule } from '../project/project.module.js';
 
 @Module({
+  imports: [ProjectModule],
   controllers: [CredentialController],
   providers: [
     CredentialService,

@@ -30,10 +30,10 @@ export const queryKeys = {
   },
   runs: {
     all: ['runs'] as const,
-    detail: (runId: string) => ['runs', 'detail', runId] as const,
+    detail: (projectId: string, runId: string) => ['runs', projectId, 'detail', runId] as const,
     // Status is part of the key so a status change (e.g. RUNNING -> SUCCESS) triggers one more
     // fetch after polling stops, picking up the final "运行成功/运行失败" entry.
-    logs: (runId: string, status: string) => ['runs', 'detail', runId, 'logs', status] as const,
+    logs: (projectId: string, runId: string, status: string) => ['runs', projectId, 'detail', runId, 'logs', status] as const,
     workflowHistory: (projectId: string, workflowId: string) => ['runs', projectId, 'workflow', workflowId] as const,
   },
 };

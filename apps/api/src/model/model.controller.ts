@@ -16,11 +16,12 @@ import { ImportModelsDto } from './dto/import-models.dto.js';
 import { UpdateModelDto } from './dto/update-model.dto.js';
 import { ModelService } from './model.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
 
 // Credential-scoped model management: all routes inherit the credential's project.
 @ApiTags('Models')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
 @Controller('projects/:projectId/credentials/:credentialId/models')
 export class CredentialModelController {
   constructor(private readonly models: ModelService) {}
@@ -57,7 +58,7 @@ export class CredentialModelController {
 // Global model read/write routes (non-credential-scoped ops).
 @ApiTags('Models')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
 @Controller('projects/:projectId/models')
 export class ModelController {
   constructor(private readonly models: ModelService) {}

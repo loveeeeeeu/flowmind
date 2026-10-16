@@ -13,10 +13,10 @@ import { isTerminalRunStatus, isUnfinishedRun } from './runUtils';
 
 const RUN_POLL_INTERVAL_MS = 1000;
 
-function useRunDetail(runId: string | null) {
+function useRunDetail(projectId: string, runId: string | null) {
   return useQuery({
-    queryKey: queryKeys.runs.detail(runId ?? ''),
-    queryFn: () => getWorkflowRun(runId as string),
+    queryKey: queryKeys.runs.detail(projectId, runId ?? ''),
+    queryFn: () => getWorkflowRun(projectId, runId as string),
     enabled: runId !== null,
     refetchInterval: (query) =>
       isTerminalRunStatus(query.state.data?.status) ? false : RUN_POLL_INTERVAL_MS,
@@ -44,9 +44,9 @@ export function useExecutionState(projectId: string, workflowId: string) {
     activeRunId ?? history?.find(isUnfinishedRun)?.id ?? history?.[0]?.id ?? null;
   const viewedRunId = selectedRunId ?? trackedRunId;
 
-  const trackedRunQuery = useRunDetail(trackedRunId);
+  const trackedRunQuery = useRunDetail(projectId, trackedRunId);
   // Same query key as trackedRunQuery when both point at one run, so it is fetched only once.
-  const viewedRunQuery = useRunDetail(viewedRunId);
+  const viewedRunQuery = useRunDetail(projectId, viewedRunId);
 
   // Polling the detail finishes before the history list knows; refresh the summary once.
   const historyIsBehind = [trackedRunQuery.data, viewedRunQuery.data].some((run) => {
@@ -89,6 +89,7 @@ export function useExecutionState(projectId: string, workflowId: string) {
   });
 
   return {
+    projectId,
     isOpen,
     setIsOpen,
     historyQuery,

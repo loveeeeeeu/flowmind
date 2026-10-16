@@ -801,4 +801,44 @@ Authorization: Bearer token
 挂到 request(例如将用户id挂到请求，使用用户id查数据)
 ```
 
-#
+# 真正阻止跨 Project 访问
+上一课我们已经完成：“这次 HTTP 请求是谁发的。” 认证通过 ≠ 有权访问所有资源。这一课要补上， 当前登录用户，是否属于 URL 中指定的那个 Project,你能不能访问这个 Project？
+## 最终请求链要变成
+```
+JWT
+↓
+Current User
+↓
+Project Membership Guard （即使用户伪造 URL / API 请求也不能访问）
+↓
+ProjectMember
+↓
+Resource Query
+```
+## 先冻结 5 条规则
+```
+Rule 1
+所有 Management API 都必须先通过 JWT。
+
+Rule 2
+访问带 projectId 的资源前，必须确认当前 User 是 ProjectMember。
+
+Rule 3
+不是成员时，不返回 Project 是否存在。
+
+Rule 4
+即使 Guard 放行，Service 查询资源时仍然要带 projectId。
+
+Rule 5
+External API 不走 Project Membership Guard。
+```
+JWT Guard 解决：你是谁？,而ProjectMembershipGuard 解决：你是不是这个 Project 的成员？
+## 形成了双层隔离
+第一层：成员隔离
+检查 User → Project
+当前用户是不是这个项目成员？
+
+第二层：资源隔离
+检查 Resource → Project（所有查询带preject id）
+当前资源是不是属于这个项目？
+## 

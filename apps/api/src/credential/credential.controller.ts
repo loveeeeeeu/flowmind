@@ -16,12 +16,13 @@ import { CredentialService } from './credential.service.js';
 import { CreateCredentialDto } from './dto/create-credential.dto.js';
 import { UpdateCredentialDto } from './dto/update-credential.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
 
 // Internal management API: protected by user auth later (Sprint 10 Lesson 2). No endpoint returns
 // the secret or its ciphertext; the service selects a whitelist of fields.
 @ApiTags('Credentials')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
 @Controller('projects/:projectId/credentials')
 export class CredentialController {
   constructor(

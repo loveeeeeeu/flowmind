@@ -3,18 +3,19 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { apiError } from '../../common/api-error.js';
 import { WorkflowRunService } from './workflow-run.service.js';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
+import { ProjectMembershipGuard } from '../../project/project-membership.guard.js';
 
 @ApiTags('Runs')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard)
-@Controller('runs')
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@Controller('projects/:projectId/runs')
 export class RunController {
   constructor(private readonly runs: WorkflowRunService) {}
 
   @ApiOperation({ summary: 'Get a workflow run and its node runs' })
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    const run = await this.runs.findOne(id);
+  async findOne(@Param('projectId') projectId: string, @Param('id') id: string) {
+    const run = await this.runs.findOne(projectId, id);
 
     if (!run) {
       throw apiError.notFound('RUN_NOT_FOUND', `Run ${id} not found`);
@@ -25,8 +26,8 @@ export class RunController {
 
   @ApiOperation({ summary: 'Get the execution logs of a workflow run (oldest first, max 500)' })
   @Get(':id/logs')
-  async findLogs(@Param('id') id: string) {
-    const logs = await this.runs.findLogs(id);
+  async findLogs(@Param('projectId') projectId: string, @Param('id') id: string) {
+    const logs = await this.runs.findLogs(projectId, id);
 
     if (!logs) {
       throw apiError.notFound('RUN_NOT_FOUND', `Run ${id} not found`);

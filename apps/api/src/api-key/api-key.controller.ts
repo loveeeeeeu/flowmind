@@ -13,11 +13,12 @@ import { ApiBearerAuth, ApiCreatedResponse, ApiNoContentResponse, ApiOperation, 
 import { ApiKeyService } from './api-key.service.js';
 import { CreateApiKeyDto } from './dto/create-api-key.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
 
 // Internal management API: protected by user auth later (Sprint 10), not by API keys.
 @ApiTags('API Keys')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
 @Controller('projects/:projectId/workflows/:workflowId/api-keys')
 export class ApiKeyController {
   constructor(private readonly apiKeys: ApiKeyService) {}

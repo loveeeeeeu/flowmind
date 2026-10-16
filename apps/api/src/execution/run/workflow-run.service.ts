@@ -76,9 +76,9 @@ export class WorkflowRunService {
     });
   }
 
-  findOne(runId: string) {
-    return this.prisma.workflowRun.findUnique({
-      where: { id: runId },
+  findOne(projectId: string, runId: string) {
+    return this.prisma.workflowRun.findFirst({
+      where: { id: runId, workflow: { projectId } },
       // Polled every second while running; the snapshot can be large and the UI doesn't show it yet.
       omit: { draftSnapshot: true },
       include: {
@@ -94,9 +94,9 @@ export class WorkflowRunService {
   }
 
   /** Kept out of findOne: logs grow much faster than node runs and are loaded on demand. */
-  async findLogs(runId: string) {
-    const run = await this.prisma.workflowRun.findUnique({
-      where: { id: runId },
+  async findLogs(projectId: string, runId: string) {
+    const run = await this.prisma.workflowRun.findFirst({
+      where: { id: runId, workflow: { projectId } },
       select: { id: true },
     });
 

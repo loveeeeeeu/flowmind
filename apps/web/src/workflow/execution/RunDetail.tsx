@@ -17,6 +17,7 @@ import {
 type RunDetailView = 'trace' | 'logs';
 
 interface RunDetailProps {
+  projectId: string;
   run: WorkflowRunDetail | undefined;
   isLoading: boolean;
   refreshError: Error | null;
@@ -30,6 +31,7 @@ interface RunDetailProps {
 }
 
 export function RunDetail({
+  projectId,
   run,
   isLoading,
   refreshError,
@@ -185,6 +187,7 @@ export function RunDetail({
         />
       ) : (
         <ExecutionLogList
+          projectId={projectId}
           runId={run.id}
           runStatus={run.status}
           nodeRuns={run.nodeRuns}

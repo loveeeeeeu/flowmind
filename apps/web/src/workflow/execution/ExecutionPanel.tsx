@@ -198,6 +198,7 @@ export function ExecutionPanel({
 
           <div className="execution-main">
             <RunDetail
+              projectId={execution.projectId}
               run={viewedRunQuery.data}
               isLoading={viewedRunQuery.isLoading || historyQuery.isLoading}
               refreshError={viewedRunQuery.error}
