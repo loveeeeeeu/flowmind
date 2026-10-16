@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getProjects, type ProjectRole } from '../api/projects';
+import { canEditProjectResources, canManageProject } from './projectPermissions';
 
 /**
  * UI convenience only. The API still enforces every write through ProjectRoleGuard.
@@ -16,8 +17,8 @@ export function useProjectPermissions(projectId: string) {
 
   return {
     role,
-    canEdit: role === 'OWNER' || role === 'EDITOR',
-    canManageProject: role === 'OWNER',
+    canEdit: canEditProjectResources(role),
+    canManageProject: canManageProject(role),
     isLoading: projectsQuery.isPending,
   };
 }

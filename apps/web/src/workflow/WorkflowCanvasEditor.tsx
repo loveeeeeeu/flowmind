@@ -518,7 +518,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }, [canEdit, isDirty, isPreviewing, saveCanvasMutation]);
 
   return (
-    <div className="workflow-editor">
+    <div className="workflow-editor" data-can-edit={canEdit}>
       <header className="editor-toolbar">
         <div className="editor-identity">
           <Link className="editor-back" to={`/projects/${projectId}/workflows/${workflow.id}`} aria-label="返回工作流详情">

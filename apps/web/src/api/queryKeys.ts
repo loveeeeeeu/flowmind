@@ -1,4 +1,7 @@
 export const queryKeys = {
+  projectMembers: {
+    list: (projectId: string) => ['project-members', projectId, 'list'] as const,
+  },
   workflows: {
     all: (projectId: string) => ['workflows', projectId] as const,
     lists: (projectId: string) => ['workflows', projectId, 'list'] as const,

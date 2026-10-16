@@ -394,3 +394,20 @@ a { color: inherit; }
 @media (max-width: 1050px){.execution-side{width:240px}.workspace-page{padding:30px 24px}.global-nav-links{margin-left:0}.global-nav-links a:nth-child(n+3){display:none}.node-library{width:180px}.properties-panel{width:300px}}
 
 .auth-page{display:grid;min-height:100vh;place-items:center;background:#f5f7fb;padding:24px}.auth-card{display:grid;width:min(400px,100%);gap:14px;padding:32px;border:1px solid #e2e7f0;border-radius:14px;background:#fff;box-shadow:0 12px 35px rgba(30,50,90,.08)}.auth-card h1,.auth-card p{margin:0}.auth-card>p{color:#7b879d;font-size:14px}.auth-brand{color:#3868e9;font-size:20px;font-weight:800}.auth-card label{display:grid;gap:6px;color:#4f5c73;font-size:13px;font-weight:600}.auth-card input{padding:10px 12px;border:1px solid #dbe2ee;border-radius:8px;font:inherit}.auth-card button{justify-content:center}.auth-error{padding:9px 11px;border-radius:8px;background:#fff2f4;color:#c63755;font-size:13px}.auth-switch{text-align:center}.auth-switch a{color:#3868e9;font-weight:600}
+
+/* VIEWER can inspect a node but cannot focus or edit any field in its properties panel. */
+.workflow-editor[data-can-edit="false"] .properties-panel input,
+.workflow-editor[data-can-edit="false"] .properties-panel textarea,
+.workflow-editor[data-can-edit="false"] .properties-panel select { pointer-events:none; opacity:.62; }
+.workflow-editor[data-can-edit="false"] .properties-panel .panel-delete-button { display:none; }
+
+.member-add-form { display:flex; align-items:end; gap:12px; margin-bottom:20px; padding:16px; border:1px solid #e2e7f0; border-radius:10px; background:#fff; }
+.member-add-form label { display:grid; flex:1; gap:6px; color:#4f5c73; font-size:12px; font-weight:600; }
+.member-add-form input,.member-add-form select,.member-actions select { padding:8px 10px; border:1px solid #dbe2ee; border-radius:7px; background:#fff; font:inherit; }
+.member-list { display:grid; overflow:hidden; border:1px solid #e2e7f0; border-radius:10px; background:#fff; }
+.member-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:15px 18px; border-bottom:1px solid #eef1f6; }
+.member-row:last-child { border-bottom:0; }
+.member-identity { display:grid; gap:3px; min-width:0; }
+.member-identity strong { color:#26344c; }.member-identity span { color:#7b879d; font-size:13px; }
+.member-actions { display:flex; align-items:center; gap:8px; }.member-role { color:#58677f; font-size:12px; font-weight:700; }
+@media (max-width: 650px) { .member-add-form,.member-row { align-items:stretch; flex-direction:column; }.member-actions { justify-content:space-between; } }

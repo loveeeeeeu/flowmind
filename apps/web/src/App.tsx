@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router';
+import { Navigate, NavLink, Route, Routes, useMatch, useNavigate, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMe } from './api/auth';
 import { getProjects } from './api/projects';
@@ -9,6 +9,7 @@ import { WorkflowDetailPage } from './pages/workflows/WorkflowDetailPage.tsx';
 import { WorkflowEditorPage } from './pages/workflows/WorkflowEditorPage.tsx';
 import { CredentialsPage } from './pages/settings/CredentialsPage';
 import { ModelCenterPage } from './pages/settings/ModelCenterPage';
+import { ProjectMembersPage } from './pages/settings/ProjectMembersPage';
 
 function App() {
   return (
@@ -65,6 +66,7 @@ function AppShell({ userName }: { userName: string }) {
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsEntry />} />
         <Route path="/projects/:projectId/settings/models" element={<ModelCenterPage />} />
         <Route path="/projects/:projectId/settings/credentials" element={<CredentialsPage />} />
+        <Route path="/projects/:projectId/settings/members" element={<ProjectMembersPage />} />
         <Route path="*" element={<ProjectEntry />} />
       </Routes>
     </div>
@@ -88,23 +90,28 @@ function ProjectSettingsEntry() {
 }
 
 function ProjectSwitcher() {
-  const { projectId = '' } = useParams();
+  const projectId = useCurrentProjectId();
   const navigate = useNavigate();
   const projects = useProjects();
   return <select className="workspace-switcher" value={projectId} aria-label="项目切换" disabled={!projects.data?.length} onChange={(event) => navigate(`/projects/${event.target.value}/workflows`)}>
     {!projectId && <option value="">我的工作区</option>}
-    {projects.data?.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+    {projects.data?.map((project) => <option key={project.id} value={project.id}>{project.name} · {project.role}</option>)}
   </select>;
 }
 
 function ProjectNav() {
-  const { projectId = '' } = useParams();
+  const projectId = useCurrentProjectId();
   return <NavLink to={projectId ? `/projects/${projectId}/workflows` : '/'}>▦ 工作室</NavLink>;
 }
 
 function SettingsNav() {
-  const { projectId = '' } = useParams();
+  const projectId = useCurrentProjectId();
   return <NavLink to={projectId ? `/projects/${projectId}/settings/models` : '/'}>⚿ 模型设置</NavLink>;
+}
+
+/** Global navigation is outside the nested project routes, so useParams() cannot see :projectId. */
+function useCurrentProjectId() {
+  return useMatch('/projects/:projectId/*')?.params.projectId ?? '';
 }
 
 export default App;
