@@ -8,15 +8,19 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateModelDto } from './dto/create-model.dto.js';
 import { ImportModelsDto } from './dto/import-models.dto.js';
 import { UpdateModelDto } from './dto/update-model.dto.js';
 import { ModelService } from './model.service.js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
 // Credential-scoped model management: all routes inherit the credential's project.
 @ApiTags('Models')
+@ApiBearerAuth('user-jwt')
+@UseGuards(JwtAuthGuard)
 @Controller('projects/:projectId/credentials/:credentialId/models')
 export class CredentialModelController {
   constructor(private readonly models: ModelService) {}
@@ -52,6 +56,8 @@ export class CredentialModelController {
 
 // Global model read/write routes (non-credential-scoped ops).
 @ApiTags('Models')
+@ApiBearerAuth('user-jwt')
+@UseGuards(JwtAuthGuard)
 @Controller('projects/:projectId/models')
 export class ModelController {
   constructor(private readonly models: ModelService) {}

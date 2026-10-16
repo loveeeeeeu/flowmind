@@ -1,6 +1,9 @@
 import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getMe } from './api/auth';
 import { getProjects } from './api/projects';
+import { clearAccessToken, getAccessToken } from './auth/token';
+import { LoginPage, RegisterPage } from './pages/auth/AuthPage';
 import { WorkflowListPage } from './pages/workflows/WorkflowListPage';
 import { WorkflowDetailPage } from './pages/workflows/WorkflowDetailPage.tsx';
 import { WorkflowEditorPage } from './pages/workflows/WorkflowEditorPage.tsx';
@@ -9,11 +12,41 @@ import { ModelCenterPage } from './pages/settings/ModelCenterPage';
 
 function App() {
   return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="*" element={<AuthenticatedApp />} />
+    </Routes>
+  );
+}
+
+function AuthenticatedApp() {
+  const hasToken = Boolean(getAccessToken());
+  const me = useQuery({ queryKey: ['auth', 'me'] as const, queryFn: getMe, enabled: hasToken, retry: false });
+
+  if (!hasToken || me.isError) {
+    return <Navigate to="/login" replace />;
+  }
+  if (me.isPending) {
+    return <main className="auth-page">正在验证登录状态…</main>;
+  }
+  return <AppShell userName={me.data.name ?? me.data.email} />;
+}
+
+function AppShell({ userName }: { userName: string }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  function logout() {
+    clearAccessToken();
+    queryClient.clear();
+    navigate('/login', { replace: true });
+  }
+
+  return (
     <div className="app-shell">
       <header className="global-nav">
         <NavLink to="/" className="brand" aria-label="FlowMind 工作台">
-          <span className="brand-mark"><i /><i /><i /><i /></span>
-          <span>FlowMind</span>
+          <span className="brand-mark"><i /><i /><i /><i /></span><span>FlowMind</span>
         </NavLink>
         <ProjectSwitcher />
         <nav className="global-nav-links" aria-label="主导航">
@@ -22,7 +55,7 @@ function App() {
           <a href="#tools" onClick={(event) => event.preventDefault()}>⌘ 工具</a>
           <SettingsNav />
         </nav>
-        <div className="global-nav-actions"><button className="nav-search" type="button">⌕ 搜索</button><span className="avatar">FM</span></div>
+        <div className="global-nav-actions"><span className="avatar" title={userName}>{userName.slice(0, 2).toUpperCase()}</span><button className="nav-search" type="button" onClick={logout}>退出</button></div>
       </header>
       <Routes>
         <Route path="/" element={<ProjectEntry />} />
@@ -58,18 +91,10 @@ function ProjectSwitcher() {
   const { projectId = '' } = useParams();
   const navigate = useNavigate();
   const projects = useProjects();
-  return (
-    <select
-      className="workspace-switcher"
-      value={projectId}
-      aria-label="项目切换"
-      disabled={!projects.data?.length}
-      onChange={(event) => navigate(`/projects/${event.target.value}/workflows`)}
-    >
-      {!projectId && <option value="">我的工作区</option>}
-      {projects.data?.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-    </select>
-  );
+  return <select className="workspace-switcher" value={projectId} aria-label="项目切换" disabled={!projects.data?.length} onChange={(event) => navigate(`/projects/${event.target.value}/workflows`)}>
+    {!projectId && <option value="">我的工作区</option>}
+    {projects.data?.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+  </select>;
 }
 
 function ProjectNav() {

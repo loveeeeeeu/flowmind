@@ -1,9 +1,12 @@
-import { Controller, Get, Param } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { apiError } from '../../common/api-error.js';
 import { WorkflowRunService } from './workflow-run.service.js';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 
 @ApiTags('Runs')
+@ApiBearerAuth('user-jwt')
+@UseGuards(JwtAuthGuard)
 @Controller('runs')
 export class RunController {
   constructor(private readonly runs: WorkflowRunService) {}

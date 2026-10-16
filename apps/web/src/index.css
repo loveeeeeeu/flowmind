@@ -389,3 +389,5 @@ a { color: inherit; }
 .import-model-empty { padding:14px; color:#9aa4b6; font-size:12px; text-align:center; }
 
 @media (max-width: 1050px){.execution-side{width:240px}.workspace-page{padding:30px 24px}.global-nav-links{margin-left:0}.global-nav-links a:nth-child(n+3){display:none}.node-library{width:180px}.properties-panel{width:300px}}
+
+.auth-page{display:grid;min-height:100vh;place-items:center;background:#f5f7fb;padding:24px}.auth-card{display:grid;width:min(400px,100%);gap:14px;padding:32px;border:1px solid #e2e7f0;border-radius:14px;background:#fff;box-shadow:0 12px 35px rgba(30,50,90,.08)}.auth-card h1,.auth-card p{margin:0}.auth-card>p{color:#7b879d;font-size:14px}.auth-brand{color:#3868e9;font-size:20px;font-weight:800}.auth-card label{display:grid;gap:6px;color:#4f5c73;font-size:13px;font-weight:600}.auth-card input{padding:10px 12px;border:1px solid #dbe2ee;border-radius:8px;font:inherit}.auth-card button{justify-content:center}.auth-error{padding:9px 11px;border-radius:8px;background:#fff2f4;color:#c63755;font-size:13px}.auth-switch{text-align:center}.auth-switch a{color:#3868e9;font-weight:600}

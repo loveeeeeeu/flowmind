@@ -1,6 +1,6 @@
 /**
  * Sprint 10 bootstrap: one-time migration bridge.
- * Creates dev@flowmind.local + "Personal Workspace" project and
+ * Creates a legacy dev@flowmind.local + "Personal Workspace" project and
  * assigns every Workflow / Credential that has no projectId to it.
  *
  * Run ONCE with:
@@ -21,7 +21,13 @@ async function main() {
   const user = await prisma.user.upsert({
     where: { email: 'dev@flowmind.local' },
     update: {},
-    create: { email: 'dev@flowmind.local', name: 'Developer' },
+    // This account is a historical data-migration bridge, not an authentication bypass.
+    // It deliberately has no usable password; register a real account to sign in.
+    create: {
+      email: 'dev@flowmind.local',
+      name: 'Developer',
+      passwordHash: 'legacy-account-password-reset-required',
+    },
   });
   console.log(`User: ${user.id} (${user.email})`);
 

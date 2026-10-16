@@ -9,6 +9,8 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_HOST: z.string().min(1).default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  JWT_SECRET: z.string().min(32),
+  JWT_EXPIRES_IN: z.string().min(1).default('2h'),
 
   // Master key for provider credentials. Must be identical for api and worker, and never
   // change: secrets encrypted with another key cannot be decrypted.

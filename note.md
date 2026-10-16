@@ -758,4 +758,47 @@ GET /projects/:projectId
 ## 数据隔离
 所有资源查询携带：projectId。项目 A 无法通过项目 B 的资源 ID 读取、修改或执行 B 的资源，通常返回 404
 
-# 
+# Auth
+这一课只解决“这次 HTTP 请求是谁发的？”
+## 身份链路
+```
+Register
+   ↓
+User + Password Hash
+
+Login
+   ↓
+验证密码
+   ↓
+签发 JWT
+
+后续请求
+Authorization: Bearer <token>
+   ↓
+验证 JWT
+   ↓
+request.user
+   ↓
+Current User
+```
+## 密码存储方式：hash,只需验证，不需要恢复。
+## Register 时顺便创建 Personal Project
+Create User
++
+Create Personal Workspace = 一个名为 “Personal Workspace” 的 Project
++
+Create OWNER Membership
+## JwtAuthGuard：认证 + 从 Token 得到 Current User
+```Bearer JWT 标准流程就是
+Authorization: Bearer token
+↓
+验证签名
+↓
+验证 expiration
+↓
+取得 claims(jwt playload,例如用户id)
+↓
+挂到 request(例如将用户id挂到请求，使用用户id查数据)
+```
+
+#

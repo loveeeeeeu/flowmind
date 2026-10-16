@@ -9,8 +9,9 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service.js';
 import { WorkflowVersionService } from './workflow-version.service.js';
 import { CreateWorkflowDto } from './dto/create-workflow.dto.js';
@@ -19,6 +20,7 @@ import { QueryWorkflowDto } from './dto/query-workflow.dto.js';
 import { UpdateWorkflowCanvasDto } from './dto/update-workflow-canvas.dto.js';
 import { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { TestWorkflowDto } from './dto/test-workflow.dto.js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
 /**
  * All workflow management routes are scoped under a project.
@@ -26,6 +28,8 @@ import { TestWorkflowDto } from './dto/test-workflow.dto.js';
  * naturally isolated — a workflow from another project always returns 404.
  */
 @ApiTags('Workflows')
+@ApiBearerAuth('user-jwt')
+@UseGuards(JwtAuthGuard)
 @Controller('projects/:projectId/workflows')
 export class WorkflowController {
   constructor(

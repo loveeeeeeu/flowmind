@@ -178,6 +178,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
         REDIS_HOST: 'localhost',
         REDIS_PORT: 6379,
         CREDENTIAL_ENCRYPTION_KEY: masterKeyBase64,
+        JWT_SECRET: 'test-jwt-secret-must-be-at-least-32-characters',
       });
 
       expect(valid.CREDENTIAL_ENCRYPTION_KEY).toBe(masterKeyBase64);

@@ -14,7 +14,23 @@ export class ApiRequestError extends Error {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, init);
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  const token = getAccessToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+
+  if (response.status === 401) {
+    clearAccessToken();
+    // The server is authoritative: an expired token returns the user to Login.
+    if (window.location.pathname !== '/login') {
+      window.location.assign('/login');
+    }
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
@@ -34,3 +50,4 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   return response.json() as Promise<T>;
 }
+import { clearAccessToken, getAccessToken } from '../auth/token';
