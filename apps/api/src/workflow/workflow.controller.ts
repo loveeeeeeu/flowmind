@@ -22,6 +22,8 @@ import { RunWorkflowDto } from '../execution/dto/run-workflow.dto.js';
 import { TestWorkflowDto } from './dto/test-workflow.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
+import { ProjectRoleGuard } from '../project/project-role.guard.js';
+import { ProjectRoles } from '../project/project-roles.decorator.js';
 
 /**
  * All workflow management routes are scoped under a project.
@@ -30,7 +32,7 @@ import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
  */
 @ApiTags('Workflows')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard, ProjectRoleGuard)
 @Controller('projects/:projectId/workflows')
 export class WorkflowController {
   constructor(
@@ -39,6 +41,7 @@ export class WorkflowController {
   ) {}
 
   @ApiOperation({ summary: '创建工作流' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post()
   create(@Param('projectId') projectId: string, @Body() dto: CreateWorkflowDto) {
     return this.workflowService.create(projectId, dto);
@@ -57,6 +60,7 @@ export class WorkflowController {
   }
 
   @ApiOperation({ summary: '更新工作流（只修改传入的字段）' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Patch(':id')
   update(
     @Param('projectId') projectId: string,
@@ -67,12 +71,14 @@ export class WorkflowController {
   }
 
   @ApiOperation({ summary: '删除工作流' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Delete(':id')
   remove(@Param('projectId') projectId: string, @Param('id') id: string) {
     return this.workflowService.remove(projectId, id);
   }
 
   @ApiOperation({ summary: '保存工作流草稿画布' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Patch(':id/canvas')
   updateCanvas(
     @Param('projectId') projectId: string,
@@ -83,12 +89,14 @@ export class WorkflowController {
   }
 
   @ApiOperation({ summary: '校验工作流并生成执行顺序' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post(':id/validate')
   validate(@Param('projectId') projectId: string, @Param('id') id: string) {
     return this.workflowService.validateWorkflow(projectId, id);
   }
 
   @ApiOperation({ summary: '测试当前画布（可未保存）：生成 DRAFT 运行，不创建版本' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post(':id/test-run')
   @HttpCode(HttpStatus.ACCEPTED)
   testRun(
@@ -100,12 +108,14 @@ export class WorkflowController {
   }
 
   @ApiOperation({ summary: '发布已保存的草稿，生成新的不可变版本' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post(':id/publish')
   publish(@Param('projectId') projectId: string, @Param('id') id: string) {
     return this.workflowService.publish(projectId, id);
   }
 
   @ApiOperation({ summary: '运行最新发布版本（异步，返回 PENDING 的运行）' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post(':id/run')
   @HttpCode(HttpStatus.ACCEPTED)
   run(

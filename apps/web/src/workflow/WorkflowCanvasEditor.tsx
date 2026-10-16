@@ -52,6 +52,7 @@ import { VersionHistory } from './version/VersionHistory';
 import { VersionPreviewBanner } from './version/VersionPreviewBanner';
 import { hasUnpublishedChanges } from './version/publishState';
 import { AvailableModelsContext } from './llm/llmNodeData';
+import { useProjectPermissions } from '../auth/useProjectPermissions';
 
 const nodeTypes = {
   start: StartNode,
@@ -102,6 +103,7 @@ interface WorkflowCanvasEditorProps {
 
 export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEditorProps) {
   const queryClient = useQueryClient();
+  const { canEdit } = useProjectPermissions(projectId);
   // Shared (same key) with the LLM properties panel; canvas nodes read it through context.
   const availableModelsQuery = useQuery({
     queryKey: queryKeys.models.available(projectId),
@@ -187,32 +189,41 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<WorkflowNode>[]) => {
+      if (!canEdit) {
+        return;
+      }
       setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
 
       if (changes.some(isCanvasChange)) {
         setIsDirty(true);
       }
     },
-    [setNodes],
+    [canEdit, setNodes],
   );
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange<WorkflowEdge>[]) => {
+      if (!canEdit) {
+        return;
+      }
       setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges));
 
       if (changes.some(isCanvasChange)) {
         setIsDirty(true);
       }
     },
-    [setEdges],
+    [canEdit, setEdges],
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (!canEdit) {
+        return;
+      }
       setEdges((currentEdges) => addEdge(connection, currentEdges));
       setIsDirty(true);
     },
-    [setEdges],
+    [canEdit, setEdges],
   );
 
   const isValidConnection = useCallback(
@@ -271,6 +282,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   );
 
   function addLlmNode() {
+    if (!canEdit) return;
     const newNode: LlmNodeType = {
       id: crypto.randomUUID(),
       type: 'llm',
@@ -291,6 +303,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function addTemplateNode() {
+    if (!canEdit) return;
     const newNode: TemplateNodeType = {
       id: crypto.randomUUID(),
       type: 'template',
@@ -306,6 +319,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
     setIsDirty(true);
   }
   function addVariableNode() {
+    if (!canEdit) return;
     const newNode: VariableNodeType = {
       id: crypto.randomUUID(),
       type: 'variable',
@@ -322,6 +336,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
     setIsDirty(true);
   }
   function addHttpNode() {
+    if (!canEdit) return;
     const newNode: HttpNodeType = {
       id: crypto.randomUUID(),
       type: 'http',
@@ -342,6 +357,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function addIfNode() {
+    if (!canEdit) return;
     const newNode: IfNodeType = {
       id: crypto.randomUUID(),
       type: 'if',
@@ -360,6 +376,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function addLoopNode() {
+    if (!canEdit) return;
     const newNode: LoopNodeType = {
       id: crypto.randomUUID(),
       type: 'loop',
@@ -377,6 +394,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function addCodeNode() {
+    if (!canEdit) return;
     const newNode: CodeNodeType = {
       id: crypto.randomUUID(),
       type: 'code',
@@ -395,6 +413,9 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function updateNodeData(nodeId: string, patch: Partial<WorkflowNodeData>) {
+    if (!canEdit) {
+      return;
+    }
     setNodes((currentNodes) =>
       currentNodes.map((node) => {
         if (node.id !== nodeId) {
@@ -414,6 +435,9 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function replaceNodeData(nodeId: string, data: WorkflowNodeData) {
+    if (!canEdit) {
+      return;
+    }
     setNodes((currentNodes) =>
       currentNodes.map((node) => (node.id === nodeId ? ({ ...node, data } as WorkflowNode) : node)),
     );
@@ -421,6 +445,9 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   }
 
   function deleteNode(nodeId: string) {
+    if (!canEdit) {
+      return;
+    }
     const node = nodes.find((item) => item.id === nodeId);
 
     if (!node || isProtectedNode(node)) {
@@ -478,7 +505,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
 
       event.preventDefault();
 
-      if (isDirty && !isPreviewing && !saveCanvasMutation.isPending) {
+      if (canEdit && isDirty && !isPreviewing && !saveCanvasMutation.isPending) {
         saveCanvasMutation.mutate();
       }
     }
@@ -488,7 +515,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isDirty, isPreviewing, saveCanvasMutation]);
+  }, [canEdit, isDirty, isPreviewing, saveCanvasMutation]);
 
   return (
     <div className="workflow-editor">
@@ -558,7 +585,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
             className="save-action"
             title={isPreviewing ? '预览历史版本时不能保存' : undefined}
             onClick={() => saveCanvasMutation.mutate()}
-            disabled={isPreviewing || !isDirty || saveCanvasMutation.isPending}
+            disabled={!canEdit || isPreviewing || !isDirty || saveCanvasMutation.isPending}
           >
             {saveCanvasMutation.isPending ? '保存中…' : '保存草稿'}
           </button>
@@ -567,6 +594,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
             title={publishBlockedReason ?? '把已保存的草稿发布为新的不可修改版本'}
             onClick={() => publishMutation.mutate()}
             disabled={
+              !canEdit ||
               publishBlockedReason !== null ||
               saveCanvasMutation.isPending ||
               publishMutation.isPending
@@ -588,7 +616,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
 
       <div className="editor-body">
       <NodeLibrary
-        disabled={isPreviewing}
+        disabled={!canEdit || isPreviewing}
         onAddLlm={addLlmNode}
         onAddTemplate={addTemplateNode}
         onAddVariable={addVariableNode}
@@ -607,14 +635,14 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
               edges={isPreviewing ? (previewVersion?.canvas.edges ?? []) : edges}
               nodeTypes={nodeTypes}
               onInit={setFlow}
-              onNodesChange={isPreviewing ? undefined : handleNodesChange}
-              onEdgesChange={isPreviewing ? undefined : handleEdgesChange}
-              onConnect={isPreviewing ? undefined : onConnect}
+              onNodesChange={isPreviewing || !canEdit ? undefined : handleNodesChange}
+              onEdgesChange={isPreviewing || !canEdit ? undefined : handleEdgesChange}
+              onConnect={isPreviewing || !canEdit ? undefined : onConnect}
               isValidConnection={isValidConnection}
-              nodesDraggable={!isPreviewing}
-              nodesConnectable={!isPreviewing}
+              nodesDraggable={!isPreviewing && canEdit}
+              nodesConnectable={!isPreviewing && canEdit}
               elementsSelectable={!isPreviewing}
-              deleteKeyCode={isPreviewing ? null : ['Backspace', 'Delete']}
+              deleteKeyCode={isPreviewing || !canEdit ? null : ['Backspace', 'Delete']}
               onNodeClick={isPreviewing ? undefined : (_, node) => setSelectedNodeId(node.id)}
               onPaneClick={isPreviewing ? undefined : () => setSelectedNodeId(null)}
               fitView
@@ -650,6 +678,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
         workflowUpdatedAt={workflow.updatedAt}
         latestVersion={latestVersion}
         isPreviewing={isPreviewing}
+        canEdit={canEdit}
         getTestCanvas={getTestCanvas}
         nodeLabels={nodeLabels}
         selectedNodeId={selectedNodeId}

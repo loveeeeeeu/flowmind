@@ -10,6 +10,7 @@ import { getProviderOption } from '../../settings/credentials/providers';
 import { ImportModelsDialog } from '../../settings/models/ImportModelsDialog';
 import type { Credential } from '../../types/credential';
 import { formatRunTime } from '../../workflow/execution/runUtils';
+import { useProjectPermissions } from '../../auth/useProjectPermissions';
 
 type DialogState = { mode: 'create' } | { mode: 'edit'; credential: Credential } | null;
 
@@ -18,6 +19,7 @@ export function CredentialsPage() {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [discoveringCredential, setDiscoveringCredential] = useState<Credential | null>(null);
+  const { canEdit } = useProjectPermissions(projectId);
 
   const credentialsQuery = useQuery({
     queryKey: queryKeys.credentials.list(projectId),
@@ -54,7 +56,7 @@ export function CredentialsPage() {
             连接模型供应商所需的 API Key。密钥加密存储，工作流只引用凭证，不会包含密钥本身。
           </div>
         </div>
-        <button type="button" className="primary-button" onClick={() => setDialog({ mode: 'create' })}>
+        <button type="button" className="primary-button" disabled={!canEdit} onClick={() => setDialog({ mode: 'create' })}>
           添加凭证
         </button>
       </header>
@@ -86,6 +88,7 @@ export function CredentialsPage() {
               onEdit={() => setDialog({ mode: 'edit', credential })}
               onRevoke={() => revoke(credential)}
               onDiscover={() => setDiscoveringCredential(credential)}
+              canEdit={canEdit}
             />
           ))}
         </ul>
@@ -117,10 +120,11 @@ interface CredentialCardProps {
   onEdit: () => void;
   onRevoke: () => void;
   onDiscover: () => void;
+  canEdit: boolean;
 }
 
 /** Testing is diagnosis only: the result is not saved and never changes the credential. */
-function CredentialCard({ projectId, credential, revoking, onEdit, onRevoke, onDiscover }: CredentialCardProps) {
+function CredentialCard({ projectId, credential, revoking, onEdit, onRevoke, onDiscover, canEdit }: CredentialCardProps) {
   const provider = getProviderOption(credential.provider);
   const testMutation = useMutation({ mutationFn: () => testCredential(projectId, credential.id) });
 
@@ -159,7 +163,7 @@ function CredentialCard({ projectId, credential, revoking, onEdit, onRevoke, onD
               <button
                 type="button"
                 className="subtle-button"
-                disabled={testMutation.isPending}
+                disabled={!canEdit || testMutation.isPending}
                 onClick={() => testMutation.mutate()}
               >
                 {testMutation.isPending ? '测试中…' : '测试连接'}
@@ -167,17 +171,18 @@ function CredentialCard({ projectId, credential, revoking, onEdit, onRevoke, onD
               <button
                 type="button"
                 className="subtle-button"
+                disabled={!canEdit}
                 onClick={onDiscover}
               >
                 发现模型
               </button>
-              <button type="button" className="subtle-button" onClick={onEdit}>
+              <button type="button" className="subtle-button" disabled={!canEdit} onClick={onEdit}>
                 编辑
               </button>
               <button
                 type="button"
                 className="subtle-button credential-revoke"
-                disabled={revoking}
+                disabled={!canEdit || revoking}
                 onClick={onRevoke}
               >
                 {revoking ? '撤销中…' : '撤销'}

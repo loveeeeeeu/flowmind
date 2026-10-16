@@ -11,12 +11,14 @@ import { ModelFormDialog } from '../../settings/models/ModelFormDialog';
 import { formatContextWindow } from '../../settings/models/modelFormat';
 import type { Credential } from '../../types/credential';
 import type { Model } from '../../types/model';
+import { useProjectPermissions } from '../../auth/useProjectPermissions';
 
 type DialogState = { mode: 'create' } | { mode: 'import' } | { mode: 'edit'; model: Model } | null;
 
 export function ModelCenterPage() {
   const { projectId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { canEdit } = useProjectPermissions(projectId);
 
   const credentialsQuery = useQuery({
     queryKey: queryKeys.credentials.list(projectId),
@@ -71,14 +73,14 @@ export function ModelCenterPage() {
               </li>
             ))}
           </ul>
-          <CredentialModels key={selected.id} projectId={projectId} credential={selected} />
+          <CredentialModels key={selected.id} projectId={projectId} credential={selected} canEdit={canEdit} />
         </div>
       )}
     </main>
   );
 }
 
-function CredentialModels({ projectId, credential }: { projectId: string; credential: Credential }) {
+function CredentialModels({ projectId, credential, canEdit }: { projectId: string; credential: Credential; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogState>(null);
   const revoked = credential.revokedAt !== null;
@@ -122,7 +124,7 @@ function CredentialModels({ projectId, credential }: { projectId: string; creden
           <button
             type="button"
             className="subtle-button"
-            disabled={revoked}
+            disabled={!canEdit || revoked}
             onClick={() => setDialog({ mode: 'import' })}
           >
             从供应商导入
@@ -130,7 +132,7 @@ function CredentialModels({ projectId, credential }: { projectId: string; creden
           <button
             type="button"
             className="primary-button"
-            disabled={revoked}
+            disabled={!canEdit || revoked}
             onClick={() => setDialog({ mode: 'create' })}
           >
             添加模型
@@ -191,6 +193,7 @@ function CredentialModels({ projectId, credential }: { projectId: string; creden
                       <button
                         type="button"
                         className="subtle-button"
+                        disabled={!canEdit}
                         onClick={() => setDialog({ mode: 'edit', model })}
                       >
                         编辑
@@ -198,7 +201,7 @@ function CredentialModels({ projectId, credential }: { projectId: string; creden
                       <button
                         type="button"
                         className={`subtle-button ${model.enabled ? 'credential-revoke' : ''}`}
-                        disabled={toggling}
+                        disabled={!canEdit || toggling}
                         onClick={() => toggle(model)}
                       >
                         {toggling ? '处理中…' : model.enabled ? '停用' : '启用'}

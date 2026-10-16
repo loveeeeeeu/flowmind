@@ -17,12 +17,14 @@ import { CreateCredentialDto } from './dto/create-credential.dto.js';
 import { UpdateCredentialDto } from './dto/update-credential.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
+import { ProjectRoleGuard } from '../project/project-role.guard.js';
+import { ProjectRoles } from '../project/project-roles.decorator.js';
 
 // Internal management API: protected by user auth later (Sprint 10 Lesson 2). No endpoint returns
 // the secret or its ciphertext; the service selects a whitelist of fields.
 @ApiTags('Credentials')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard, ProjectRoleGuard)
 @Controller('projects/:projectId/credentials')
 export class CredentialController {
   constructor(
@@ -31,6 +33,7 @@ export class CredentialController {
   ) {}
 
   @ApiOperation({ summary: 'Create a provider credential (the secret is encrypted, never returned)' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post()
   create(@Param('projectId') projectId: string, @Body() dto: CreateCredentialDto) {
     return this.credentials.create(projectId, dto);
@@ -49,6 +52,7 @@ export class CredentialController {
   }
 
   @ApiOperation({ summary: 'Update name / baseUrl; pass secret only to replace it' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Patch(':id')
   update(
     @Param('projectId') projectId: string,
@@ -62,6 +66,7 @@ export class CredentialController {
     summary: 'Test the connection: GET {baseUrl}/models with the stored key, spends no tokens',
   })
   @ApiOkResponse({ description: '{ "ok": true }; failures are AUTH_ERROR / TIMEOUT / NETWORK_ERROR / ...' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
   test(@Param('projectId') projectId: string, @Param('id') id: string) {
@@ -71,6 +76,7 @@ export class CredentialController {
   @ApiOperation({
     summary: "List the provider's models (read-only, nothing is saved); imported=true if already added",
   })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Get(':id/remote-models')
   listRemoteModels(@Param('projectId') projectId: string, @Param('id') id: string) {
     return this.connection.listRemoteModels(projectId, id);
@@ -78,6 +84,7 @@ export class CredentialController {
 
   @ApiOperation({ summary: 'Revoke a credential (soft delete); workflows using it will fail' })
   @ApiNoContentResponse({ description: 'Revoked' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async revoke(@Param('projectId') projectId: string, @Param('id') id: string) {

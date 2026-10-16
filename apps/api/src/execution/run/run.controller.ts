@@ -4,10 +4,11 @@ import { apiError } from '../../common/api-error.js';
 import { WorkflowRunService } from './workflow-run.service.js';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 import { ProjectMembershipGuard } from '../../project/project-membership.guard.js';
+import { ProjectRoleGuard } from '../../project/project-role.guard.js';
 
 @ApiTags('Runs')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard, ProjectRoleGuard)
 @Controller('projects/:projectId/runs')
 export class RunController {
   constructor(private readonly runs: WorkflowRunService) {}

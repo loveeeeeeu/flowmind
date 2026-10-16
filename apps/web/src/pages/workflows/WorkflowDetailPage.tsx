@@ -5,10 +5,12 @@ import { queryKeys } from '../../api/queryKeys';
 import { WorkflowEditForm } from '../../components/WorkflowEditForm';
 import type { UpdateWorkflowInput } from '../../types/workflow';
 import { ApiKeyList } from '../../workflow/api-keys/ApiKeyList';
+import { useProjectPermissions } from '../../auth/useProjectPermissions';
 
 export function WorkflowDetailPage() {
   const { projectId = '', id = '' } = useParams();
   const queryClient = useQueryClient();
+  const { canEdit } = useProjectPermissions(projectId);
 
   const workflowQuery = useQuery({
     queryKey: queryKeys.workflows.detail(projectId, id),
@@ -67,6 +69,7 @@ export function WorkflowDetailPage() {
         key={workflow.id}
         workflow={workflow}
         pending={updateMutation.isPending}
+        readOnly={!canEdit}
         onSubmit={(input) => updateMutation.mutate(input)}
       />
 
@@ -78,7 +81,13 @@ export function WorkflowDetailPage() {
         <div className="saved-message">已保存更改。</div>
       )}
 
-      <ApiKeyList projectId={projectId} workflowId={workflow.id} hasPublishedVersion={workflow.latestVersion !== null} />
+      {canEdit && (
+        <ApiKeyList
+          projectId={projectId}
+          workflowId={workflow.id}
+          hasPublishedVersion={workflow.latestVersion !== null}
+        />
+      )}
     </main>
   );
 }

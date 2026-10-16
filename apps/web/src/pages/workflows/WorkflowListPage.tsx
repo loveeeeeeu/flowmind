@@ -11,6 +11,7 @@ import { queryKeys } from '../../api/queryKeys';
 import { CreateWorkflowForm } from '../../components/CreateWorkflowForm';
 import { WorkflowSearchForm } from '../../components/WorkflowSearchForm';
 import type { CreateWorkflowInput } from '../../types/workflow';
+import { useProjectPermissions } from '../../auth/useProjectPermissions';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -33,6 +34,7 @@ export function WorkflowListPage() {
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const queryClient = useQueryClient();
+  const { canEdit } = useProjectPermissions(projectId);
 
   const workflowQuery = useQuery({
     queryKey: queryKeys.workflows.list(projectId, page, pageSize, keyword),
@@ -74,7 +76,7 @@ export function WorkflowListPage() {
   }
 
   return (
-    <main className="workspace-page">
+    <main className="workspace-page" data-can-edit={canEdit}>
       <header className="page-title-row">
         <div>
           <p className="page-eyebrow">WORKSPACE</p>

@@ -14,23 +14,27 @@ import { ApiKeyService } from './api-key.service.js';
 import { CreateApiKeyDto } from './dto/create-api-key.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
+import { ProjectRoleGuard } from '../project/project-role.guard.js';
+import { ProjectRoles } from '../project/project-roles.decorator.js';
 
 // Internal management API: protected by user auth later (Sprint 10), not by API keys.
 @ApiTags('API Keys')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard, ProjectRoleGuard)
 @Controller('projects/:projectId/workflows/:workflowId/api-keys')
 export class ApiKeyController {
   constructor(private readonly apiKeys: ApiKeyService) {}
 
   @ApiOperation({ summary: 'Create an API key for a workflow' })
   @ApiCreatedResponse({ description: 'The raw key is returned only in this response' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post()
   create(@Param('projectId') projectId: string, @Param('workflowId') workflowId: string, @Body() dto: CreateApiKeyDto) {
     return this.apiKeys.create(projectId, workflowId, dto.name);
   }
 
   @ApiOperation({ summary: 'List the API keys of a workflow (never returns the key itself)' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Get()
   list(@Param('projectId') projectId: string, @Param('workflowId') workflowId: string) {
     return this.apiKeys.list(projectId, workflowId);
@@ -38,6 +42,7 @@ export class ApiKeyController {
 
   @ApiOperation({ summary: 'Revoke an API key; it stops working immediately' })
   @ApiNoContentResponse({ description: 'Revoked' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Delete(':keyId')
   @HttpCode(HttpStatus.NO_CONTENT)
   async revoke(@Param('projectId') projectId: string, @Param('workflowId') workflowId: string, @Param('keyId') keyId: string) {

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { apiError } from '../common/api-error.js';
 
 @Injectable()
@@ -30,11 +31,14 @@ export class ProjectService {
     return this.prisma.project.findMany({
       where: { members: { some: { userId } } },
       include: {
-        members: { select: { userId: true, role: true } },
+        members: { where: { userId }, select: { role: true } },
         _count: { select: { workflows: true, credentials: true } },
       },
       orderBy: { createdAt: 'asc' },
-    });
+    }).then((projects) => projects.map(({ members, ...project }) => ({
+      ...project,
+      role: members[0]?.role,
+    })));
   }
 
   async findOne(userId: string, projectId: string) {
@@ -44,7 +48,7 @@ export class ProjectService {
         members: { some: { userId } },
       },
       include: {
-        members: { select: { userId: true, role: true } },
+        members: { where: { userId }, select: { role: true } },
         _count: { select: { workflows: true, credentials: true } },
       },
     });
@@ -53,6 +57,11 @@ export class ProjectService {
       throw apiError.notFound('PROJECT_NOT_FOUND', `Project ${projectId} not found`);
     }
 
-    return project;
+    const { members, ...rest } = project;
+    return { ...rest, currentUserRole: members[0]?.role };
+  }
+
+  update(projectId: string, dto: UpdateProjectDto) {
+    return this.prisma.project.update({ where: { id: projectId }, data: { name: dto.name.trim() } });
   }
 }

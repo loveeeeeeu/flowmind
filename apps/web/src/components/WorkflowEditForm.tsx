@@ -5,12 +5,14 @@ interface WorkflowEditFormProps {
   workflow: Workflow;
   onSubmit: (input: UpdateWorkflowInput) => void;
   pending?: boolean;
+  readOnly?: boolean;
 }
 
 export function WorkflowEditForm({
   workflow,
   onSubmit,
   pending = false,
+  readOnly = false,
 }: WorkflowEditFormProps) {
   const [name, setName] = useState(workflow.name);
   const [description, setDescription] = useState(workflow.description ?? '');
@@ -19,6 +21,10 @@ export function WorkflowEditForm({
     event.preventDefault();
 
     if (!name.trim()) {
+      return;
+    }
+
+    if (readOnly) {
       return;
     }
 
@@ -45,6 +51,7 @@ export function WorkflowEditForm({
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
+          disabled={readOnly}
           style={{ width: '100%', padding: 10 }}
         />
       </label>
@@ -54,13 +61,14 @@ export function WorkflowEditForm({
         <textarea
           value={description}
           onChange={(event) => setDescription(event.target.value)}
+          disabled={readOnly}
           rows={5}
           style={{ width: '100%', padding: 10 }}
         />
       </label>
 
       <div>
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={pending || readOnly}>
           {pending ? 'Saving...' : 'Save Changes'}
         </button>
       </div>

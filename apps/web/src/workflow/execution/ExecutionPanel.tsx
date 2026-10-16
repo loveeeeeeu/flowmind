@@ -16,6 +16,8 @@ interface ExecutionPanelProps {
   latestVersion: WorkflowVersionSummary | null;
   /** While a historical version is shown read-only there is no draft on screen to test. */
   isPreviewing: boolean;
+  /** VIEWER can inspect run history but cannot start a test or production run. */
+  canEdit: boolean;
   /** Snapshot of the editor's current canvas, unsaved edits included, taken at click time. */
   getTestCanvas: () => WorkflowCanvas;
   nodeLabels: Record<string, string>;
@@ -29,6 +31,7 @@ export function ExecutionPanel({
   workflowUpdatedAt,
   latestVersion,
   isPreviewing,
+  canEdit,
   getTestCanvas,
   nodeLabels,
   selectedNodeId,
@@ -63,7 +66,7 @@ export function ExecutionPanel({
   function handleRun() {
     const input = readInput();
 
-    if (input) {
+    if (canEdit && input) {
       runMutation.mutate(input);
     }
   }
@@ -72,7 +75,7 @@ export function ExecutionPanel({
   function handleTestDraft() {
     const input = readInput();
 
-    if (input) {
+    if (canEdit && input) {
       testRunMutation.mutate({ input, canvas: getTestCanvas() });
     }
   }
@@ -134,6 +137,7 @@ export function ExecutionPanel({
                     className="code-input execution-input"
                     value={inputText}
                     spellCheck={false}
+                    disabled={!canEdit}
                     onChange={(event) => {
                       setInputText(event.target.value);
                       setInputError(null);
@@ -166,7 +170,7 @@ export function ExecutionPanel({
                     type="button"
                     className="execution-test-button"
                     onClick={handleTestDraft}
-                    disabled={isPreviewing || testRunMutation.isPending}
+                    disabled={!canEdit || isPreviewing || testRunMutation.isPending}
                   >
                     {testRunMutation.isPending ? '启动中…' : '测试草稿'}
                   </button>
@@ -175,7 +179,7 @@ export function ExecutionPanel({
                     className="primary-button execution-run-button"
                     title={latestVersion ? undefined : '请先发布工作流再运行'}
                     onClick={handleRun}
-                    disabled={!latestVersion || runMutation.isPending}
+                    disabled={!canEdit || !latestVersion || runMutation.isPending}
                   >
                     {runMutation.isPending
                       ? '启动中…'

@@ -4,11 +4,12 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { ProjectController } from './project.controller.js';
 import { ProjectService } from './project.service.js';
 import { ProjectMembershipGuard } from './project-membership.guard.js';
+import { ProjectRoleGuard } from './project-role.guard.js';
 
 @Module({
   imports: [PrismaModule, AuthModule],
   controllers: [ProjectController],
-  providers: [ProjectService, ProjectMembershipGuard],
-  exports: [ProjectService, ProjectMembershipGuard],
+  providers: [ProjectService, ProjectMembershipGuard, ProjectRoleGuard],
+  exports: [ProjectService, ProjectMembershipGuard, ProjectRoleGuard],
 })
 export class ProjectModule {}

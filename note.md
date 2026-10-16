@@ -841,4 +841,30 @@ JWT Guard 解决：你是谁？,而ProjectMembershipGuard 解决：你是不是�
 第二层：资源隔离
 检查 Resource → Project（所有查询带preject id）
 当前资源是不是属于这个项目？
-## 
+
+# RBAC 权限控制
+本节课解决的是：同一个 Project 中，不同成员能做什么。
+## 三种角色
+| 角色 | 能做什么 |
+|---|---|
+| OWNER | 项目所有权限；可修改项目本身、后续可管理成员 |
+| EDITOR | 可创建、修改、删除工作流、凭证、模型、API Key；可运行工作流 |
+| VIEWER | 只能查看工作流、运行记录、日志、凭证和模型，不能修改或运行 |
+## 请求经过的四层保护(能说清楚各自职责)
+```
+请求
+  ↓
+JwtAuthGuard
+  ↓ 验证 token，得到当前 user
+ProjectMembershipGuard
+  ↓ 验证 user 是否属于 URL 中的 project
+  ↓ 并把 membership 挂到 request.projectMembership
+ProjectRoleGuard
+  ↓ 根据接口要求，检查 OWNER / EDITOR / VIEWER
+Service 资源隔离
+  ↓ 查询资源时继续带 projectId
+返回数据
+```
+ProjectRoleGuard 不再查数据库，而是直接读取上一步已经查出的 role：含义是：只有 OWNER 和 EDITOR 可以调用这个接口。
+
+#

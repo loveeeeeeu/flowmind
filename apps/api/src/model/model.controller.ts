@@ -17,16 +17,19 @@ import { UpdateModelDto } from './dto/update-model.dto.js';
 import { ModelService } from './model.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
+import { ProjectRoleGuard } from '../project/project-role.guard.js';
+import { ProjectRoles } from '../project/project-roles.decorator.js';
 
 // Credential-scoped model management: all routes inherit the credential's project.
 @ApiTags('Models')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard, ProjectRoleGuard)
 @Controller('projects/:projectId/credentials/:credentialId/models')
 export class CredentialModelController {
   constructor(private readonly models: ModelService) {}
 
   @ApiOperation({ summary: 'Add a model to a credential' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post()
   create(
     @Param('projectId') projectId: string,
@@ -39,6 +42,7 @@ export class CredentialModelController {
   @ApiOperation({
     summary: 'Import selected provider models (each modelName must be listed by GET /models now)',
   })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Post('import')
   importModels(
     @Param('projectId') projectId: string,
@@ -58,7 +62,7 @@ export class CredentialModelController {
 // Global model read/write routes (non-credential-scoped ops).
 @ApiTags('Models')
 @ApiBearerAuth('user-jwt')
-@UseGuards(JwtAuthGuard, ProjectMembershipGuard)
+@UseGuards(JwtAuthGuard, ProjectMembershipGuard, ProjectRoleGuard)
 @Controller('projects/:projectId/models')
 export class ModelController {
   constructor(private readonly models: ModelService) {}
@@ -77,6 +81,7 @@ export class ModelController {
   }
 
   @ApiOperation({ summary: 'Update model metadata; modelName and credentialId are immutable' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Patch(':id')
   update(@Param('projectId') projectId: string, @Param('id') id: string, @Body() dto: UpdateModelDto) {
     return this.models.update(projectId, id, dto);
@@ -84,6 +89,7 @@ export class ModelController {
 
   @ApiOperation({ summary: 'Disable a model (never deleted; published versions keep running)' })
   @ApiNoContentResponse({ description: 'Disabled' })
+  @ProjectRoles('OWNER', 'EDITOR')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async disable(@Param('projectId') projectId: string, @Param('id') id: string) {
