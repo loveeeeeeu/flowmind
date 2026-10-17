@@ -869,3 +869,31 @@ ProjectRoleGuard 不再查数据库，而是直接读取上一步已经查出的
 
 # 把多人协作真正做成产品能力
 之前知道了“你是不是成员”，“你能做什么”，这一刻吧这套能力真正做成用户能操作的产品
+## 准则
+```
+不能把最后一个 OWNER 降级
+
+不能移除最后一个 OWNER
+
+不能重复添加同一个用户
+
+不能添加不存在的 User
+
+成员管理只能发生在当前 Project
+```
+## Add Member 
+```
+email
+↓
+找 User
+↓
+不存在 → USER_NOT_FOUND
+↓
+检查是否已经是成员
+↓
+创建 ProjectMember
+```
+## Update Role DTO
+如果这个人是最后一个 OWNER，不能把他改成 EDITOR / VIEWER
+## Remove Member 同样保护最后一个 OWNER
+## 暂未解决：并发问题：两个 OWNER 同时把自己降级怎么办？

@@ -6,7 +6,7 @@ function createPrisma() {
     workflowRun: {
       create: vi.fn(async () => ({ id: 'run-1' })),
       update: vi.fn(async () => undefined),
-      findUnique: vi.fn(async () => null),
+      findFirst: vi.fn(async () => null),
       findMany: vi.fn(async () => []),
     },
     executionLog: {
@@ -97,10 +97,10 @@ describe('WorkflowRunService', () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
-    await service.findOne('run-1');
+    await service.findOne('project-1', 'run-1');
 
-    expect(prisma.workflowRun.findUnique).toHaveBeenCalledWith({
-      where: { id: 'run-1' },
+    expect(prisma.workflowRun.findFirst).toHaveBeenCalledWith({
+      where: { id: 'run-1', workflow: { projectId: 'project-1' } },
       omit: { draftSnapshot: true },
       include: {
         workflowVersion: { select: { id: true, version: true, createdAt: true } },
@@ -112,10 +112,10 @@ describe('WorkflowRunService', () => {
 
   it('loads at most 500 logs of an existing run, oldest first with a stable tie-break', async () => {
     const prisma = createPrisma();
-    prisma.workflowRun.findUnique.mockResolvedValueOnce({ id: 'run-1' } as never);
+    prisma.workflowRun.findFirst.mockResolvedValueOnce({ id: 'run-1' } as never);
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
-    await expect(service.findLogs('run-1')).resolves.toEqual([{ id: 'log-1' }]);
+    await expect(service.findLogs('project-1', 'run-1')).resolves.toEqual([{ id: 'log-1' }]);
 
     expect(prisma.executionLog.findMany).toHaveBeenCalledWith({
       where: { workflowRunId: 'run-1' },
@@ -128,7 +128,7 @@ describe('WorkflowRunService', () => {
     const prisma = createPrisma();
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
-    await expect(service.findLogs('missing')).resolves.toBeNull();
+    await expect(service.findLogs('project-1', 'missing')).resolves.toBeNull();
     expect(prisma.executionLog.findMany).not.toHaveBeenCalled();
   });
 

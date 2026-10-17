@@ -41,7 +41,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
       credential: {
         create: vi.fn(async () => fakeCredentialRow),
         findMany: vi.fn(async () => [fakeCredentialRow]),
-        findUnique: vi.fn(async () => fakeCredentialRow),
+        findFirst: vi.fn(async () => fakeCredentialRow),
         update: vi.fn(async () => fakeCredentialRow),
         updateMany: vi.fn(async () => ({ count: 1 })),
       },
@@ -53,7 +53,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     );
 
     it('create() only selects public summary fields and never returns raw secret or ciphertext', async () => {
-      await credentialService.create({
+      await credentialService.create('project-1', {
         name: 'Test Credential',
         provider: 'OPENAI',
         baseUrl: 'https://api.openai.com/v1',
@@ -68,10 +68,10 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     });
 
     it('findOne() and findAll() select whitelisted fields only', async () => {
-      await credentialService.findOne('cred-test-1');
-      await credentialService.findAll();
+      await credentialService.findOne('project-1', 'cred-test-1');
+      await credentialService.findAll('project-1');
 
-      const findOneSelect = Object.keys(getCallSelect(prismaMock.credential.findUnique));
+      const findOneSelect = Object.keys(getCallSelect(prismaMock.credential.findFirst));
       const findAllSelect = Object.keys(getCallSelect(prismaMock.credential.findMany));
 
       for (const field of SENSITIVE_FIELDS) {
@@ -81,7 +81,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     });
 
     it('update() preserves secret confidentiality on update', async () => {
-      await credentialService.update('cred-test-1', { name: 'New Name' });
+      await credentialService.update('project-1', 'cred-test-1', { name: 'New Name' });
 
       const updateSelect = Object.keys(getCallSelect(prismaMock.credential.update));
       for (const field of SENSITIVE_FIELDS) {
@@ -115,7 +115,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
 
     const prismaModelMock = {
       model: {
-        findUnique: vi.fn(async () => modelRowWithCredential),
+        findFirst: vi.fn(async () => modelRowWithCredential),
         findMany: vi.fn(async () => [modelRowWithCredential]),
       },
     };
@@ -126,9 +126,9 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     );
 
     it('findOne() specifies explicit whitelist for credential relation without ciphertext', async () => {
-      await modelService.findOne('model-1');
+      await modelService.findOne('project-1', 'model-1');
 
-      const select = getCallSelect(prismaModelMock.model.findUnique) as {
+      const select = getCallSelect(prismaModelMock.model.findFirst) as {
         credential?: { select?: Record<string, unknown> };
       };
       const serializedSelect = JSON.stringify(select);
@@ -141,7 +141,7 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
     });
 
     it('findAvailable() never queries credential secrets', async () => {
-      await modelService.findAvailable();
+      await modelService.findAvailable('project-1');
 
       const select = getCallSelect(prismaModelMock.model.findMany);
       const serialized = JSON.stringify(select);
@@ -198,14 +198,14 @@ describe('Sprint 9 Security & Boundary Invariants', () => {
       const validator = new WorkflowResourceValidator(prisma as unknown as PrismaService);
 
       await expect(
-        validator.validateForDraft({
+        validator.validateForDraft('project-1', {
           nodes: [{ id: 'llm-1', type: 'llm', data: { modelId: 'm1', prompt: 'hi' } }],
           edges: [],
         }),
       ).rejects.toMatchObject({ response: { code: 'MODEL_DISABLED' } });
 
       await expect(
-        validator.validateForDraft({
+        validator.validateForDraft('project-1', {
           nodes: [{ id: 'llm-2', type: 'llm', data: { modelId: 'm2', prompt: 'hi' } }],
           edges: [],
         }),

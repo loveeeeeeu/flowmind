@@ -58,6 +58,8 @@ export class ProjectMemberService {
   }
 
   updateRole(projectId: string, memberId: string, dto: UpdateProjectMemberRoleDto) {
+    // v1 uses a short transaction plus the last-owner check. Two owners concurrently demoting
+    // themselves can still require a serializable isolation/locking strategy in a future hardening sprint.
     return this.prisma.$transaction(async (tx) => {
       const member = await tx.projectMember.findFirst({
         where: { id: memberId, projectId },

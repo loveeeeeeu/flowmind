@@ -12,6 +12,7 @@ const summarySelect = {
   name: true,
   provider: true,
   baseUrl: true,
+  projectId: true,
   revokedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -28,7 +29,7 @@ function setup({ row = { provider: 'OPENAI', baseUrl: null, revokedAt: null } as
     credential: {
       create: vi.fn(async () => ({ id: 'cred-1' })),
       findMany: vi.fn(async () => []),
-      findUnique: vi.fn(async () => row),
+      findFirst: vi.fn(async () => row),
       update: vi.fn(async () => ({ id: 'cred-1' })),
       updateMany: vi.fn(async () => ({ count: revokeCount })),
     },
@@ -47,7 +48,7 @@ describe('CredentialService.create', () => {
   it('stores only the encrypted secret and returns a whitelist of fields', async () => {
     const { service, prisma, crypto } = setup();
 
-    await service.create({ name: 'My DeepSeek', provider: 'DEEPSEEK', baseUrl: 'https://api.deepseek.com', secret: SECRET });
+    await service.create('project-1', { name: 'My DeepSeek', provider: 'DEEPSEEK', baseUrl: 'https://api.deepseek.com', secret: SECRET });
 
     const { data, select } = firstCall(prisma.credential.create);
     expect(data).toMatchObject({ name: 'My DeepSeek', provider: 'DEEPSEEK', baseUrl: 'https://api.deepseek.com' });
@@ -60,7 +61,7 @@ describe('CredentialService.create', () => {
   it('uses the official endpoint (null) when OpenAI / DeepSeek have no baseUrl', async () => {
     const { service, prisma } = setup();
 
-    await service.create({ name: 'OpenAI', provider: 'OPENAI', secret: SECRET });
+    await service.create('project-1', { name: 'OpenAI', provider: 'OPENAI', secret: SECRET });
 
     expect(firstCall(prisma.credential.create).data.baseUrl).toBeNull();
   });
@@ -69,7 +70,7 @@ describe('CredentialService.create', () => {
     const { service, prisma } = setup();
 
     await expect(
-      service.create({ name: 'Local vLLM', provider: 'OPENAI_COMPATIBLE', secret: SECRET }),
+      service.create('project-1', { name: 'Local vLLM', provider: 'OPENAI_COMPATIBLE', secret: SECRET }),
     ).rejects.toThrow(
       apiError.badRequest('CREDENTIAL_BASE_URL_REQUIRED', 'Base URL is required for OpenAI-compatible credentials'),
     );
@@ -81,9 +82,10 @@ describe('CredentialService queries', () => {
   it('lists newest first without secret fields', async () => {
     const { service, prisma } = setup();
 
-    await service.findAll();
+    await service.findAll('project-1');
 
     expect(prisma.credential.findMany).toHaveBeenCalledWith({
+      where: { projectId: 'project-1' },
       orderBy: { createdAt: 'desc' },
       select: summarySelect,
     });
@@ -92,15 +94,15 @@ describe('CredentialService queries', () => {
   it('reads one credential without secret fields', async () => {
     const { service, prisma } = setup();
 
-    await service.findOne('cred-1');
+    await service.findOne('project-1', 'cred-1');
 
-    expect(prisma.credential.findUnique).toHaveBeenCalledWith({ where: { id: 'cred-1' }, select: summarySelect });
+    expect(prisma.credential.findFirst).toHaveBeenCalledWith({ where: { id: 'cred-1', projectId: 'project-1' }, select: summarySelect });
   });
 
   it('returns CREDENTIAL_NOT_FOUND for an unknown id', async () => {
     const { service } = setup({ row: null });
 
-    await expect(service.findOne('missing')).rejects.toThrow(
+    await expect(service.findOne('project-1', 'missing')).rejects.toThrow(
       apiError.notFound('CREDENTIAL_NOT_FOUND', 'Credential missing not found'),
     );
   });
@@ -110,9 +112,9 @@ describe('CredentialService.update', () => {
   it('keeps the old secret when none is sent, without ever reading it', async () => {
     const { service, prisma } = setup();
 
-    await service.update('cred-1', { name: 'Renamed' });
+    await service.update('project-1', 'cred-1', { name: 'Renamed' });
 
-    const lookup = firstCall(prisma.credential.findUnique);
+    const lookup = firstCall(prisma.credential.findFirst);
     expect(Object.keys(lookup.select).filter((field) => SECRET_FIELDS.includes(field))).toEqual([]);
     const { data, select } = firstCall(prisma.credential.update);
     expect(data).toEqual({ name: 'Renamed', baseUrl: undefined });
@@ -122,7 +124,7 @@ describe('CredentialService.update', () => {
   it('re-encrypts a new secret and overwrites the ciphertext', async () => {
     const { service, prisma, crypto } = setup();
 
-    await service.update('cred-1', { secret: 'sk-new' });
+    await service.update('project-1', 'cred-1', { secret: 'sk-new' });
 
     const { data } = firstCall(prisma.credential.update);
     expect(data).not.toHaveProperty('secret');
@@ -132,7 +134,7 @@ describe('CredentialService.update', () => {
   it('can reset OpenAI / DeepSeek to the official endpoint', async () => {
     const { service, prisma } = setup({ row: { provider: 'OPENAI', baseUrl: 'https://proxy.example.com', revokedAt: null } });
 
-    await service.update('cred-1', { baseUrl: null });
+    await service.update('project-1', 'cred-1', { baseUrl: null });
 
     expect(firstCall(prisma.credential.update).data.baseUrl).toBeNull();
   });
@@ -142,17 +144,17 @@ describe('CredentialService.update', () => {
       row: { provider: 'OPENAI_COMPATIBLE', baseUrl: 'http://localhost:8000/v1', revokedAt: null },
     });
 
-    await expect(service.update('cred-1', { baseUrl: null })).rejects.toThrow(
+    await expect(service.update('project-1', 'cred-1', { baseUrl: null })).rejects.toThrow(
       apiError.badRequest('CREDENTIAL_BASE_URL_REQUIRED', 'Base URL is required for OpenAI-compatible credentials'),
     );
-    await expect(service.update('cred-1', { name: 'Still has its URL' })).resolves.toBeDefined();
+    await expect(service.update('project-1', 'cred-1', { name: 'Still has its URL' })).resolves.toBeDefined();
     expect(prisma.credential.update).toHaveBeenCalledTimes(1);
   });
 
   it('refuses to update a revoked credential', async () => {
     const { service, prisma } = setup({ row: { provider: 'OPENAI', baseUrl: null, revokedAt: new Date() } });
 
-    await expect(service.update('cred-1', { secret: 'sk-new' })).rejects.toThrow(
+    await expect(service.update('project-1', 'cred-1', { secret: 'sk-new' })).rejects.toThrow(
       apiError.badRequest('CREDENTIAL_REVOKED', 'Revoked credential cannot be updated'),
     );
     expect(prisma.credential.update).not.toHaveBeenCalled();
@@ -163,7 +165,7 @@ describe('CredentialService.revoke', () => {
   it('soft-deletes only a live credential', async () => {
     const { service, prisma } = setup();
 
-    await service.revoke('cred-1');
+    await service.revoke('project-1', 'cred-1');
 
     expect(prisma.credential.updateMany).toHaveBeenCalledWith({
       where: { id: 'cred-1', revokedAt: null },
@@ -174,7 +176,7 @@ describe('CredentialService.revoke', () => {
   it('returns CREDENTIAL_NOT_FOUND when there is nothing left to revoke', async () => {
     const { service } = setup({ revokeCount: 0 });
 
-    await expect(service.revoke('cred-1')).rejects.toThrow(
+    await expect(service.revoke('project-1', 'cred-1')).rejects.toThrow(
       apiError.notFound('CREDENTIAL_NOT_FOUND', 'Credential cred-1 not found'),
     );
   });

@@ -31,7 +31,7 @@ function createService({
 }: SetupOptions = {}) {
   const prisma = {
     workflow: {
-      findUnique: vi.fn(async () => ({ id: 'workflow-1', status, draftCanvas, draftRevision })),
+      findFirst: vi.fn(async () => ({ id: 'workflow-1', status, draftCanvas, draftRevision })),
       update: vi.fn(async () => ({ id: 'workflow-1' })),
     },
   };
@@ -61,7 +61,7 @@ describe('WorkflowService.updateCanvas', () => {
   it('saves the draft and bumps its revision', async () => {
     const { service, prisma } = createService();
 
-    await service.updateCanvas('workflow-1', validCanvas);
+    await service.updateCanvas('project-1', 'workflow-1', validCanvas);
 
     expect(prisma.workflow.update).toHaveBeenCalledWith({
       where: { id: 'workflow-1' },
@@ -71,9 +71,9 @@ describe('WorkflowService.updateCanvas', () => {
 
   it('returns WORKFLOW_NOT_FOUND for an unknown workflow', async () => {
     const { service, prisma } = createService();
-    prisma.workflow.findUnique.mockResolvedValueOnce(null as never);
+    prisma.workflow.findFirst.mockResolvedValueOnce(null as never);
 
-    await expect(service.updateCanvas('missing', validCanvas)).rejects.toThrow(
+    await expect(service.updateCanvas('project-1', 'missing', validCanvas)).rejects.toThrow(
       apiError.notFound('WORKFLOW_NOT_FOUND', 'Workflow missing not found'),
     );
   });
@@ -83,7 +83,7 @@ describe('WorkflowService.publish', () => {
   it('publishes the validated draft together with the revision it was read at', async () => {
     const { service, versions, prisma } = createService({ draftRevision: 4 });
 
-    await service.publish('workflow-1');
+    await service.publish('project-1', 'workflow-1');
 
     expect(versions.publishValidatedDraft).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
@@ -97,7 +97,7 @@ describe('WorkflowService.publish', () => {
   it('rejects a structurally invalid draft without checking resources or creating a version', async () => {
     const { service, versions, resources } = createService({ draftCanvas: invalidCanvas });
 
-    await expect(service.publish('workflow-1')).rejects.toThrow(
+    await expect(service.publish('project-1', 'workflow-1')).rejects.toThrow(
       apiError.badRequest('WORKFLOW_INVALID', 'Workflow must have exactly one end node'),
     );
     expect(resources.validateForDraft).not.toHaveBeenCalled();
@@ -108,15 +108,15 @@ describe('WorkflowService.publish', () => {
     const { service, versions, resources } = createService();
     resources.validateForDraft.mockRejectedValueOnce(modelDisabled);
 
-    await expect(service.publish('workflow-1')).rejects.toThrow(modelDisabled);
-    expect(resources.validateForDraft).toHaveBeenCalledWith(validCanvas);
+    await expect(service.publish('project-1', 'workflow-1')).rejects.toThrow(modelDisabled);
+    expect(resources.validateForDraft).toHaveBeenCalledWith('project-1', validCanvas);
     expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
   });
 
   it('rejects a workflow whose draft was never saved', async () => {
     const { service, versions } = createService({ draftCanvas: null });
 
-    await expect(service.publish('workflow-1')).rejects.toThrow(
+    await expect(service.publish('project-1', 'workflow-1')).rejects.toThrow(
       apiError.badRequest('WORKFLOW_DRAFT_MISSING', 'Workflow has no draft canvas'),
     );
     expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe('WorkflowService.publish', () => {
   it('rejects an archived workflow', async () => {
     const { service, versions } = createService({ status: 'ARCHIVED' });
 
-    await expect(service.publish('workflow-1')).rejects.toThrow(
+    await expect(service.publish('project-1', 'workflow-1')).rejects.toThrow(
       apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be published'),
     );
     expect(versions.publishValidatedDraft).not.toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe('WorkflowService.testRun', () => {
     };
     const { service, execution, versions, prisma } = createService({ draftCanvas: null });
 
-    await service.testRun('workflow-1', { input: { name: 'A' }, canvas: unsaved });
+    await service.testRun('project-1', 'workflow-1', { input: { name: 'A' }, canvas: unsaved });
 
     expect(execution.createDraftRun).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
@@ -161,7 +161,7 @@ describe('WorkflowService.testRun', () => {
     const { service, execution } = createService();
 
     await expect(
-      service.testRun('workflow-1', { input: {}, canvas: invalidCanvas }),
+      service.testRun('project-1', 'workflow-1', { input: {}, canvas: invalidCanvas }),
     ).rejects.toThrow(
       apiError.badRequest('WORKFLOW_INVALID', 'Workflow must have exactly one end node'),
     );
@@ -172,10 +172,10 @@ describe('WorkflowService.testRun', () => {
     const { service, execution, resources } = createService();
     resources.validateForDraft.mockRejectedValueOnce(modelDisabled);
 
-    await expect(service.testRun('workflow-1', { input: {}, canvas: validCanvas })).rejects.toThrow(
+    await expect(service.testRun('project-1', 'workflow-1', { input: {}, canvas: validCanvas })).rejects.toThrow(
       modelDisabled,
     );
-    expect(resources.validateForDraft).toHaveBeenCalledWith(validCanvas);
+    expect(resources.validateForDraft).toHaveBeenCalledWith('project-1', validCanvas);
     expect(execution.createDraftRun).not.toHaveBeenCalled();
   });
 
@@ -183,7 +183,7 @@ describe('WorkflowService.testRun', () => {
     const { service, execution } = createService({ status: 'ARCHIVED' });
 
     await expect(
-      service.testRun('workflow-1', { input: {}, canvas: validCanvas }),
+      service.testRun('project-1', 'workflow-1', { input: {}, canvas: validCanvas }),
     ).rejects.toThrow(apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be tested'));
     expect(execution.createDraftRun).not.toHaveBeenCalled();
   });
@@ -196,7 +196,7 @@ describe('WorkflowService.runWorkflow', () => {
       latestVersion: { id: 'version-2', version: 2 },
     });
 
-    await service.runWorkflow('workflow-1', { input: { name: 'FlowMind' } });
+    await service.runWorkflow('project-1', 'workflow-1', { input: { name: 'FlowMind' } });
 
     expect(execution.createPublishedRun).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
@@ -209,7 +209,7 @@ describe('WorkflowService.runWorkflow', () => {
   it('never runs the draft: no published version means WORKFLOW_NOT_PUBLISHED', async () => {
     const { service, execution } = createService({ latestVersion: null });
 
-    await expect(service.runWorkflow('workflow-1', { input: {} })).rejects.toThrow(
+    await expect(service.runWorkflow('project-1', 'workflow-1', { input: {} })).rejects.toThrow(
       apiError.badRequest('WORKFLOW_NOT_PUBLISHED', 'Workflow has no published version'),
     );
     expect(execution.createPublishedRun).not.toHaveBeenCalled();
@@ -221,7 +221,7 @@ describe('WorkflowService.runWorkflow', () => {
       latestVersion: { id: 'version-1', version: 1 },
     });
 
-    await service.runWorkflow('workflow-1', { input: {} });
+    await service.runWorkflow('project-1', 'workflow-1', { input: {} });
 
     expect(execution.createPublishedRun).toHaveBeenCalledWith(
       expect.objectContaining({ workflowVersionId: 'version-1' }),
@@ -234,7 +234,7 @@ describe('WorkflowService.runWorkflow', () => {
       latestVersion: { id: 'version-1', version: 1 },
     });
 
-    await expect(service.runWorkflow('workflow-1', { input: {} })).rejects.toThrow(
+    await expect(service.runWorkflow('project-1', 'workflow-1', { input: {} })).rejects.toThrow(
       apiError.badRequest('WORKFLOW_ARCHIVED', 'Archived workflow cannot be run'),
     );
     expect(execution.createPublishedRun).not.toHaveBeenCalled();

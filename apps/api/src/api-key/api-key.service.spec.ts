@@ -18,7 +18,7 @@ function setup({
 } = {}) {
   const prisma = {
     workflow: {
-      findUnique: vi.fn(async () => (workflowExists ? { id: 'workflow-1' } : null)),
+      findFirst: vi.fn(async () => (workflowExists ? { id: 'workflow-1' } : null)),
     },
     workflowApiKey: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
@@ -50,7 +50,7 @@ describe('ApiKeyService', () => {
   it('returns the raw key once and stores only its hash', async () => {
     const { service, prisma } = setup();
 
-    const created = await service.create('workflow-1', 'Backend Production');
+    const created = await service.create('project-1', 'workflow-1', 'Backend Production');
 
     const [[{ data, select }]] = prisma.workflowApiKey.create.mock.calls as unknown as [
       [{ data: Record<string, string>; select: Record<string, boolean> }],
@@ -70,15 +70,15 @@ describe('ApiKeyService', () => {
     const { service, prisma } = setup({ workflowExists: false });
 
     const notFound = apiError.notFound('WORKFLOW_NOT_FOUND', 'Workflow missing not found');
-    await expect(service.create('missing', 'x')).rejects.toThrow(notFound);
-    await expect(service.list('missing')).rejects.toThrow(notFound);
+    await expect(service.create('project-1', 'missing', 'x')).rejects.toThrow(notFound);
+    await expect(service.list('project-1', 'missing')).rejects.toThrow(notFound);
     expect(prisma.workflowApiKey.create).not.toHaveBeenCalled();
   });
 
   it('lists keys without their hash', async () => {
     const { service, prisma } = setup();
 
-    await service.list('workflow-1');
+    await service.list('project-1', 'workflow-1');
 
     const [[args]] = prisma.workflowApiKey.findMany.mock.calls as unknown as [
       [{ where: unknown; select: Record<string, boolean> }],
@@ -90,7 +90,7 @@ describe('ApiKeyService', () => {
   it('revokes only a live key of the given workflow', async () => {
     const { service, prisma } = setup();
 
-    await service.revoke('workflow-1', 'key-1');
+    await service.revoke('project-1', 'workflow-1', 'key-1');
 
     expect(prisma.workflowApiKey.updateMany).toHaveBeenCalledWith({
       where: { id: 'key-1', workflowId: 'workflow-1', revokedAt: null },
@@ -101,7 +101,7 @@ describe('ApiKeyService', () => {
   it('returns 404 when there is no live key to revoke', async () => {
     const { service } = setup({ revokeCount: 0 });
 
-    await expect(service.revoke('workflow-1', 'key-1')).rejects.toThrow(
+    await expect(service.revoke('project-1', 'workflow-1', 'key-1')).rejects.toThrow(
       apiError.notFound('API_KEY_NOT_FOUND', 'API key key-1 not found'),
     );
   });

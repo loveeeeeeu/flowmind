@@ -16,7 +16,7 @@ function credentialRow(overrides: Record<string, unknown> = {}) {
 
 function setup(row: unknown = credentialRow(), localModels: string[] = []) {
   const prisma = {
-    credential: { findUnique: vi.fn(async () => row) },
+    credential: { findFirst: vi.fn(async () => row) },
     model: { findMany: vi.fn(async () => localModels.map((modelName) => ({ modelName }))) },
   };
   const provider = {
@@ -42,7 +42,7 @@ describe('CredentialConnectionService.test', () => {
   it('decrypts the stored secret and tests the default base URL, returning only ok', async () => {
     const { service, provider } = setup();
 
-    const result = await service.test('cred-1');
+    const result = await service.test('project-1', 'cred-1');
 
     expect(result).toEqual({ ok: true });
     expect(provider.testConnection).toHaveBeenCalledWith({
@@ -57,7 +57,7 @@ describe('CredentialConnectionService.test', () => {
       credentialRow({ provider: 'OPENAI_COMPATIBLE', baseUrl: 'http://localhost:8000/v1/' }),
     );
 
-    await service.test('cred-1');
+    await service.test('project-1', 'cred-1');
 
     expect(provider.testConnection).toHaveBeenCalledWith(
       expect.objectContaining({ baseUrl: 'http://localhost:8000/v1' }),
@@ -67,7 +67,7 @@ describe('CredentialConnectionService.test', () => {
   it('404s for an unknown credential', async () => {
     const { service } = setup(null);
 
-    const error = await service.test('missing').catch((e: unknown) => e);
+    const error = await service.test('project-1', 'missing').catch((e: unknown) => e);
 
     expect(responseOf(error)).toMatchObject({ status: 404, body: { code: 'CREDENTIAL_NOT_FOUND' } });
   });
@@ -76,7 +76,7 @@ describe('CredentialConnectionService.test', () => {
     const decrypt = vi.spyOn(crypto, 'decrypt');
     const { service, provider } = setup(credentialRow({ revokedAt: new Date() }));
 
-    const error = await service.test('cred-1').catch((e: unknown) => e);
+    const error = await service.test('project-1', 'cred-1').catch((e: unknown) => e);
 
     expect(responseOf(error)).toMatchObject({ status: 400, body: { code: 'CREDENTIAL_REVOKED' } });
     expect(decrypt).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('CredentialConnectionService.test', () => {
   it('reports an undecryptable secret as CREDENTIAL_DECRYPTION_ERROR', async () => {
     const { service, provider } = setup(credentialRow({ encryptedSecret: 'AAAA' }));
 
-    const error = await service.test('cred-1').catch((e: unknown) => e);
+    const error = await service.test('project-1', 'cred-1').catch((e: unknown) => e);
 
     expect(responseOf(error)).toMatchObject({ status: 500, body: { code: 'CREDENTIAL_DECRYPTION_ERROR' } });
     expect(provider.testConnection).not.toHaveBeenCalled();
@@ -106,7 +106,7 @@ describe('CredentialConnectionService.test', () => {
       new LlmProviderError({ code: providerCode, message: 'provider said no' }),
     );
 
-    const error = await service.test('cred-1').catch((e: unknown) => e);
+    const error = await service.test('project-1', 'cred-1').catch((e: unknown) => e);
 
     expect(responseOf(error)).toEqual({
       status,
@@ -117,7 +117,7 @@ describe('CredentialConnectionService.test', () => {
   it('requires a base URL for an OpenAI-compatible credential', async () => {
     const { service, provider } = setup(credentialRow({ provider: 'OPENAI_COMPATIBLE', baseUrl: null }));
 
-    const error = await service.test('cred-1').catch((e: unknown) => e);
+    const error = await service.test('project-1', 'cred-1').catch((e: unknown) => e);
 
     expect(responseOf(error)).toMatchObject({ status: 400, body: { code: 'CREDENTIAL_BASE_URL_REQUIRED' } });
     expect(provider.testConnection).not.toHaveBeenCalled();
@@ -128,7 +128,7 @@ describe('CredentialConnectionService.listRemoteModels', () => {
   it('returns the provider models flagged imported when a local model has that modelName', async () => {
     const { service, prisma } = setup(credentialRow(), ['deepseek-chat']);
 
-    await expect(service.listRemoteModels('cred-1')).resolves.toEqual([
+    await expect(service.listRemoteModels('project-1', 'cred-1')).resolves.toEqual([
       { id: 'deepseek-chat', imported: true },
       { id: 'deepseek-reasoner', imported: false },
     ]);
@@ -141,7 +141,7 @@ describe('CredentialConnectionService.listRemoteModels', () => {
   it('never writes to the database', async () => {
     const { service, prisma } = setup();
 
-    await service.listRemoteModels('cred-1');
+    await service.listRemoteModels('project-1', 'cred-1');
 
     expect(Object.keys(prisma.model)).toEqual(['findMany']);
   });

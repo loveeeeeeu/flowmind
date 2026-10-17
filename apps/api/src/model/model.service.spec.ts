@@ -15,11 +15,11 @@ function setup({
   remoteIds = ['gpt-5', 'gpt-5-mini'],
 } = {}) {
   const prisma = {
-    credential: { findUnique: vi.fn(async () => credential) },
+    credential: { findFirst: vi.fn(async () => credential) },
     model: {
       create: vi.fn(async (args: { data: { modelName: string } }) => ({ modelName: args.data.modelName })),
       findMany: vi.fn(async () => [] as Array<{ modelName: string }>),
-      findUnique: vi.fn(async () => null as unknown),
+      findFirst: vi.fn(async () => null as unknown),
       update: vi.fn(async () => ({ id: 'model-1' })),
       updateMany: vi.fn(async () => ({ count: disableCount })),
     },
@@ -43,7 +43,7 @@ describe('ModelService.create', () => {
   it('creates a CHAT model under the route credential and returns the summary', async () => {
     const { service, prisma } = setup();
 
-    await service.create('cred-1', { name: 'GPT-4.1 Mini', modelName: 'gpt-4.1-mini', contextWindow: 128000 });
+    await service.create('project-1', 'cred-1', { name: 'GPT-4.1 Mini', modelName: 'gpt-4.1-mini', contextWindow: 128000 });
 
     expect(firstCall(prisma.model.create)).toEqual({
       data: {
@@ -61,7 +61,7 @@ describe('ModelService.create', () => {
   it('rejects an unknown credential', async () => {
     const { service, prisma } = setup({ credential: null });
 
-    await expect(service.create('missing', { name: 'M', modelName: 'm' })).rejects.toThrow(
+    await expect(service.create('project-1', 'missing', { name: 'M', modelName: 'm' })).rejects.toThrow(
       apiError.notFound('CREDENTIAL_NOT_FOUND', 'Credential missing not found'),
     );
     expect(prisma.model.create).not.toHaveBeenCalled();
@@ -70,7 +70,7 @@ describe('ModelService.create', () => {
   it('rejects a revoked credential', async () => {
     const { service, prisma } = setup({ credential: { id: 'cred-1', revokedAt: new Date() } });
 
-    await expect(service.create('cred-1', { name: 'M', modelName: 'm' })).rejects.toThrow(
+    await expect(service.create('project-1', 'cred-1', { name: 'M', modelName: 'm' })).rejects.toThrow(
       apiError.badRequest('CREDENTIAL_REVOKED', 'Cannot add a model to a revoked credential'),
     );
     expect(prisma.model.create).not.toHaveBeenCalled();
@@ -80,7 +80,7 @@ describe('ModelService.create', () => {
     const { service, prisma } = setup();
     prisma.model.create.mockRejectedValueOnce(knownError('P2002'));
 
-    await expect(service.create('cred-1', { name: 'M', modelName: 'gpt-4.1' })).rejects.toThrow(
+    await expect(service.create('project-1', 'cred-1', { name: 'M', modelName: 'gpt-4.1' })).rejects.toThrow(
       apiError.conflict('MODEL_NAME_CONFLICT', 'Model "gpt-4.1" already exists for this credential'),
     );
   });
@@ -93,9 +93,9 @@ describe('ModelService.importModels', () => {
   it('re-fetches the remote list, then creates every model as CHAT in one transaction', async () => {
     const { service, prisma, connection } = setup();
 
-    const created = await service.importModels('cred-1', { models: [gpt5, mini] });
+    const created = await service.importModels('project-1', 'cred-1', { models: [gpt5, mini] });
 
-    expect(connection.fetchRemoteModels).toHaveBeenCalledWith('cred-1');
+    expect(connection.fetchRemoteModels).toHaveBeenCalledWith('project-1', 'cred-1');
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.model.create).toHaveBeenCalledWith({
       data: { credentialId: 'cred-1', type: 'CHAT', ...gpt5 },
@@ -108,7 +108,7 @@ describe('ModelService.importModels', () => {
     const { service, prisma } = setup();
 
     await expect(
-      service.importModels('cred-1', { models: [gpt5, { modelName: 'totally-fake-model', name: 'Fake' }] }),
+      service.importModels('project-1', 'cred-1', { models: [gpt5, { modelName: 'totally-fake-model', name: 'Fake' }] }),
     ).rejects.toThrow(
       apiError.badRequest('REMOTE_MODEL_NOT_FOUND', 'The provider does not list "totally-fake-model"'),
     );
@@ -119,7 +119,7 @@ describe('ModelService.importModels', () => {
     const { service, prisma, connection } = setup();
     prisma.model.findMany.mockResolvedValueOnce([{ modelName: 'gpt-5' }]);
 
-    await expect(service.importModels('cred-1', { models: [gpt5, mini] })).rejects.toThrow(
+    await expect(service.importModels('project-1', 'cred-1', { models: [gpt5, mini] })).rejects.toThrow(
       apiError.conflict('MODEL_NAME_CONFLICT', 'Model "gpt-5" already exists for this credential'),
     );
     expect(connection.fetchRemoteModels).not.toHaveBeenCalled();
@@ -129,7 +129,7 @@ describe('ModelService.importModels', () => {
   it('rejects the same modelName twice in one request', async () => {
     const { service, connection } = setup();
 
-    await expect(service.importModels('cred-1', { models: [gpt5, gpt5] })).rejects.toMatchObject({
+    await expect(service.importModels('project-1', 'cred-1', { models: [gpt5, gpt5] })).rejects.toMatchObject({
       response: { code: 'VALIDATION_FAILED' },
     });
     expect(connection.fetchRemoteModels).not.toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe('ModelService.importModels', () => {
     const { service, prisma } = setup();
     prisma.$transaction.mockRejectedValueOnce(knownError('P2002'));
 
-    await expect(service.importModels('cred-1', { models: [gpt5] })).rejects.toMatchObject({
+    await expect(service.importModels('project-1', 'cred-1', { models: [gpt5] })).rejects.toMatchObject({
       response: { code: 'MODEL_NAME_CONFLICT' },
     });
   });
@@ -149,7 +149,7 @@ describe('ModelService.importModels', () => {
     const revoked = apiError.badRequest('CREDENTIAL_REVOKED', 'Credential has been revoked');
     connection.fetchRemoteModels.mockRejectedValueOnce(revoked);
 
-    await expect(service.importModels('cred-1', { models: [gpt5] })).rejects.toBe(revoked);
+    await expect(service.importModels('project-1', 'cred-1', { models: [gpt5] })).rejects.toBe(revoked);
     expect(prisma.model.create).not.toHaveBeenCalled();
   });
 });
@@ -158,7 +158,7 @@ describe('ModelService.findByCredential', () => {
   it('lists every model of the credential, enabled first then newest', async () => {
     const { service, prisma } = setup();
 
-    await service.findByCredential('cred-1');
+    await service.findByCredential('project-1', 'cred-1');
 
     expect(firstCall(prisma.model.findMany)).toEqual({
       where: { credentialId: 'cred-1' },
@@ -170,7 +170,7 @@ describe('ModelService.findByCredential', () => {
   it('404s for an unknown credential instead of returning an empty list', async () => {
     const { service } = setup({ credential: null });
 
-    await expect(service.findByCredential('missing')).rejects.toThrow(
+    await expect(service.findByCredential('project-1', 'missing')).rejects.toThrow(
       apiError.notFound('CREDENTIAL_NOT_FOUND', 'Credential missing not found'),
     );
   });
@@ -180,10 +180,10 @@ describe('ModelService.findAvailable', () => {
   it('returns enabled models of non-revoked credentials only', async () => {
     const { service, prisma } = setup();
 
-    await service.findAvailable();
+    await service.findAvailable('project-1');
 
     expect(firstCall(prisma.model.findMany)).toEqual({
-      where: { enabled: true, credential: { revokedAt: null } },
+      where: { enabled: true, credential: { projectId: 'project-1', revokedAt: null } },
       orderBy: [{ credential: { name: 'asc' } }, { name: 'asc' }],
       select: AVAILABLE_MODEL,
     });
@@ -193,11 +193,11 @@ describe('ModelService.findAvailable', () => {
 describe('ModelService.findOne', () => {
   it('selects credential metadata through a whitelist, never the secret columns', async () => {
     const { service, prisma } = setup();
-    prisma.model.findUnique.mockResolvedValueOnce({ id: 'model-1' });
+    prisma.model.findFirst.mockResolvedValueOnce({ id: 'model-1' });
 
-    await service.findOne('model-1');
+    await service.findOne('project-1', 'model-1');
 
-    const { select } = firstCall(prisma.model.findUnique);
+    const { select } = firstCall(prisma.model.findFirst);
     expect(select).toEqual({ ...MODEL_SUMMARY, credential: { select: MODEL_CREDENTIAL } });
     for (const field of SECRET_FIELDS) {
       expect(JSON.stringify(select)).not.toContain(field);
@@ -208,7 +208,7 @@ describe('ModelService.findOne', () => {
   it('404s for an unknown model', async () => {
     const { service } = setup();
 
-    await expect(service.findOne('missing')).rejects.toThrow(
+    await expect(service.findOne('project-1', 'missing')).rejects.toThrow(
       apiError.notFound('MODEL_NOT_FOUND', 'Model missing not found'),
     );
   });
@@ -217,8 +217,9 @@ describe('ModelService.findOne', () => {
 describe('ModelService.update', () => {
   it('only writes metadata fields', async () => {
     const { service, prisma } = setup();
+    prisma.model.findFirst.mockResolvedValueOnce({ id: 'model-1' });
 
-    await service.update('model-1', { name: 'Renamed', contextWindow: null, enabled: true });
+    await service.update('project-1', 'model-1', { name: 'Renamed', contextWindow: null, enabled: true });
 
     expect(firstCall(prisma.model.update)).toEqual({
       where: { id: 'model-1' },
@@ -229,9 +230,10 @@ describe('ModelService.update', () => {
 
   it('maps a missing row to MODEL_NOT_FOUND', async () => {
     const { service, prisma } = setup();
+    prisma.model.findFirst.mockResolvedValueOnce({ id: 'missing' });
     prisma.model.update.mockRejectedValueOnce(knownError('P2025'));
 
-    await expect(service.update('missing', { name: 'X' })).rejects.toThrow(
+    await expect(service.update('project-1', 'missing', { name: 'X' })).rejects.toThrow(
       apiError.notFound('MODEL_NOT_FOUND', 'Model missing not found'),
     );
   });
@@ -240,8 +242,9 @@ describe('ModelService.update', () => {
 describe('ModelService.disable', () => {
   it('flips enabled and keeps the row', async () => {
     const { service, prisma } = setup();
+    prisma.model.findFirst.mockResolvedValueOnce({ id: 'model-1' });
 
-    await service.disable('model-1');
+    await service.disable('project-1', 'model-1');
 
     expect(firstCall(prisma.model.updateMany)).toEqual({
       where: { id: 'model-1', enabled: true },
@@ -250,9 +253,10 @@ describe('ModelService.disable', () => {
   });
 
   it('404s for a missing or already disabled model', async () => {
-    const { service } = setup({ disableCount: 0 });
+    const { service, prisma } = setup({ disableCount: 0 });
+    prisma.model.findFirst.mockResolvedValueOnce({ id: 'model-1' });
 
-    await expect(service.disable('model-1')).rejects.toThrow(
+    await expect(service.disable('project-1', 'model-1')).rejects.toThrow(
       apiError.notFound('MODEL_NOT_FOUND', 'Model model-1 not found or already disabled'),
     );
   });

@@ -38,7 +38,7 @@ describe('WorkflowResourceValidator.validateForDraft', () => {
   it('skips the database when there is no LLM node', async () => {
     const { validator, prisma } = setup([]);
 
-    await validator.validateForDraft(canvas());
+    await validator.validateForDraft('project-1', canvas());
 
     expect(prisma.model.findMany).not.toHaveBeenCalled();
   });
@@ -46,11 +46,11 @@ describe('WorkflowResourceValidator.validateForDraft', () => {
   it('queries each referenced model once and accepts usable ones', async () => {
     const { validator, prisma } = setup([usable('model-a'), usable('model-b')]);
 
-    await expect(validator.validateForDraft(canvas('model-a', 'model-b', 'model-a'))).resolves.toBeUndefined();
+    await expect(validator.validateForDraft('project-1', canvas('model-a', 'model-b', 'model-a'))).resolves.toBeUndefined();
 
     expect(prisma.model.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.model.findMany).toHaveBeenCalledWith({
-      where: { id: { in: ['model-a', 'model-b'] } },
+      where: { id: { in: ['model-a', 'model-b'] }, credential: { projectId: 'project-1' } },
       select: { id: true, enabled: true, credential: { select: { revokedAt: true } } },
     });
   });
@@ -58,7 +58,7 @@ describe('WorkflowResourceValidator.validateForDraft', () => {
   it('rejects a model that does not exist', async () => {
     const { validator } = setup([usable('model-a')]);
 
-    await expect(validator.validateForDraft(canvas('model-a', 'ghost'))).rejects.toThrow(
+    await expect(validator.validateForDraft('project-1', canvas('model-a', 'ghost'))).rejects.toThrow(
       apiError.badRequest('MODEL_NOT_FOUND', 'LLM node llm-2 references model ghost, which does not exist'),
     );
   });
@@ -66,7 +66,7 @@ describe('WorkflowResourceValidator.validateForDraft', () => {
   it('rejects a disabled model', async () => {
     const { validator } = setup([{ ...usable('model-a'), enabled: false }]);
 
-    await expect(validator.validateForDraft(canvas('model-a'))).rejects.toThrow(
+    await expect(validator.validateForDraft('project-1', canvas('model-a'))).rejects.toThrow(
       apiError.badRequest('MODEL_DISABLED', 'LLM node llm-1 uses a disabled model; select another model'),
     );
   });
@@ -74,7 +74,7 @@ describe('WorkflowResourceValidator.validateForDraft', () => {
   it('rejects an enabled model whose credential is revoked', async () => {
     const { validator } = setup([{ ...usable('model-a'), credential: { revokedAt: new Date() } }]);
 
-    await expect(validator.validateForDraft(canvas('model-a'))).rejects.toThrow(
+    await expect(validator.validateForDraft('project-1', canvas('model-a'))).rejects.toThrow(
       apiError.badRequest(
         'CREDENTIAL_REVOKED',
         'LLM node llm-1 uses a model whose credential is revoked; select another model',
