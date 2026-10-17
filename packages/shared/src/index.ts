@@ -7,3 +7,4 @@ export * from './llm/map-provider-error.js';
 export * from './llm/openai-compatible.provider.js';
 export * from './llm/provider-config.js';
 export * from './llm/provider-registry.js';
+export * from './execution-events.js';

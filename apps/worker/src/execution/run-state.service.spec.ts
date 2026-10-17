@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { ExecutionLogService } from './execution-log.service.js';
+import type { RunEventPublisher } from '../execution-events/run-event-publisher.service.js';
 import {
   RUN_HEARTBEAT_INTERVAL_MS,
   RUN_STALE_AFTER_MS,
@@ -17,12 +18,14 @@ function createPrisma(claimCount = 1) {
 
 function createService(prisma = createPrisma()) {
   const logs = { log: vi.fn(async () => undefined) };
+  const events = { publish: vi.fn(async () => 1) };
   const service = new RunStateService(
     prisma as unknown as PrismaService,
     logs as unknown as ExecutionLogService,
+    events as unknown as RunEventPublisher,
   );
 
-  return { prisma, logs, service };
+  return { prisma, logs, events, service };
 }
 
 function secondsAgo(seconds: number) {
@@ -32,7 +35,7 @@ function secondsAgo(seconds: number) {
 describe('RunStateService', () => {
   describe('prepareForExecution', () => {
     it('claims a PENDING run with a conditional update and logs the start with its version', async () => {
-      const { prisma, logs, service } = createService();
+      const { prisma, logs, events, service } = createService();
 
       await expect(
         service.prepareForExecution({
@@ -58,6 +61,9 @@ describe('RunStateService', () => {
           version: 2,
         },
       });
+      expect(events.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ runId: 'run-1', type: 'RUN_STATUS_CHANGED', status: 'RUNNING', error: null }),
+      );
     });
 
     it('logs a draft test run start with its source and no version', async () => {
@@ -162,7 +168,7 @@ describe('RunStateService', () => {
   });
 
   it('only finishes runs that are still RUNNING, and logs the outcome', async () => {
-    const { prisma, logs, service } = createService();
+    const { prisma, logs, events, service } = createService();
 
     await service.markSuccess('run-1', { result: 'Hello' });
     await service.markFailed(
@@ -189,6 +195,30 @@ describe('RunStateService', () => {
       level: 'ERROR',
       message: '运行失败',
       metadata: { code: 'RATE_LIMIT', message: 'Rate limit' },
+    });
+    expect(events.publish).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ runId: 'run-1', status: 'SUCCESS', error: null }),
+    );
+    expect(events.publish).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        runId: 'run-1',
+        status: 'FAILED',
+        error: { code: 'RATE_LIMIT', message: 'Rate limit' },
+      }),
+    );
+  });
+
+  it('keeps the database transition successful when Redis event publishing fails', async () => {
+    const { prisma, events, service } = createService();
+    events.publish.mockRejectedValueOnce(new Error('Redis unavailable'));
+
+    await expect(service.markSuccess('run-1', { result: 'saved' })).resolves.toBeUndefined();
+
+    expect(prisma.workflowRun.updateMany).toHaveBeenCalledWith({
+      where: { id: 'run-1', status: 'RUNNING' },
+      data: { status: 'SUCCESS', output: { result: 'saved' }, finishedAt: expect.any(Date) },
     });
   });
 

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@flowmind/shared": "workspace:*",
+    "@microsoft/fetch-event-source": "^2.0.1",
     "@tanstack/react-query": "^5.104.0",
     "@xyflow/react": "^12.12.0",
     "react": "^19.2.8",

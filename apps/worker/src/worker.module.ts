@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { CodeRunnerService } from './code/code-runner.service.js';
 import { validateEnv } from './config/env.schema.js';
 import { ExecutionLogService } from './execution/execution-log.service.js';
+import { ExecutionEventsModule } from './execution-events/execution-events.module.js';
 import { RunRecoveryScheduler } from './execution/run-recovery.scheduler.js';
 import { RunRecoveryService } from './execution/run-recovery.service.js';
 import { RunStateService } from './execution/run-state.service.js';
@@ -42,6 +43,7 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     }),
     BullModule.registerQueue({ name: WORKFLOW_EXECUTION_QUEUE }),
     PrismaModule,
+    ExecutionEventsModule,
   ],
   providers: [
     {

@@ -897,3 +897,63 @@ email
 如果这个人是最后一个 OWNER，不能把他改成 EDITOR / VIEWER
 ## Remove Member 同样保护最后一个 OWNER
 ## 暂未解决：并发问题：两个 OWNER 同时把自己降级怎么办？
+
+# SSE 实时 Run 状态推送
+## 1. 要解决什么问题？
+之前前端**通过 Polling**每秒请求一次：GET /projects/:projectId/runs/:runId，缺点是状态有延迟，请求冗余，且无法及时推送节点状态和日志。
+本节改为：Worker 状态变化后，主动推送给浏览器。
+## 2. 为什么选 SSE，不选 WebSocket？
+FlowMind 当前主要是：Server → Browser，即服务器单向推送 Run 状态、节点状态、日志。SSE 基于 HTTP，浏览器接收简单，适合单向实时通知；WebSocket 是双向长连接，当前没有必要提前增加复杂度。
+## 通知架构
+```Worker 执行期间/执行结束后，把状态变化通知前端
+Worker
+  │ publish “Run R1 SUCCESS”
+  ▼
+Redis Channel: flowmind:run:R1:events
+  ▲
+  │ API subscribe “我要监听 R1”
+API Server
+  │ SSE 推送
+  ▼
+Browser
+  ↓
+TanStack Query Cache
+```
+## SSE知识了解
+```至少要掌握这四件事
+普通 HTTP：
+请求一次 → 响应一次 → 连接结束
+
+SSE：
+请求一次 → 连接保持 → 服务端可多次发送事件 → 客户端关闭时结束
+
+WebSocket：
+建立连接后 → 浏览器和服务端都能持续互相发消息
+
+Polling：
+前端定时重复发普通 HTTP 请求，主动查询状态
+```
+能回答出：SSE 是基于 HTTP 的服务端单向事件推送。浏览器先发起一个保持不断开的请求，服务端在状态变化时沿该连接持续发送事件。FlowMind 使用它把 Worker 的 Run 状态实时推到前端，同时保留数据库查询和 Polling 作为一致性兜底。
+
+## 面试话术
+我在工作流执行平台中使用 SSE 实现 Run 状态的实时推送。Worker 在数据库成功更新 Run 状态后（数据库），通过 Redis Pub/Sub 发布（推送）标准化事件；API 按 Run 订阅 Redis Channel，并通过 SSE 推给浏览器。  
+数据库始终是事实来源，Redis Pub/Sub 只负责短生命周期通知，**因此 Redis 发布失败不会影响工作流执行**。**前端首次建立连接会收到数据库 Snapshot**，保证刷新页面后可以恢复当前状态。**后续状态事件直接更新 TanStack Query 缓存**；Polling 暂时保留，作为 SSE 断线或漏事件时的一致性兜底。
+### Redis 发布失败不影响工作流
+因为工作流已经真实完成，Redis 只是通知没发出去。前端暂时没有立刻变绿，但之后仍可通过两种方式恢复：本质是请求数据库
+方式 1：Polling 再次 GET Run
+方式 2：重新打开 SSE 时收到 Snapshot
+### 后续状态事件和 Snapshot 的区别
+Snapshot 到底是什么: 当浏览器刚建立 SSE 时，API 先读数据库当前值，再推送一条“当前状态快照”
+```
+RUN_SNAPSHOT
+= 从数据库读取的当前全量状态
+= 用于首次连接、刷新、重新进入页面
+解决首次连接时,redis没连接成功，导致redis丢失状态
+
+RUN_STATUS_CHANGED
+= Worker 刚刚发出的增量变化通知
+= 用于让页面尽快从 RUNNING 变 SUCCESS
+后续实时更新状态
+```
+
+#

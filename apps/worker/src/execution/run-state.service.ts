@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { normalizeExecutionError } from '@flowmind/shared';
+import { normalizeExecutionError, type RunEventStatus } from '@flowmind/shared';
+import { randomUUID } from 'node:crypto';
+import { RunEventPublisher } from '../execution-events/run-event-publisher.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ExecutionLogService } from './execution-log.service.js';
 import { toJsonInput } from './json-value.js';
@@ -40,6 +42,7 @@ export class RunStateService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logs: ExecutionLogService,
+    private readonly events: RunEventPublisher,
   ) {}
 
   async findRun(runId: string) {
@@ -101,6 +104,7 @@ export class RunStateService {
       },
     });
 
+    await this.publishStatusChanged(run.id, 'RUNNING');
     return 'execute';
   }
 
@@ -138,6 +142,7 @@ export class RunStateService {
     });
 
     if (finished) {
+      await this.publishStatusChanged(runId, 'SUCCESS');
       await this.logs.log({ workflowRunId: runId, message: '运行成功' });
     }
   }
@@ -155,6 +160,7 @@ export class RunStateService {
     });
 
     if (finished) {
+      await this.publishStatusChanged(runId, 'FAILED', { code, message });
       await this.logs.log({
         workflowRunId: runId,
         level: 'ERROR',
@@ -171,6 +177,10 @@ export class RunStateService {
     });
 
     if (finished) {
+      await this.publishStatusChanged(runId, 'FAILED', {
+        code: WORKER_INTERRUPTED_FAILURE.errorCode,
+        message: WORKER_INTERRUPTED_FAILURE.errorMessage,
+      });
       await this.logs.log({
         workflowRunId: runId,
         level: 'ERROR',
@@ -210,5 +220,25 @@ export class RunStateService {
     }
 
     return result.count === 1;
+  }
+
+  private async publishStatusChanged(
+    runId: string,
+    status: Extract<RunEventStatus, 'RUNNING' | 'SUCCESS' | 'FAILED'>,
+    error: { code: string; message: string } | null = null,
+  ) {
+    try {
+      await this.events.publish({
+        eventId: randomUUID(),
+        runId,
+        type: 'RUN_STATUS_CHANGED',
+        timestamp: new Date().toISOString(),
+        status,
+        error,
+      });
+    } catch (publishError) {
+      // A notification outage must never rewrite a successful database transition.
+      this.logger.warn(`Failed to publish ${status} event for run ${runId}: ${String(publishError)}`);
+    }
   }
 }
