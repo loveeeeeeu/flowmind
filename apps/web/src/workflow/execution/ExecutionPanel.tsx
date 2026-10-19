@@ -5,6 +5,7 @@ import { RunDetail } from './RunDetail';
 import { RunHistory } from './RunHistory';
 import { RunStatusBadge } from './RunStatusBadge';
 import { parseRunInput } from './runUtils';
+import { getRunConnectionLabel } from './useRunEventStream';
 import type { ExecutionState } from './useExecutionState';
 
 type ExecutionTab = 'run' | 'history';
@@ -43,6 +44,7 @@ export function ExecutionPanel({
     setIsOpen,
     historyQuery,
     trackedRun,
+    stream,
     viewedRunId,
     viewedRunQuery,
     runMutation,
@@ -110,6 +112,14 @@ export function ExecutionPanel({
         </div>
 
         <div className="execution-panel-status">
+          {trackedRun && (
+            <span
+              className={`run-stream-status ${stream.connected ? 'connected' : 'fallback'}`}
+              title="Run status delivery mode"
+            >
+              {getRunConnectionLabel(stream.state)}
+            </span>
+          )}
           {trackedRun && (
             <>
               <span className="execution-panel-caption">最近运行</span>

@@ -8,6 +8,14 @@ import type {
 
 const TERMINAL_RUN_STATUSES: RunStatus[] = ['SUCCESS', 'FAILED', 'CANCELLED'];
 
+const RUN_STATUS_ORDER: Record<RunStatus, number> = {
+  PENDING: 0,
+  RUNNING: 1,
+  SUCCESS: 2,
+  FAILED: 2,
+  CANCELLED: 2,
+};
+
 export const RUN_STATUS_LABELS: Record<RunStatus, string> = {
   PENDING: '排队中',
   RUNNING: '运行中',
@@ -33,6 +41,11 @@ export const LOG_LEVEL_LABELS: Record<ExecutionLogLevel, string> = {
 
 export function isTerminalRunStatus(status: RunStatus | undefined): boolean {
   return status !== undefined && TERMINAL_RUN_STATUSES.includes(status);
+}
+
+/** Incremental SSE events must never move a Run backward after a terminal status. */
+export function shouldApplyRunStatus(current: RunStatus, next: RunStatus): boolean {
+  return !isTerminalRunStatus(current) && RUN_STATUS_ORDER[next] >= RUN_STATUS_ORDER[current];
 }
 
 export function isUnfinishedRun(run: WorkflowRunSummary): boolean {

@@ -10,18 +10,23 @@ import {
 import { queryKeys } from '../../api/queryKeys';
 import type { WorkflowRunDetail, WorkflowRunSummary } from '../../types/run';
 import type { WorkflowCanvas } from '../types/workflowCanvas';
-import { isTerminalRunStatus, isUnfinishedRun } from './runUtils';
+import { isTerminalRunStatus, isUnfinishedRun, shouldApplyRunStatus } from './runUtils';
 import { useRunEventStream } from './useRunEventStream';
 
-const RUN_POLL_INTERVAL_MS = 1000;
+const RUN_POLL_INTERVAL_MS = 2000;
 
-function useRunDetail(projectId: string, runId: string | null) {
+function useRunDetail(projectId: string, runId: string | null, pollingEnabled: boolean) {
   return useQuery({
     queryKey: queryKeys.runs.detail(projectId, runId ?? ''),
     queryFn: () => getWorkflowRun(projectId, runId as string),
     enabled: runId !== null,
-    refetchInterval: (query) =>
-      isTerminalRunStatus(query.state.data?.status) ? false : RUN_POLL_INTERVAL_MS,
+    refetchInterval: (query) => {
+      if (isTerminalRunStatus(query.state.data?.status)) {
+        return false;
+      }
+
+      return pollingEnabled ? RUN_POLL_INTERVAL_MS : false;
+    },
   });
 }
 
@@ -46,10 +51,6 @@ export function useExecutionState(projectId: string, workflowId: string) {
     activeRunId ?? history?.find(isUnfinishedRun)?.id ?? history?.[0]?.id ?? null;
   const viewedRunId = selectedRunId ?? trackedRunId;
 
-  const trackedRunQuery = useRunDetail(projectId, trackedRunId);
-  // Same query key as trackedRunQuery when both point at one run, so it is fetched only once.
-  const viewedRunQuery = useRunDetail(projectId, viewedRunId);
-
   const handleRunEvent = useCallback(
     (event: RunEvent) => {
       if (event.type !== 'RUN_SNAPSHOT' && event.type !== 'RUN_STATUS_CHANGED') {
@@ -58,6 +59,10 @@ export function useExecutionState(projectId: string, workflowId: string) {
 
       queryClient.setQueryData<WorkflowRunDetail>(queryKeys.runs.detail(projectId, event.runId), (old) => {
         if (!old) {
+          return old;
+        }
+
+        if (!shouldApplyRunStatus(old.status, event.status)) {
           return old;
         }
 
@@ -75,12 +80,20 @@ export function useExecutionState(projectId: string, workflowId: string) {
   );
 
   // SSE is an incremental UI signal; the existing query polling remains the consistency fallback.
-  useRunEventStream({
+  const stream = useRunEventStream({
     projectId,
     runId: trackedRunId,
     enabled: isOpen && trackedRunId !== null,
     onEvent: handleRunEvent,
   });
+
+  const trackedRunQuery = useRunDetail(projectId, trackedRunId, stream.pollingEnabled);
+  // A separately viewed unfinished historical run has no dedicated stream, so it keeps fallback polling.
+  const viewedRunQuery = useRunDetail(
+    projectId,
+    viewedRunId,
+    selectedRunId === null ? stream.pollingEnabled : true,
+  );
 
   // Polling the detail finishes before the history list knows; refresh the summary once.
   const historyIsBehind = [trackedRunQuery.data, viewedRunQuery.data].some((run) => {
@@ -130,6 +143,7 @@ export function useExecutionState(projectId: string, workflowId: string) {
     trackedRun: trackedRunQuery.data,
     viewedRunId,
     viewedRunQuery,
+    stream,
     selectRun: setSelectedRunId,
     runMutation,
     testRunMutation,

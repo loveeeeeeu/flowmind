@@ -936,7 +936,7 @@ Polling：
 能回答出：SSE 是基于 HTTP 的服务端单向事件推送。浏览器先发起一个保持不断开的请求，服务端在状态变化时沿该连接持续发送事件。FlowMind 使用它把 Worker 的 Run 状态实时推到前端，同时保留数据库查询和 Polling 作为一致性兜底。
 
 ## 面试话术
-我在工作流执行平台中使用 SSE 实现 Run 状态的实时推送。Worker 在数据库成功更新 Run 状态后（数据库），通过 Redis Pub/Sub 发布（推送）标准化事件；API 按 Run 订阅 Redis Channel，并通过 SSE 推给浏览器。  
+我在工作流执行平台中**使用 SSE 实现 Run 状态的实时推送**。Worker 在数据库成功更新 Run 状态后（数据库），通过 Redis Pub/Sub 发布（推送）标准化事件；API 按 Run 订阅 Redis Channel，并通过 SSE 推给浏览器。  
 数据库始终是事实来源，Redis Pub/Sub 只负责短生命周期通知，**因此 Redis 发布失败不会影响工作流执行**。**前端首次建立连接会收到数据库 Snapshot**，保证刷新页面后可以恢复当前状态。**后续状态事件直接更新 TanStack Query 缓存**；Polling 暂时保留，作为 SSE 断线或漏事件时的一致性兜底。
 ### Redis 发布失败不影响工作流
 因为工作流已经真实完成，Redis 只是通知没发出去。前端暂时没有立刻变绿，但之后仍可通过两种方式恢复：本质是请求数据库
@@ -955,5 +955,24 @@ RUN_STATUS_CHANGED
 = 用于让页面尽快从 RUNNING 变 SUCCESS
 后续实时更新状态
 ```
+
+# SSE 重连、Polling 兜底与一致性
+上一节课：有 SSE，且保留旧 Polling
+本节课：明确何时该用 SSE、何时该启动 Polling 兜底
+## 不是重新写一个 Polling，而是补上连接不可靠时的完整策略
+```
+SSE 正常
+→ SSE 更新状态
+
+SSE 断开 / 重连中
+→ 启用 Polling
+
+SSE 恢复/重连完成
+→ 停止 Polling
+
+Run 结束
+→ 停止 Polling 和 SSE
+```
+SSE 重连（重新建立新的sse连接）由 fetch-event-source 协助处理，但业务层仍需决定哪些错误可以重连、连接恢复（首次连接）后如何从数据库重新对账，以及什么时候开启 Polling 兜底。
 
 #
