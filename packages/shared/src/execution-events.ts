@@ -40,6 +40,9 @@ export interface NodeStatusChangedEvent extends BaseRunEvent {
   sequence: number;
   attempt: number;
   status: NodeRunEventStatus;
+  /** Times are metadata for the live canvas; node input/output never travel through SSE. */
+  startedAt: string | null;
+  finishedAt: string | null;
   error: RunEventError | null;
 }
 

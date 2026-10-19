@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { AvailableModelsContext, getModelLabel, isLegacyLlmData } from '../llm/llmNodeData';
 import type { LlmNodeType } from '../types/workflowCanvas';
 import { NodeCard } from './NodeCard';
+import { getNodeExecution } from '../execution/executionOverlay';
 
 export function LlmNode({ data }: NodeProps<LlmNodeType>) {
   const models = useContext(AvailableModelsContext);
@@ -19,7 +20,7 @@ export function LlmNode({ data }: NodeProps<LlmNodeType>) {
   }
 
   return (
-    <NodeCard icon="✦" iconClassName="ai" title={data.label || 'LLM'} meta={meta}>
+    <NodeCard icon="✦" iconClassName="ai" title={data.label || 'LLM'} meta={meta} execution={getNodeExecution(data)}>
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </NodeCard>

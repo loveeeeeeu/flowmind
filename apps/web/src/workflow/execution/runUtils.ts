@@ -173,6 +173,95 @@ export function buildNodeStatusMap(nodeRuns: NodeRun[]): Map<string, CanvasRunSt
   return statusByNode;
 }
 
+export type CanvasExecutionStatus = NodeRunStatus | 'NOT_EXECUTED';
+
+export interface NodeExecutionView {
+  nodeId: string;
+  status: CanvasExecutionStatus;
+  /** The specific execution instance currently represented by this canvas node. */
+  latestNodeRunId: string | null;
+  sequence: number | null;
+  attempt: number | null;
+  /** Distinct logical invocations. Loop iterations increase this number; retries do not. */
+  executionCount: number;
+  /** The highest retry attempt seen across the node's execution history. */
+  maxAttempt: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: { code: string; message: string } | null;
+}
+
+const NODE_STATUS_ORDER: Record<NodeRunStatus, number> = {
+  PENDING: 0,
+  RUNNING: 1,
+  SUCCESS: 2,
+  FAILED: 2,
+  SKIPPED: 2,
+};
+
+export function shouldApplyNodeRunStatus(current: NodeRunStatus, next: NodeRunStatus): boolean {
+  const currentTerminal = NODE_STATUS_ORDER[current] === 2;
+
+  return !currentTerminal ? NODE_STATUS_ORDER[next] >= NODE_STATUS_ORDER[current] : current === next;
+}
+
+/**
+ * NodeRun is an execution instance; a canvas node is only a workflow definition node.
+ * Group by node id for the canvas, but choose the current view by sequence + attempt.
+ */
+export function buildNodeExecutionViews(nodeRuns: NodeRun[]): Map<string, NodeExecutionView> {
+  const byNodeId = new Map<string, NodeRun[]>();
+
+  for (const nodeRun of nodeRuns) {
+    const executions = byNodeId.get(nodeRun.nodeId) ?? [];
+    executions.push(nodeRun);
+    byNodeId.set(nodeRun.nodeId, executions);
+  }
+
+  const views = new Map<string, NodeExecutionView>();
+
+  for (const [nodeId, executions] of byNodeId) {
+    const sorted = [...executions].sort(
+      (left, right) => left.sequence - right.sequence || left.attempt - right.attempt,
+    );
+    const latest = sorted.at(-1)!;
+    const error = latest.errorCode
+      ? { code: latest.errorCode, message: latest.errorMessage ?? '' }
+      : null;
+
+    views.set(nodeId, {
+      nodeId,
+      status: latest.status,
+      latestNodeRunId: latest.id,
+      sequence: latest.sequence,
+      attempt: latest.attempt,
+      executionCount: new Set(sorted.map((item) => item.sequence)).size,
+      maxAttempt: Math.max(...sorted.map((item) => item.attempt)),
+      startedAt: latest.startedAt,
+      finishedAt: latest.finishedAt,
+      error,
+    });
+  }
+
+  return views;
+}
+
+/** Missing NodeRun means it has not run; terminal workflows make that explicit instead of "pending". */
+export function getUnexecutedNodeView(nodeId: string, runStatus: RunStatus): NodeExecutionView {
+  return {
+    nodeId,
+    status: isTerminalRunStatus(runStatus) ? 'NOT_EXECUTED' : 'PENDING',
+    latestNodeRunId: null,
+    sequence: null,
+    attempt: null,
+    executionCount: 0,
+    maxAttempt: 0,
+    startedAt: null,
+    finishedAt: null,
+    error: null,
+  };
+}
+
 export interface RunMetrics {
   steps: number;
   attempts: number;

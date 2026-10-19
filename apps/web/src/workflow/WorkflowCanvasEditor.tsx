@@ -46,7 +46,7 @@ import { IfNode } from './nodes/IfNode';
 import { LoopNode } from './nodes/LoopNode';
 import { CodeNode } from './nodes/CodeNode';
 import { ExecutionPanel } from './execution/ExecutionPanel';
-import { buildNodeStatusMap } from './execution/runUtils';
+import { buildNodeExecutionViews, getUnexecutedNodeView } from './execution/runUtils';
 import { useExecutionState } from './execution/useExecutionState';
 import { VersionHistory } from './version/VersionHistory';
 import { VersionPreviewBanner } from './version/VersionPreviewBanner';
@@ -156,18 +156,23 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
   // No run overlay on a version preview: the viewed run may belong to another canvas.
   const overlayRun =
     execution.isOpen && !isPreviewing ? execution.viewedRunQuery.data : undefined;
-  // Execution status is a render-only className: `nodes` (what gets saved) never contains it.
+  // This is a render-only projection: persisted `nodes` never receive execution data.
   const renderedNodes = useMemo(() => {
     if (!overlayRun) {
       return nodes;
     }
 
-    const statusByNode = buildNodeStatusMap(overlayRun.nodeRuns);
+    const executionByNode = buildNodeExecutionViews(overlayRun.nodeRuns);
 
-    return nodes.map((node) => ({
-      ...node,
-      className: `run-node-${statusByNode.get(node.id) ?? 'idle'}`,
-    }));
+    return nodes.map((node) => {
+      const execution = executionByNode.get(node.id) ?? getUnexecutedNodeView(node.id, overlayRun.status);
+
+      return {
+        ...node,
+        data: { ...node.data, execution },
+        className: `run-node-${execution.status.toLowerCase()}`,
+      } as unknown as WorkflowNode;
+    });
   }, [nodes, overlayRun]);
 
   // Selection is not persisted by toPersistedCanvas, so focusing a node never marks the canvas dirty.

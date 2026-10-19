@@ -975,4 +975,63 @@ Run 结束
 ```
 SSE 重连（重新建立新的sse连接）由 fetch-event-source 协助处理，但业务层仍需决定哪些错误可以重连、连接恢复（首次连接）后如何从数据库重新对账，以及什么时候开启 Polling 兜底。
 
-#
+# NodeRun 实时事件与画布执行覆盖层
+前面只知道这个 Workflow Run 是否正在运行 / 是否成功，本节课进一步知道：
+--当前执行到哪个节点？
+--哪些节点成功、失败、等待？
+--这个节点是循环执行了多次，还是重试了多次？
+最终画布会实时显示
+## 概念：Workflow Node ≠ NodeRun
+一个 Workflow Node 可以对应多个 NodeRun。因为有 Loop 和 Retry。
+## 后端新增：发布 NodeRun 实时事件
+```Worker 的执行链路变成：
+Workflow Engine
+  ↓
+ExecutionObserver
+  ├─ PostgreSQL NodeRun（事实来源）
+  └─ Redis Pub/Sub（实时通知）
+        ↓
+     API Server
+        ↓ SSE
+     Browser
+        ↓
+TanStack Query Run Detail Cache
+        ↓
+NodeRun 聚合
+        ↓
+Canvas Execution Overlay
+```
+## 前端如何处理 Node 事件
+```收到 NODE_STATUS_CHANGED 后：
+按 nodeRunId 查找已有缓存记录 **为什么不能用 nodeId 更新***同一个 nodeId 可能有多个 NodeRun
+
+不存在
+→ append 新 NodeRun
+→ 例如节点刚开始 RUNNING
+
+存在
+→ 更新同一条 NodeRun
+→ 例如 RUNNING → SUCCESS
+```
+### 未执行节点如何显示
+```开始 Run 时，很多节点还没有 NodeRun：表示它尚未执行到。
+Run 仍在运行 + 节点没有 NodeRun
+→ Pending
+
+Run 已结束 + 节点没有 NodeRun
+→ Not executed
+
+Not executed 常见于：
+IF 走了 true 分支
+↓
+false 分支节点从未执行
+```
+### NodeRun 聚合
+<mark>**同一个 nodeId 的多个 NodeRun**</mark>
+↓
+取 sequence + attempt 最新的那条
+↓
+决定这个画布节点当前显示什么
+
+
+

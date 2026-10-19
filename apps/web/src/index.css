@@ -98,22 +98,24 @@ a { color: inherit; }
 .react-flow__node-end .flow-node { border-color:#ffca85; }
 .react-flow__node-llm .flow-node { border-color:#bda7ff; }
 .react-flow__node.selected .flow-node { border-color:#4d78ef; box-shadow:0 0 0 1px #4d78ef, 0 0 0 4px rgba(77,120,239,.13), 0 7px 18px rgba(27,45,83,.11); }
-.react-flow__node.run-node-idle .flow-node { opacity:.55; }
+.react-flow__node.run-node-pending .flow-node { opacity:.6; }
+.react-flow__node.run-node-not_executed .flow-node { opacity:.48; }
 .react-flow__node.run-node-running .flow-node { border-color:#3868e9; animation:run-node-pulse 1.4s ease-in-out infinite; }
 .react-flow__node.run-node-success .flow-node { border-color:#398262; }
 .react-flow__node.run-node-failed .flow-node { border-color:#c63755; }
-.react-flow__node.run-node-running .flow-node::after,
-.react-flow__node.run-node-success .flow-node::after,
-.react-flow__node.run-node-failed .flow-node::after { position:absolute; top:-10px; right:10px; padding:1px 7px; border:1px solid; border-radius:9px; font-size:11px; font-weight:600; line-height:1.5; }
-.react-flow__node.run-node-running .flow-node::after { content:'运行中'; border-color:#cfdcfb; background:#edf3ff; color:#3868e9; }
-.react-flow__node.run-node-success .flow-node::after { content:'成功'; border-color:#cdebd9; background:#ebf9f1; color:#398262; }
-.react-flow__node.run-node-failed .flow-node::after { content:'失败'; border-color:#ffd5dc; background:#fff2f4; color:#c63755; }
+.react-flow__node.run-node-skipped .flow-node { border-color:#a8b1c2; opacity:.65; }
 @keyframes run-node-pulse { 0%, 100% { box-shadow:0 0 0 0 rgba(56,104,233,.28), 0 5px 16px rgba(27,45,83,.08); } 50% { box-shadow:0 0 0 5px rgba(56,104,233,0), 0 5px 16px rgba(27,45,83,.08); } }
 .flow-node.has-branches { padding-right:56px; }
 .flow-node.has-loop-target { padding-bottom:28px; }
 .flow-node-header { display:flex; align-items:center; gap:8px; min-width:0; font-size:13px; font-weight:600; }
 .flow-node-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .flow-node-meta { margin-top:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#7b879d; font-size:12px; }
+.node-execution-badge { display:inline-flex; flex-shrink:0; align-items:center; gap:3px; margin-left:auto; padding:2px 6px; border:1px solid; border-radius:9px; font-size:10px; font-weight:700; line-height:1.25; white-space:nowrap; }
+.node-execution-badge.running { border-color:#cfdcfb; background:#edf3ff; color:#3868e9; }
+.node-execution-badge.success { border-color:#cdebd9; background:#ebf9f1; color:#398262; }
+.node-execution-badge.failed { border-color:#ffd5dc; background:#fff2f4; color:#c63755; }
+.node-execution-badge.pending,.node-execution-badge.not-executed,.node-execution-badge.skipped { border-color:#dfe5ef; background:#f5f7fb; color:#7b879d; }
+.node-execution-details { padding-left:3px; border-left:1px solid currentColor; font-weight:600; }
 .flow-node-branch { position:absolute; right:12px; transform:translateY(-50%); font-size:11px; font-weight:600; }
 .flow-node-branch.is-upper { top:35%; }
 .flow-node-branch.is-lower { top:70%; }

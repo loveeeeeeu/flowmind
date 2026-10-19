@@ -10,10 +10,69 @@ import {
 import { queryKeys } from '../../api/queryKeys';
 import type { WorkflowRunDetail, WorkflowRunSummary } from '../../types/run';
 import type { WorkflowCanvas } from '../types/workflowCanvas';
-import { isTerminalRunStatus, isUnfinishedRun, shouldApplyRunStatus } from './runUtils';
+import {
+  isTerminalRunStatus,
+  isUnfinishedRun,
+  shouldApplyNodeRunStatus,
+  shouldApplyRunStatus,
+} from './runUtils';
 import { useRunEventStream } from './useRunEventStream';
 
 const RUN_POLL_INTERVAL_MS = 2000;
+
+function applyNodeStatusEvent(old: WorkflowRunDetail, event: Extract<RunEvent, { type: 'NODE_STATUS_CHANGED' }>) {
+  const index = old.nodeRuns.findIndex((nodeRun) => nodeRun.id === event.nodeRunId);
+  const errorCode = event.error?.code ?? null;
+  const errorMessage = event.error?.message ?? null;
+
+  if (index === -1) {
+    return {
+      ...old,
+      nodeRuns: [
+        ...old.nodeRuns,
+        {
+          id: event.nodeRunId,
+          workflowRunId: old.id,
+          nodeId: event.nodeId,
+          nodeType: event.nodeType,
+          status: event.status,
+          sequence: event.sequence,
+          iteration: null,
+          attempt: event.attempt,
+          input: null,
+          output: null,
+          errorCode,
+          errorMessage,
+          startedAt: event.startedAt,
+          finishedAt: event.finishedAt,
+          createdAt: event.timestamp,
+        },
+      ],
+    };
+  }
+
+  const current = old.nodeRuns[index];
+
+  if (!shouldApplyNodeRunStatus(current.status, event.status)) {
+    return old;
+  }
+
+  const nodeRuns = [...old.nodeRuns];
+  nodeRuns[index] = {
+    ...current,
+    nodeId: event.nodeId,
+    nodeType: event.nodeType,
+    status: event.status,
+    sequence: event.sequence,
+    attempt: event.attempt,
+    errorCode,
+    errorMessage,
+    startedAt: event.startedAt ?? current.startedAt,
+    finishedAt: event.finishedAt ?? current.finishedAt,
+  };
+
+  return { ...old, nodeRuns };
+}
 
 function useRunDetail(projectId: string, runId: string | null, pollingEnabled: boolean) {
   return useQuery({
@@ -53,12 +112,16 @@ export function useExecutionState(projectId: string, workflowId: string) {
 
   const handleRunEvent = useCallback(
     (event: RunEvent) => {
-      if (event.type !== 'RUN_SNAPSHOT' && event.type !== 'RUN_STATUS_CHANGED') {
-        return;
-      }
-
       queryClient.setQueryData<WorkflowRunDetail>(queryKeys.runs.detail(projectId, event.runId), (old) => {
         if (!old) {
+          return old;
+        }
+
+        if (event.type === 'NODE_STATUS_CHANGED') {
+          return applyNodeStatusEvent(old, event);
+        }
+
+        if (event.type !== 'RUN_SNAPSHOT' && event.type !== 'RUN_STATUS_CHANGED') {
           return old;
         }
 

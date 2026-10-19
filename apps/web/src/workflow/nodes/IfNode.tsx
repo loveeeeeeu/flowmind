@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { CONDITION_OPERATORS, type IfNodeType } from '../types/workflowCanvas';
 import { NodeCard } from './NodeCard';
+import { getNodeExecution } from '../execution/executionOverlay';
 
 export function IfNode({ data }: NodeProps<IfNodeType>) {
   const operatorLabel =
@@ -13,6 +14,7 @@ export function IfNode({ data }: NodeProps<IfNodeType>) {
       title={data.label || '条件分支'}
       meta={`${data.variable || '?'} ${operatorLabel} ${data.value}`}
       className="has-branches"
+      execution={getNodeExecution(data)}
     >
       <Handle type="target" position={Position.Left} />
 

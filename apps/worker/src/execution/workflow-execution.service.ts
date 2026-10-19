@@ -6,6 +6,7 @@ import {
 } from '@flowmind/workflow-core';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ExecutionLogService } from './execution-log.service.js';
+import { RunEventPublisher } from '../execution-events/run-event-publisher.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 import { RunStateService } from './run-state.service.js';
 import { resolveRunCanvas } from './resolve-run-canvas.js';
@@ -17,6 +18,7 @@ export class WorkflowExecutionService {
     private readonly engine: WorkflowEngine,
     private readonly runState: RunStateService,
     private readonly logs: ExecutionLogService,
+    private readonly events: RunEventPublisher,
   ) {}
 
   async executeRun(runId: string) {
@@ -42,7 +44,7 @@ export class WorkflowExecutionService {
     try {
       // The engine re-validates the snapshot before executing any node.
       result = await this.engine.execute(canvas, input, {
-        observer: new PrismaExecutionObserver(this.prisma, this.logs, runId),
+        observer: new PrismaExecutionObserver(this.prisma, this.logs, runId, this.events),
       });
     } catch (error) {
       await this.runState.markFailed(runId, error);

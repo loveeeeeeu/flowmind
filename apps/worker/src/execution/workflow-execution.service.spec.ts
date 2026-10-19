@@ -1,6 +1,7 @@
 import type { ExecutionObserver, WorkflowEngine } from '@flowmind/workflow-core';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { ExecutionLogService } from './execution-log.service.js';
+import type { RunEventPublisher } from '../execution-events/run-event-publisher.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 import type { RunExecutionDecision, RunStateService } from './run-state.service.js';
 import { WorkflowExecutionService } from './workflow-execution.service.js';
@@ -51,6 +52,7 @@ function createService(
     { execute } as unknown as WorkflowEngine,
     runState as unknown as RunStateService,
     { log: vi.fn(async () => undefined) } as unknown as ExecutionLogService,
+    { publish: vi.fn(async () => 1) } as unknown as RunEventPublisher,
   );
 }
 

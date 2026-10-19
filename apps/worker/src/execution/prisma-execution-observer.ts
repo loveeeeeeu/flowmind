@@ -7,7 +7,10 @@ import {
   type WorkflowNode,
 } from '@flowmind/workflow-core';
 import { normalizeExecutionError } from '@flowmind/shared';
+import { Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { RunEventPublisher } from '../execution-events/run-event-publisher.service.js';
 import type { ExecutionLogService } from './execution-log.service.js';
 import { toJsonInput } from './json-value.js';
 
@@ -31,14 +34,18 @@ export class PrismaExecutionObserver implements ExecutionObserver {
   // Keyed by sequence + attempt: a loop body repeats a node across sequences,
   // and a retried node repeats a sequence across attempts.
   private readonly nodeRunIds = new Map<string, string>();
+  private readonly nodeRunStartedAts = new Map<string, Date>();
+  private readonly logger = new Logger(PrismaExecutionObserver.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly logs: ExecutionLogService,
     private readonly workflowRunId: string,
+    private readonly events?: RunEventPublisher,
   ) {}
 
   async onNodeStart({ node, sequence, attempt }: NodeExecutionEvent) {
+    const startedAt = new Date();
     const nodeRun = await this.prisma.nodeRun.create({
       data: {
         workflowRunId: this.workflowRunId,
@@ -47,11 +54,29 @@ export class PrismaExecutionObserver implements ExecutionObserver {
         sequence,
         attempt,
         status: 'RUNNING',
-        startedAt: new Date(),
+        startedAt,
       },
     });
 
-    this.nodeRunIds.set(this.makeKey(sequence, attempt), nodeRun.id);
+    const executionKey = this.makeKey(sequence, attempt);
+    this.nodeRunIds.set(executionKey, nodeRun.id);
+    this.nodeRunStartedAts.set(executionKey, startedAt);
+
+    await this.safePublish({
+      eventId: randomUUID(),
+      runId: this.workflowRunId,
+      type: 'NODE_STATUS_CHANGED',
+      timestamp: startedAt.toISOString(),
+      nodeRunId: nodeRun.id,
+      nodeId: node.id,
+      nodeType: node.type,
+      sequence,
+      attempt,
+      status: 'RUNNING',
+      startedAt: startedAt.toISOString(),
+      finishedAt: null,
+      error: null,
+    });
 
     await this.logs.log({
       workflowRunId: this.workflowRunId,
@@ -70,14 +95,31 @@ export class PrismaExecutionObserver implements ExecutionObserver {
 
   async onNodeSuccess({ node, sequence, attempt, output }: NodeSuccessEvent) {
     const nodeRunId = this.getNodeRunId(sequence, attempt);
+    const finishedAt = new Date();
 
     await this.prisma.nodeRun.update({
       where: { id: nodeRunId },
       data: {
         status: 'SUCCESS',
         ...(output === undefined ? {} : { output: toJsonInput(output) }),
-        finishedAt: new Date(),
+        finishedAt,
       },
+    });
+
+    await this.safePublish({
+      eventId: randomUUID(),
+      runId: this.workflowRunId,
+      type: 'NODE_STATUS_CHANGED',
+      timestamp: finishedAt.toISOString(),
+      nodeRunId,
+      nodeId: node.id,
+      nodeType: node.type,
+      sequence,
+      attempt,
+      status: 'SUCCESS',
+      startedAt: this.getNodeRunStartedAt(sequence, attempt).toISOString(),
+      finishedAt: finishedAt.toISOString(),
+      error: null,
     });
 
     await this.logs.log({
@@ -97,6 +139,7 @@ export class PrismaExecutionObserver implements ExecutionObserver {
       'NODE_EXECUTION_ERROR',
       'Node execution failed',
     );
+    const finishedAt = new Date();
 
     await this.prisma.nodeRun.update({
       where: { id: nodeRunId },
@@ -104,8 +147,24 @@ export class PrismaExecutionObserver implements ExecutionObserver {
         status: 'FAILED',
         errorCode: code,
         errorMessage: message,
-        finishedAt: new Date(),
+        finishedAt,
       },
+    });
+
+    await this.safePublish({
+      eventId: randomUUID(),
+      runId: this.workflowRunId,
+      type: 'NODE_STATUS_CHANGED',
+      timestamp: finishedAt.toISOString(),
+      nodeRunId,
+      nodeId: node.id,
+      nodeType: node.type,
+      sequence,
+      attempt,
+      status: 'FAILED',
+      startedAt: this.getNodeRunStartedAt(sequence, attempt).toISOString(),
+      finishedAt: finishedAt.toISOString(),
+      error: { code, message },
     });
 
     await this.logs.log({
@@ -164,5 +223,29 @@ export class PrismaExecutionObserver implements ExecutionObserver {
     }
 
     return id;
+  }
+
+  private getNodeRunStartedAt(sequence: number, attempt: number) {
+    const startedAt = this.nodeRunStartedAts.get(this.makeKey(sequence, attempt));
+
+    if (!startedAt) {
+      throw new Error(`Node run for sequence ${sequence} attempt ${attempt} has no start time`);
+    }
+
+    return startedAt;
+  }
+
+  /** Redis is a low-latency UI signal. A publish failure must never change an execution fact. */
+  private async safePublish(event: Parameters<RunEventPublisher['publish']>[0]) {
+    if (!this.events) {
+      return;
+    }
+
+    try {
+      await this.events.publish(event);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to publish node event for run ${event.runId}: ${message}`);
+    }
   }
 }

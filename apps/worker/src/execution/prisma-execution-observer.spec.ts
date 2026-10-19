@@ -1,6 +1,7 @@
 import type { WorkflowNode } from '@flowmind/workflow-core';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { ExecutionLogService } from './execution-log.service.js';
+import type { RunEventPublisher } from '../execution-events/run-event-publisher.service.js';
 import { PrismaExecutionObserver } from './prisma-execution-observer.js';
 
 const modelRow = { modelName: 'deepseek-chat', credentialId: 'cred-1', credential: { provider: 'DEEPSEEK' } };
@@ -15,13 +16,15 @@ function setup(model: unknown = modelRow) {
     model: { findUnique: vi.fn(async () => model) },
   };
   const logs = { log: vi.fn(async () => undefined) };
+  const events = { publish: vi.fn(async () => 1) };
   const observer = new PrismaExecutionObserver(
     prisma as unknown as PrismaService,
     logs as unknown as ExecutionLogService,
     'run-1',
+    events as unknown as RunEventPublisher,
   );
 
-  return { prisma, logs, observer };
+  return { prisma, logs, events, observer };
 }
 
 const body: WorkflowNode = { id: 'body', type: 'template', data: { template: 'secret {{x}}' } };
@@ -33,7 +36,7 @@ const llm: WorkflowNode = {
 
 describe('PrismaExecutionObserver', () => {
   it('creates a running node run and completes the matching one by sequence', async () => {
-    const { prisma, observer } = setup();
+    const { prisma, events, observer } = setup();
 
     // The same node twice, as inside a loop body.
     await observer.onNodeStart({ node: body, sequence: 2, attempt: 1 });
@@ -59,6 +62,42 @@ describe('PrismaExecutionObserver', () => {
     expect(prisma.nodeRun.update).toHaveBeenNthCalledWith(2, {
       where: { id: 'node-run-1' },
       data: { status: 'SUCCESS', output: 'second', finishedAt: expect.any(Date) },
+    });
+    expect(events.publish).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        runId: 'run-1',
+        type: 'NODE_STATUS_CHANGED',
+        nodeRunId: 'node-run-0',
+        status: 'RUNNING',
+        startedAt: expect.any(String),
+        finishedAt: null,
+        error: null,
+      }),
+    );
+    expect(events.publish).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        nodeRunId: 'node-run-1',
+        status: 'SUCCESS',
+        startedAt: expect.any(String),
+        finishedAt: expect.any(String),
+        error: null,
+      }),
+    );
+  });
+
+  it('keeps persisted node execution successful when Redis notification fails', async () => {
+    const { prisma, events, observer } = setup();
+    events.publish.mockRejectedValueOnce(new Error('Redis unavailable'));
+
+    await observer.onNodeStart({ node: body, sequence: 1, attempt: 1 });
+    await expect(
+      observer.onNodeSuccess({ node: body, sequence: 1, attempt: 1, output: 'saved' }),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.nodeRun.update).toHaveBeenCalledWith({
+      where: { id: 'node-run-0' },
+      data: { status: 'SUCCESS', output: 'saved', finishedAt: expect.any(Date) },
     });
   });
 

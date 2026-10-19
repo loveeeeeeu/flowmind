@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { LoopNodeType } from '../types/workflowCanvas';
 import { NodeCard } from './NodeCard';
+import { getNodeExecution } from '../execution/executionOverlay';
 
 export function LoopNode({ data }: NodeProps<LoopNodeType>) {
   return (
@@ -10,6 +11,7 @@ export function LoopNode({ data }: NodeProps<LoopNodeType>) {
       title={data.label || '循环'}
       meta={`遍历 ${data.itemsPath || '?'} → ${data.itemVariable || 'item'}`}
       className="has-branches has-loop-target"
+      execution={getNodeExecution(data)}
     >
       <Handle type="target" position={Position.Left} />
 
