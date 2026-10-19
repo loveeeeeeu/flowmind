@@ -975,7 +975,7 @@ Run 结束
 ```
 SSE 重连（重新建立新的sse连接）由 fetch-event-source 协助处理，但业务层仍需决定哪些错误可以重连、连接恢复（首次连接）后如何从数据库重新对账，以及什么时候开启 Polling 兜底。
 
-# NodeRun 实时事件与画布执行覆盖层
+# NodeRun 实时事件与<mark>**画布执行覆盖层**</mark>
 前面只知道这个 Workflow Run 是否正在运行 / 是否成功，本节课进一步知道：
 --当前执行到哪个节点？
 --哪些节点成功、失败、等待？
@@ -1036,7 +1036,129 @@ false 分支节点从未执行
 # 实时日志与 Debug Panel
 上一节课不能回答：为什么失败？这一轮重试发生了什么？节点输入、输出是什么？执行过程中产生了哪些日志？
 本节课补上：
-Canvas = 执行概览：哪里出问题
-Debug Panel = 执行详情：为什么出问题
-## 
+Canvas = 执行概览：哪里出问题()
+SSE实时Debug Panel = 执行详情：为什么出问题
+## Debug Panel点击节点后的流程
+```
+用户点击 Canvas Node
+↓
+确定 selectedNodeId
+↓
+从该 nodeId 的 NodeRuns 中找最新 sequence + attempt
+↓
+设置 selectedNodeRunId
+↓
+请求 NodeRun Debug API
+↓
+右侧 Debug Panel 展示详情
 
+如果节点从未执行：
+selectedNodeRunId = null
+↓
+不发无意义 API 请求
+↓
+显示“此节点在当前 Run 中未执行”
+```
+## 实时日志如何更新 Debug Panel
+```前端部分链路
+收到 LOG_APPENDED（SSE）
+↓
+检查这个 nodeRunId 的 Debug Detail 缓存是否已存在
+├─ 已打开过 Debug Panel
+│  → 缓存存在
+│  → 直接 append 这一条日志，右侧实时更新
+│
+└─ 从未打开 Debug Panel
+   → 缓存不存在
+   → 不创建、不缓存、不请求数据库
+```
+```之后用户再点击某个节点、打开 Debug Panel：
+点击节点
+↓
+useQuery 发现该 NodeRun Detail 没有缓存
+↓
+GET /projects/:projectId/runs/:runId/node-runs/:nodeRunId
+↓
+数据库读取 NodeRun + ExecutionLog
+↓
+返回完整、已脱敏的 input / output / error / logs
+↓
+Debug Panel 显示
+```
+
+# 关于涉及SSE部分梳理
+
+## 1. 一条 SSE 事件如何影响页面
+
+```text
+SSE 事件
+  ↓
+更新 <mark>**TanStack Query 的 Run Detail Cache**</mark>
+  ↓
+├─ Canvas Overlay：读取 nodeRuns，节点变色
+├─ 底部「运行」面板：读取同一份 run / nodeRuns，状态和追踪更新
+└─ 右侧 Debug Panel：按需读取某个 NodeRun Detail
+```
+
+<mark>**重点：Canvas 和底部「运行」面板不各自维护一份实时状态。**</mark>
+
+它们都读取同一个 <mark>**Run Detail Cache**</mark>。因此收到一次节点状态事件后，多个 UI 会自然同步更新。
+
+## 2. 各个 UI 与 SSE 的关系
+
+| UI | 是否直接受 SSE 影响 | 怎么更新 |
+| --- | --- | --- |
+| Canvas | 是 | <mark>**NODE_STATUS_CHANGED**</mark> 更新 `nodeRuns`，节点状态变化。 |
+| 底部「运行」当前 Run | 是 | 同一份 <mark>**Run Detail Cache**</mark> 变化，整体状态、追踪、耗时随之变化。 |
+| 运行历史列表 | 间接 | Run 结束后刷新 History，显示 `SUCCESS` / `FAILED`。 |
+| 右侧 Debug Panel | 是，但按需 | 已打开时，<mark>**LOG_APPENDED**</mark> 追加日志；节点结束后重新读取完整详情。 |
+| 底部「日志」标签 | 不逐条 SSE 追加 | 打开时从数据库读取该 Run 的全量日志。 |
+
+## 3. 为什么底部日志不逐条实时追加？
+
+底部日志是一个 <mark>**WorkflowRun 的全局日志视图**</mark>：它可能包含 Start、HTTP、LLM、IF 等所有节点的大量日志。
+
+右侧 Debug Panel 是 <mark>**一个具体 NodeRun 的局部调试视图**</mark>：用户已经明确点开这个节点，因此只为它实时追加日志最有价值。
+
+```text
+底部「日志」：这个工作流整体发生过什么？
+右侧 Debug：这个节点这一次执行具体发生了什么？
+```
+
+这样可以避免把所有节点的大量日志都持续塞入前端缓存，同时仍能在用户正在调试某个节点时立即看到新日志。
+
+## 4. 新 Run 时 Debug Panel 的自动定位（重要修正）
+
+“打开 Debug Panel 后日志会实时追加”有一个前提：面板必须已经定位到 <mark>**当前 Run 的具体 `nodeRunId`**</mark>。
+
+```text
+selectedNodeId
+= 画布中的定义节点，例如 HTTP
+
+selectedNodeRunId
+= 当前 Run 中 HTTP 的某一次具体执行实例，例如 nr-http-new
+```
+
+重新运行时，前端会清空旧的 `selectedNodeRunId`，避免错误地读取上一次 Run 的数据；但用户可能仍然选中了 HTTP 画布节点。
+
+正确流程应为：
+
+```text
+用户仍选中 HTTP 节点
+↓
+新 Run 中 HTTP 产生 NodeRun
+↓
+Debug Panel 自动选择该节点在当前 Run 最新的 nodeRunId
+↓
+GET NodeRun Detail，建立详情缓存
+↓
+后续 LOG_APPENDED 事件直接 append 到该缓存
+↓
+右侧 Logs 实时增加
+```
+
+<mark>**不能只因为 nodeId 相同，就沿用旧 Run 的 nodeRunId。**</mark>
+
+因为 `nodeId` 是工作流定义中的节点身份；`nodeRunId` 才是某一次 Run 中的具体执行实例。
+
+如果 SSE 中途漏掉日志，节点进入 `SUCCESS` / `FAILED` 后会重新请求完整 NodeRun Detail，因此最终的 input、output、error、logs 仍以数据库为准。

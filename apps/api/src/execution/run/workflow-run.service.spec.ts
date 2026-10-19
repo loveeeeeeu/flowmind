@@ -166,13 +166,45 @@ describe('WorkflowRunService', () => {
     prisma.workflowRun.findFirst.mockResolvedValueOnce({ id: 'run-1' } as never);
     const service = new WorkflowRunService(prisma as unknown as PrismaService);
 
-    await expect(service.findLogs('project-1', 'run-1')).resolves.toEqual([{ id: 'log-1' }]);
+    await expect(service.findLogs('project-1', 'run-1')).resolves.toEqual([
+      { id: 'log-1', metadata: null },
+    ]);
 
     expect(prisma.executionLog.findMany).toHaveBeenCalledWith({
       where: { workflowRunId: 'run-1' },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: 500,
     });
+  });
+
+  it('redacts secrets from the run log projection too', async () => {
+    const prisma = createPrisma();
+    prisma.workflowRun.findFirst.mockResolvedValueOnce({ id: 'run-1' } as never);
+    prisma.executionLog.findMany.mockResolvedValueOnce([
+      {
+        id: 'log-1',
+        metadata: {
+          Authorization: 'Bearer flowmind-secret-never-leak-2026',
+          nested: { token: 'flowmind-secret-never-leak-2026' },
+          statusCode: 200,
+        },
+      },
+    ] as never);
+    const service = new WorkflowRunService(prisma as unknown as PrismaService);
+
+    const logs = await service.findLogs('project-1', 'run-1');
+
+    expect(JSON.stringify(logs)).not.toContain('flowmind-secret-never-leak-2026');
+    expect(logs).toEqual([
+      {
+        id: 'log-1',
+        metadata: {
+          Authorization: '[REDACTED]',
+          nested: { token: '[REDACTED]' },
+          statusCode: 200,
+        },
+      },
+    ]);
   });
 
   it('returns null for the logs of a missing run so the controller can 404', async () => {

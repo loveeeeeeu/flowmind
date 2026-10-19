@@ -51,17 +51,26 @@ export function NodeDebugPanel({
   onSelectNodeRun,
 }: NodeDebugPanelProps) {
   const groups = node ? groupNodeExecutions(run.nodeRuns, node.id) : [];
-  const selectedGroupIndex = groups.findIndex((group) =>
+  // A new Run intentionally clears selectedNodeRunId, while the editor can keep the same canvas
+  // node selected. In that case (or after switching away from an older Run), inspect this Run's
+  // newest concrete NodeRun automatically instead of leaving a blank Debug Panel.
+  const selectedNodeRunStillExists = groups.some((group) =>
     group.attempts.some((attempt) => attempt.id === selectedNodeRunId),
   );
+  const activeNodeRunId = selectedNodeRunStillExists
+    ? selectedNodeRunId
+    : groups.at(-1)?.attempts.at(-1)?.id ?? null;
+  const selectedGroupIndex = groups.findIndex((group) =>
+    group.attempts.some((attempt) => attempt.id === activeNodeRunId),
+  );
   const selectedGroup = selectedGroupIndex >= 0 ? groups[selectedGroupIndex] : undefined;
-  const selectedAttempt = selectedGroup?.attempts.find((attempt) => attempt.id === selectedNodeRunId);
+  const selectedAttempt = selectedGroup?.attempts.find((attempt) => attempt.id === activeNodeRunId);
   const debugQuery = useQuery({
-    queryKey: selectedNodeRunId
-      ? queryKeys.nodeRuns.detail(projectId, run.id, selectedNodeRunId)
+    queryKey: activeNodeRunId
+      ? queryKeys.nodeRuns.detail(projectId, run.id, activeNodeRunId)
       : ['node-runs', 'disabled'],
-    queryFn: () => getNodeRunDebug(projectId, run.id, selectedNodeRunId!),
-    enabled: Boolean(selectedNodeRunId),
+    queryFn: () => getNodeRunDebug(projectId, run.id, activeNodeRunId!),
+    enabled: Boolean(activeNodeRunId),
   });
   const now = useNow(selectedAttempt?.status === 'RUNNING');
   const debug = debugQuery.data;
@@ -113,7 +122,7 @@ export function NodeDebugPanel({
         <label className="panel-field">
           <span className="panel-field-label">尝试次数</span>
           <select
-            value={selectedNodeRunId ?? ''}
+            value={activeNodeRunId ?? ''}
             onChange={(event) => onSelectNodeRun(event.target.value || null)}
           >
             {selectedGroup.attempts.map((attempt) => (

@@ -182,12 +182,17 @@ export class WorkflowRunService {
       return null;
     }
 
-    return this.prisma.executionLog.findMany({
+    const logs = await this.prisma.executionLog.findMany({
       where: { workflowRunId: runId },
       // Several logs can share a millisecond; the id keeps the order stable between polls.
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: 500,
     });
+
+    return logs.map((log) => ({
+      ...log,
+      metadata: sanitizeDebugMetadata(log.metadata),
+    }));
   }
 
   findByWorkflow(workflowId: string) {

@@ -1,29 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { getWorkflowRunLogs } from '../../api/runs';
 import { queryKeys } from '../../api/queryKeys';
-import type { NodeRun, RunStatus } from '../../types/run';
-import { LOG_LEVEL_LABELS, formatJson, formatLogTime, isTerminalRunStatus } from './runUtils';
+import type { NodeRun } from '../../types/run';
+import { LOG_LEVEL_LABELS, formatJson, formatLogTime } from './runUtils';
 
-const LOG_POLL_INTERVAL_MS = 2000;
 const LOG_LIMIT = 500;
 
 interface ExecutionLogListProps {
   projectId: string;
   runId: string;
-  runStatus: RunStatus;
   nodeRuns: NodeRun[];
   nodeLabels: Record<string, string>;
 }
 
 /** Mounted only while the Logs tab is open, so logs are never fetched in the background. */
-export function ExecutionLogList({ projectId, runId, runStatus, nodeRuns, nodeLabels }: ExecutionLogListProps) {
+export function ExecutionLogList({ projectId, runId, nodeRuns, nodeLabels }: ExecutionLogListProps) {
   const logsQuery = useQuery({
-    queryKey: queryKeys.runs.logs(projectId, runId, runStatus),
+    queryKey: queryKeys.runs.logs(projectId, runId),
     queryFn: () => getWorkflowRunLogs(projectId, runId),
-    refetchInterval: isTerminalRunStatus(runStatus) ? false : LOG_POLL_INTERVAL_MS,
-    // A status change switches the key; keep showing this run's logs instead of flashing empty.
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[3] === runId ? previous : undefined,
   });
   const logs = logsQuery.data;
 

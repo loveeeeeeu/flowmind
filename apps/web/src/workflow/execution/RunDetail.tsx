@@ -189,7 +189,6 @@ export function RunDetail({
         <ExecutionLogList
           projectId={projectId}
           runId={run.id}
-          runStatus={run.status}
           nodeRuns={run.nodeRuns}
           nodeLabels={nodeLabels}
         />
