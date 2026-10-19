@@ -26,7 +26,7 @@ interface RunDetailProps {
   workflowUpdatedAt: string;
   nodeLabels: Record<string, string>;
   selectedNodeId: string | null;
-  onSelectNode: (nodeId: string) => void;
+  onSelectNode: (nodeId: string, nodeRunId?: string) => void;
   onViewVersion: (versionId: string) => void;
 }
 
@@ -134,7 +134,7 @@ export function RunDetail({
                 <button
                   type="button"
                   className="subtle-button"
-                  onClick={() => onSelectNode(failedNodeRun.nodeId)}
+                  onClick={() => onSelectNode(failedNodeRun.nodeId, failedNodeRun.id)}
                 >
                   定位失败节点
                 </button>

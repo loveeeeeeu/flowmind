@@ -262,6 +262,26 @@ export function getUnexecutedNodeView(nodeId: string, runStatus: RunStatus): Nod
   };
 }
 
+export interface NodeExecutionGroup {
+  sequence: number;
+  attempts: NodeRun[];
+}
+
+/** Groups loop invocations by sequence while preserving retry attempts inside each invocation. */
+export function groupNodeExecutions(nodeRuns: NodeRun[], nodeId: string): NodeExecutionGroup[] {
+  const groups = new Map<number, NodeRun[]>();
+
+  for (const nodeRun of [...nodeRuns]
+    .filter((item) => item.nodeId === nodeId)
+    .sort((left, right) => left.sequence - right.sequence || left.attempt - right.attempt)) {
+    const attempts = groups.get(nodeRun.sequence) ?? [];
+    attempts.push(nodeRun);
+    groups.set(nodeRun.sequence, attempts);
+  }
+
+  return [...groups.entries()].map(([sequence, attempts]) => ({ sequence, attempts }));
+}
+
 export interface RunMetrics {
   steps: number;
   attempts: number;

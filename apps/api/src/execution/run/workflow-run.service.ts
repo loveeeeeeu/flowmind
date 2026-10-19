@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { normalizeExecutionError } from '@flowmind/shared';
+import { normalizeExecutionError, sanitizeDebugMetadata, sanitizeDebugValue } from '@flowmind/shared';
 import type { WorkflowCanvas } from '@flowmind/workflow-core';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { toJsonInput } from './json-value.js';
+import { apiError } from '../../common/api-error.js';
 
 export interface CreatePublishedRunParams {
   workflowId: string;
@@ -88,9 +89,86 @@ export class WorkflowRunService {
         nodeRuns: {
           // Retries share a sequence, so attempt keeps them in execution order.
           orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }],
+          // Input/output can be large or sensitive. The Debug API exposes a sanitised projection on demand.
+          select: {
+            id: true,
+            workflowRunId: true,
+            nodeId: true,
+            nodeType: true,
+            status: true,
+            sequence: true,
+            iteration: true,
+            attempt: true,
+            errorCode: true,
+            errorMessage: true,
+            startedAt: true,
+            finishedAt: true,
+            createdAt: true,
+          },
         },
       },
     });
+  }
+
+  async findNodeRunDebug(projectId: string, runId: string, nodeRunId: string) {
+    const nodeRun = await this.prisma.nodeRun.findFirst({
+      where: {
+        id: nodeRunId,
+        workflowRunId: runId,
+        workflowRun: { workflow: { projectId } },
+      },
+      select: {
+        id: true,
+        workflowRunId: true,
+        nodeId: true,
+        nodeType: true,
+        sequence: true,
+        attempt: true,
+        status: true,
+        input: true,
+        output: true,
+        errorCode: true,
+        errorMessage: true,
+        startedAt: true,
+        finishedAt: true,
+        logs: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: 500,
+          select: { id: true, level: true, message: true, metadata: true, createdAt: true },
+        },
+      },
+    });
+
+    if (!nodeRun) {
+      throw apiError.notFound('NODE_RUN_NOT_FOUND', 'Node run not found');
+    }
+
+    const endedAt = nodeRun.finishedAt ?? new Date();
+
+    return {
+      id: nodeRun.id,
+      runId: nodeRun.workflowRunId,
+      nodeId: nodeRun.nodeId,
+      nodeType: nodeRun.nodeType,
+      sequence: nodeRun.sequence,
+      attempt: nodeRun.attempt,
+      status: nodeRun.status,
+      startedAt: nodeRun.startedAt,
+      finishedAt: nodeRun.finishedAt,
+      durationMs: nodeRun.startedAt ? Math.max(0, endedAt.getTime() - nodeRun.startedAt.getTime()) : null,
+      input: sanitizeDebugValue(nodeRun.input),
+      output: sanitizeDebugValue(nodeRun.output),
+      error: nodeRun.errorCode
+        ? { code: nodeRun.errorCode, message: nodeRun.errorMessage ?? '' }
+        : null,
+      logs: nodeRun.logs.map((log) => ({
+        id: log.id,
+        level: log.level,
+        message: log.message,
+        metadata: sanitizeDebugMetadata(log.metadata),
+        createdAt: log.createdAt,
+      })),
+    };
   }
 
   /** Kept out of findOne: logs grow much faster than node runs and are loaded on demand. */

@@ -23,7 +23,7 @@ interface ExecutionPanelProps {
   getTestCanvas: () => WorkflowCanvas;
   nodeLabels: Record<string, string>;
   selectedNodeId: string | null;
-  onSelectNode: (nodeId: string) => void;
+  onSelectNode: (nodeId: string, nodeRunId?: string) => void;
   onViewVersion: (versionId: string) => void;
 }
 

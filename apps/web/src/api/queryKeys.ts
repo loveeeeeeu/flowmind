@@ -39,4 +39,8 @@ export const queryKeys = {
     logs: (projectId: string, runId: string, status: string) => ['runs', projectId, 'detail', runId, 'logs', status] as const,
     workflowHistory: (projectId: string, workflowId: string) => ['runs', projectId, 'workflow', workflowId] as const,
   },
+  nodeRuns: {
+    detail: (projectId: string, runId: string, nodeRunId: string) =>
+      ['node-runs', projectId, runId, nodeRunId] as const,
+  },
 };

@@ -12,6 +12,9 @@ function createPrisma() {
     executionLog: {
       findMany: vi.fn(async () => [{ id: 'log-1' }]),
     },
+    nodeRun: {
+      findFirst: vi.fn(async () => null),
+    },
   };
 }
 
@@ -105,9 +108,57 @@ describe('WorkflowRunService', () => {
       include: {
         workflowVersion: { select: { id: true, version: true, createdAt: true } },
         workflowApiKey: { select: { id: true, name: true, prefix: true } },
-        nodeRuns: { orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }] },
+        nodeRuns: {
+          orderBy: [{ sequence: 'asc' }, { attempt: 'asc' }],
+          select: {
+            id: true,
+            workflowRunId: true,
+            nodeId: true,
+            nodeType: true,
+            status: true,
+            sequence: true,
+            iteration: true,
+            attempt: true,
+            errorCode: true,
+            errorMessage: true,
+            startedAt: true,
+            finishedAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
+  });
+
+  it('returns a project-scoped, sanitised NodeRun debug projection', async () => {
+    const prisma = createPrisma();
+    prisma.nodeRun.findFirst.mockResolvedValueOnce({
+      id: 'node-run-1', workflowRunId: 'run-1', nodeId: 'http', nodeType: 'http', sequence: 2, attempt: 1,
+      status: 'FAILED', input: { headers: { Authorization: 'Bearer secret' } }, output: { token: 'hidden' },
+      errorCode: 'AUTH_ERROR', errorMessage: 'Invalid API key', startedAt: new Date('2026-10-19T10:00:00Z'),
+      finishedAt: new Date('2026-10-19T10:00:01Z'),
+      logs: [{ id: 'log-1', level: 'ERROR', message: 'Request failed', metadata: { apiKey: 'hidden' }, createdAt: new Date('2026-10-19T10:00:01Z') }],
+    } as never);
+    const service = new WorkflowRunService(prisma as unknown as PrismaService);
+
+    await expect(service.findNodeRunDebug('project-1', 'run-1', 'node-run-1')).resolves.toMatchObject({
+      id: 'node-run-1',
+      runId: 'run-1',
+      durationMs: 1000,
+      input: { headers: { Authorization: '[REDACTED]' } },
+      output: { token: '[REDACTED]' },
+      error: { code: 'AUTH_ERROR', message: 'Invalid API key' },
+      logs: [{ id: 'log-1', metadata: { apiKey: '[REDACTED]' } }],
+    });
+    expect(prisma.nodeRun.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'node-run-1', workflowRunId: 'run-1', workflowRun: { workflow: { projectId: 'project-1' } } },
+    }));
+  });
+
+  it('does not reveal a NodeRun outside the selected project and run', async () => {
+    const service = new WorkflowRunService(createPrisma() as unknown as PrismaService);
+
+    await expect(service.findNodeRunDebug('project-a', 'run-a', 'node-run-b')).rejects.toMatchObject({ status: 404 });
   });
 
   it('loads at most 500 logs of an existing run, oldest first with a stable tie-break', async () => {

@@ -8,7 +8,7 @@ import {
   getWorkflowRuns,
 } from '../../api/runs';
 import { queryKeys } from '../../api/queryKeys';
-import type { WorkflowRunDetail, WorkflowRunSummary } from '../../types/run';
+import type { NodeRunDebug, WorkflowRunDetail, WorkflowRunSummary } from '../../types/run';
 import type { WorkflowCanvas } from '../types/workflowCanvas';
 import {
   isTerminalRunStatus,
@@ -39,8 +39,6 @@ function applyNodeStatusEvent(old: WorkflowRunDetail, event: Extract<RunEvent, {
           sequence: event.sequence,
           iteration: null,
           attempt: event.attempt,
-          input: null,
-          output: null,
           errorCode,
           errorMessage,
           startedAt: event.startedAt,
@@ -98,6 +96,7 @@ export function useExecutionState(projectId: string, workflowId: string) {
   const [isOpen, setIsOpen] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedNodeRunId, setSelectedNodeRunId] = useState<string | null>(null);
 
   const historyQuery = useQuery({
     queryKey: queryKeys.runs.workflowHistory(projectId, workflowId),
@@ -138,6 +137,28 @@ export function useExecutionState(projectId: string, workflowId: string) {
           ? { ...old, ...common, output: event.output }
           : { ...old, ...common };
       });
+
+      if (event.type === 'LOG_APPENDED' && event.log.nodeRunId) {
+        queryClient.setQueryData<NodeRunDebug>(
+          queryKeys.nodeRuns.detail(projectId, event.runId, event.log.nodeRunId),
+          (old) => {
+            if (!old || old.logs.some((log) => log.id === event.log.id)) {
+              return old;
+            }
+
+            return { ...old, logs: [...old.logs, event.log] };
+          },
+        );
+      }
+
+      if (
+        event.type === 'NODE_STATUS_CHANGED' &&
+        (event.status === 'SUCCESS' || event.status === 'FAILED')
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.nodeRuns.detail(projectId, event.runId, event.nodeRunId),
+        });
+      }
     },
     [projectId, queryClient],
   );
@@ -181,6 +202,7 @@ export function useExecutionState(projectId: string, workflowId: string) {
   async function followRun(run: WorkflowRunSummary) {
     setActiveRunId(run.id);
     setSelectedRunId(null);
+    setSelectedNodeRunId(null);
     setIsOpen(true);
     await queryClient.invalidateQueries({
       queryKey: queryKeys.runs.workflowHistory(projectId, workflowId),
@@ -207,7 +229,12 @@ export function useExecutionState(projectId: string, workflowId: string) {
     viewedRunId,
     viewedRunQuery,
     stream,
-    selectRun: setSelectedRunId,
+    selectedNodeRunId,
+    selectNodeRun: setSelectedNodeRunId,
+    selectRun: (runId: string | null) => {
+      setSelectedRunId(runId);
+      setSelectedNodeRunId(null);
+    },
     runMutation,
     testRunMutation,
   };

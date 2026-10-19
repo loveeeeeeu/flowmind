@@ -6,7 +6,7 @@ import {
   type NodeSuccessEvent,
   type WorkflowNode,
 } from '@flowmind/workflow-core';
-import { normalizeExecutionError } from '@flowmind/shared';
+import { normalizeExecutionError, sanitizeDebugValue } from '@flowmind/shared';
 import { Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -24,6 +24,11 @@ function describeNode(node: WorkflowNode): Record<string, unknown> {
     default:
       return {};
   }
+}
+
+/** The debug input is a frozen, sanitised node configuration, never a credential/runtime secret. */
+function toSafeNodeDebugInput(node: WorkflowNode) {
+  return sanitizeDebugValue({ nodeType: node.type, config: node.data });
 }
 
 /**
@@ -54,6 +59,7 @@ export class PrismaExecutionObserver implements ExecutionObserver {
         sequence,
         attempt,
         status: 'RUNNING',
+        input: toJsonInput(toSafeNodeDebugInput(node)),
         startedAt,
       },
     });

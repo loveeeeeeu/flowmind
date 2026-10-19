@@ -36,8 +36,6 @@ export interface NodeRun {
   sequence: number;
   iteration: number | null;
   attempt: number;
-  input: unknown;
-  output: unknown;
   errorCode: string | null;
   errorMessage: string | null;
   startedAt: string | null;
@@ -56,6 +54,24 @@ export interface ExecutionLog {
   message: string;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+}
+
+/** Sanitised, on-demand detail for one concrete NodeRun execution instance. */
+export interface NodeRunDebug {
+  id: string;
+  runId: string;
+  nodeId: string;
+  nodeType: string;
+  sequence: number;
+  attempt: number;
+  status: NodeRunStatus;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  input: unknown | null;
+  output: unknown | null;
+  error: { code: string; message: string } | null;
+  logs: Omit<ExecutionLog, 'workflowRunId' | 'nodeRunId'>[];
 }
 
 export interface RunVersionSummary {

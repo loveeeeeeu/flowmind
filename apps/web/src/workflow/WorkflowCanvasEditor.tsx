@@ -46,6 +46,7 @@ import { IfNode } from './nodes/IfNode';
 import { LoopNode } from './nodes/LoopNode';
 import { CodeNode } from './nodes/CodeNode';
 import { ExecutionPanel } from './execution/ExecutionPanel';
+import { NodeDebugPanel } from './execution/NodeDebugPanel';
 import { buildNodeExecutionViews, getUnexecutedNodeView } from './execution/runUtils';
 import { useExecutionState } from './execution/useExecutionState';
 import { VersionHistory } from './version/VersionHistory';
@@ -177,7 +178,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
 
   // Selection is not persisted by toPersistedCanvas, so focusing a node never marks the canvas dirty.
   const focusNode = useCallback(
-    (nodeId: string) => {
+    (nodeId: string, nodeRunId?: string) => {
       // A historical run can reference a node that has since been deleted.
       if (isPreviewing || !nodes.some((node) => node.id === nodeId)) {
         return;
@@ -187,9 +188,13 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
         currentNodes.map((node) => ({ ...node, selected: node.id === nodeId })),
       );
       setSelectedNodeId(nodeId);
+      const latestNodeRunId = overlayRun
+        ? buildNodeExecutionViews(overlayRun.nodeRuns).get(nodeId)?.latestNodeRunId ?? null
+        : null;
+      execution.selectNodeRun(nodeRunId ?? latestNodeRunId);
       void flow?.fitView({ nodes: [{ id: nodeId }], duration: 300, maxZoom: 1.2 });
     },
-    [isPreviewing, nodes, setNodes, flow],
+    [execution, flow, isPreviewing, nodes, overlayRun, setNodes],
   );
 
   const handleNodesChange = useCallback(
@@ -648,8 +653,15 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
               nodesConnectable={!isPreviewing && canEdit}
               elementsSelectable={!isPreviewing}
               deleteKeyCode={isPreviewing || !canEdit ? null : ['Backspace', 'Delete']}
-              onNodeClick={isPreviewing ? undefined : (_, node) => setSelectedNodeId(node.id)}
-              onPaneClick={isPreviewing ? undefined : () => setSelectedNodeId(null)}
+              onNodeClick={isPreviewing ? undefined : (_, node) => focusNode(node.id)}
+              onPaneClick={
+                isPreviewing
+                  ? undefined
+                  : () => {
+                      setSelectedNodeId(null);
+                      execution.selectNodeRun(null);
+                    }
+              }
               fitView
             >
               <Background color="#d9e0eb" gap={18} size={1} />
@@ -659,12 +671,22 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
           </AvailableModelsContext.Provider>
         </div>
 
-        <PropertiesPanel
-          node={isPreviewing ? null : selectedNode}
-          onNodeDataChange={updateNodeData}
-          onNodeDataReplace={replaceNodeData}
-          onDeleteNode={deleteNode}
-        />
+        {overlayRun ? (
+          <NodeDebugPanel
+            projectId={projectId}
+            run={overlayRun}
+            node={selectedNode}
+            selectedNodeRunId={execution.selectedNodeRunId}
+            onSelectNodeRun={execution.selectNodeRun}
+          />
+        ) : (
+          <PropertiesPanel
+            node={isPreviewing ? null : selectedNode}
+            onNodeDataChange={updateNodeData}
+            onNodeDataReplace={replaceNodeData}
+            onDeleteNode={deleteNode}
+          />
+        )}
 
         {isVersionsOpen && (
           <VersionHistory

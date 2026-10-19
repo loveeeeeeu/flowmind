@@ -1,4 +1,4 @@
-import type { ExecutionLog, WorkflowRunDetail, WorkflowRunSummary } from '../types/run';
+import type { ExecutionLog, NodeRunDebug, WorkflowRunDetail, WorkflowRunSummary } from '../types/run';
 import type { WorkflowCanvas } from '../workflow/types/workflowCanvas';
 import { request } from './client';
 
@@ -34,6 +34,14 @@ export function getWorkflowRun(projectId: string, runId: string): Promise<Workfl
 
 export function getWorkflowRunLogs(projectId: string, runId: string): Promise<ExecutionLog[]> {
   return request<ExecutionLog[]>(`/projects/${projectId}/runs/${runId}/logs`);
+}
+
+export function getNodeRunDebug(
+  projectId: string,
+  runId: string,
+  nodeRunId: string,
+): Promise<NodeRunDebug> {
+  return request<NodeRunDebug>(`/projects/${projectId}/runs/${runId}/node-runs/${nodeRunId}`);
 }
 
 export function getWorkflowRuns(projectId: string, workflowId: string): Promise<WorkflowRunSummary[]> {

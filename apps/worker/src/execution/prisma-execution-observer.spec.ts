@@ -52,6 +52,7 @@ describe('PrismaExecutionObserver', () => {
         sequence: 2,
         attempt: 1,
         status: 'RUNNING',
+        input: { nodeType: 'template', config: { template: 'secret {{x}}' } },
         startedAt: expect.any(Date),
       },
     });

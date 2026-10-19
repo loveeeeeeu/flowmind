@@ -25,6 +25,16 @@ export class RunController {
     return run;
   }
 
+  @ApiOperation({ summary: 'Get sanitised debug data and logs for one node execution attempt' })
+  @Get(':id/node-runs/:nodeRunId')
+  findNodeRunDebug(
+    @Param('projectId') projectId: string,
+    @Param('id') runId: string,
+    @Param('nodeRunId') nodeRunId: string,
+  ) {
+    return this.runs.findNodeRunDebug(projectId, runId, nodeRunId);
+  }
+
   @ApiOperation({ summary: 'Get the execution logs of a workflow run (oldest first, max 500)' })
   @Get(':id/logs')
   async findLogs(@Param('projectId') projectId: string, @Param('id') id: string) {

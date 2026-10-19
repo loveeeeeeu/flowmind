@@ -1,6 +1,6 @@
 import type { NodeRun } from '../../types/run';
 import { RunStatusBadge } from './RunStatusBadge';
-import { formatDuration, formatJson, getElapsedMs, groupNodeRuns } from './runUtils';
+import { formatDuration, getElapsedMs, groupNodeRuns } from './runUtils';
 
 interface NodeRunTraceProps {
   nodeRuns: NodeRun[];
@@ -8,7 +8,7 @@ interface NodeRunTraceProps {
   selectedNodeId: string | null;
   /** Current time for still-running spans; null once the run is terminal. */
   now: number | null;
-  onSelectNode: (nodeId: string) => void;
+  onSelectNode: (nodeId: string, nodeRunId: string) => void;
 }
 
 function NodeRunError({ nodeRun }: { nodeRun: NodeRun }) {
@@ -53,7 +53,7 @@ export function NodeRunTrace({
             <button
               type="button"
               className="node-run-head"
-              onClick={() => onSelectNode(group.nodeId)}
+              onClick={() => onSelectNode(group.nodeId, latest.id)}
               disabled={isDeleted}
               title={isDeleted ? '该节点已从画布删除' : '在画布中定位该节点'}
             >
@@ -97,19 +97,6 @@ export function NodeRunTrace({
               <NodeRunError nodeRun={latest} />
             )}
 
-            {latest.input != null && (
-              <details className="run-json-details">
-                <summary>输入</summary>
-                <pre className="run-json">{formatJson(latest.input)}</pre>
-              </details>
-            )}
-
-            {latest.output != null && (
-              <details className="run-json-details">
-                <summary>输出</summary>
-                <pre className="run-json">{formatJson(latest.output)}</pre>
-              </details>
-            )}
           </li>
         );
       })}
