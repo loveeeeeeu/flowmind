@@ -11,6 +11,7 @@ import { CredentialModule } from './credential/credential.module.js';
 import { ModelModule } from './model/model.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ProjectModule } from './project/project.module.js';
+import { KnowledgeModule } from './knowledge/knowledge.module.js';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { ProjectModule } from './project/project.module.js';
     ExternalApiModule,
     CredentialModule,
     ModelModule,
+    KnowledgeModule,
   ],
 })
 export class AppModule {}
-

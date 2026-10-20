@@ -30,13 +30,29 @@ describe('CreateModelDto', () => {
     });
   });
 
+  it('accepts the EMBEDDING model type and its vector dimensions', async () => {
+    await expect(
+      validate(CreateModelDto, {
+        name: ' Text Embedding ',
+        modelName: ' text-embedding-3-small ',
+        type: 'EMBEDDING',
+        embeddingDimensions: 1536,
+      }),
+    ).resolves.toEqual({
+      name: 'Text Embedding',
+      modelName: 'text-embedding-3-small',
+      type: 'EMBEDDING',
+      embeddingDimensions: 1536,
+    });
+  });
+
   it.each([
     ['an empty modelName', { name: 'M', modelName: '  ' }],
     ['a missing name', { modelName: 'm' }],
     ['a zero contextWindow', { name: 'M', modelName: 'm', contextWindow: 0 }],
     ['a fractional contextWindow', { name: 'M', modelName: 'm', contextWindow: 1.5 }],
     ['a string supportsTemperature', { name: 'M', modelName: 'm', supportsTemperature: 'yes' }],
-    ['a client-chosen type', { name: 'M', modelName: 'm', type: 'CHAT' }],
+    ['an unsupported model type', { name: 'M', modelName: 'm', type: 'RERANK' }],
     ['a credentialId in the body', { name: 'M', modelName: 'm', credentialId: 'other' }],
   ])('rejects %s with VALIDATION_FAILED', async (_name, body) => {
     expect(await rejection(CreateModelDto, body)).toMatchObject({ code: 'VALIDATION_FAILED' });

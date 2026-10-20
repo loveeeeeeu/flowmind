@@ -58,6 +58,35 @@ describe('ModelService.create', () => {
     });
   });
 
+  it('creates an embedding model with a fixed vector dimension', async () => {
+    const { service, prisma } = setup();
+
+    await service.create('project-1', 'cred-1', {
+      name: 'Text Embedding',
+      modelName: 'text-embedding-3-small',
+      type: 'EMBEDDING',
+      embeddingDimensions: 1536,
+    });
+
+    expect(firstCall(prisma.model.create).data).toMatchObject({
+      type: 'EMBEDDING',
+      embeddingDimensions: 1536,
+      supportsTemperature: false,
+    });
+  });
+
+  it('rejects a CHAT model with vector dimensions and an EMBEDDING model without them', async () => {
+    const { service, prisma } = setup();
+
+    await expect(service.create('project-1', 'cred-1', {
+      name: 'Chat', modelName: 'chat', embeddingDimensions: 1536,
+    })).rejects.toMatchObject({ response: { code: 'VALIDATION_FAILED' } });
+    await expect(service.create('project-1', 'cred-1', {
+      name: 'Embedding', modelName: 'embed', type: 'EMBEDDING',
+    })).rejects.toMatchObject({ response: { code: 'VALIDATION_FAILED' } });
+    expect(prisma.model.create).not.toHaveBeenCalled();
+  });
+
   it('rejects an unknown credential', async () => {
     const { service, prisma } = setup({ credential: null });
 
@@ -183,10 +212,18 @@ describe('ModelService.findAvailable', () => {
     await service.findAvailable('project-1');
 
     expect(firstCall(prisma.model.findMany)).toEqual({
-      where: { enabled: true, credential: { projectId: 'project-1', revokedAt: null } },
+      where: { type: 'CHAT', enabled: true, credential: { projectId: 'project-1', revokedAt: null } },
       orderBy: [{ credential: { name: 'asc' } }, { name: 'asc' }],
       select: AVAILABLE_MODEL,
     });
+  });
+
+  it('can explicitly list embedding models without mixing them into the chat picker', async () => {
+    const { service, prisma } = setup();
+
+    await service.findAvailable('project-1', 'EMBEDDING');
+
+    expect(firstCall(prisma.model.findMany).where).toMatchObject({ type: 'EMBEDDING' });
   });
 });
 

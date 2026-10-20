@@ -15,6 +15,7 @@ export const MODEL_SUMMARY = {
   type: true,
   contextWindow: true,
   supportsTemperature: true,
+  embeddingDimensions: true,
   enabled: true,
   createdAt: true,
   updatedAt: true,
@@ -37,6 +38,7 @@ export const AVAILABLE_MODEL = {
   type: true,
   contextWindow: true,
   supportsTemperature: true,
+  embeddingDimensions: true,
   credential: { select: { id: true, name: true, provider: true } },
 } as const;
 
@@ -55,6 +57,7 @@ export class ModelService {
   /** Manual add: any modelName, for providers whose GET /models is missing or incomplete. */
   async create(projectId: string, credentialId: string, dto: CreateModelDto) {
     await this.assertUsableCredential(projectId, credentialId);
+    validateModelConfiguration(dto);
 
     try {
       return await this.prisma.model.create({
@@ -75,6 +78,7 @@ export class ModelService {
    * current model ids, re-fetched here instead of trusting the client's list. All or nothing.
    */
   async importModels(projectId: string, credentialId: string, dto: ImportModelsDto) {
+    dto.models.forEach(validateModelConfiguration);
     const names = dto.models.map((model) => model.modelName);
     const repeated = names.filter((name, index) => names.indexOf(name) !== index);
 
@@ -138,10 +142,10 @@ export class ModelService {
     });
   }
 
-  /** Model picker: only models in this project, enabled, credential not revoked. */
-  findAvailable(projectId: string) {
+  /** Model picker: only one model capability at a time, enabled, credential not revoked. */
+  findAvailable(projectId: string, type: 'CHAT' | 'EMBEDDING' = 'CHAT') {
     return this.prisma.model.findMany({
-      where: { enabled: true, credential: { projectId, revokedAt: null } },
+      where: { type, enabled: true, credential: { projectId, revokedAt: null } },
       orderBy: [{ credential: { name: 'asc' } }, { name: 'asc' }],
       select: AVAILABLE_MODEL,
     });
@@ -212,14 +216,30 @@ export class ModelService {
 }
 
 function modelData(credentialId: string, dto: CreateModelDto) {
+  const type = dto.type ?? 'CHAT';
+
   return {
     credentialId,
     name: dto.name,
     modelName: dto.modelName,
-    type: 'CHAT' as const,
+    type,
     contextWindow: dto.contextWindow,
-    supportsTemperature: dto.supportsTemperature,
+    // Temperature changes generation randomness; it has no meaning for a vector model.
+    supportsTemperature: type === 'EMBEDDING' ? false : dto.supportsTemperature,
+    ...(type === 'EMBEDDING' ? { embeddingDimensions: dto.embeddingDimensions } : {}),
   };
+}
+
+function validateModelConfiguration(dto: CreateModelDto) {
+  const type = dto.type ?? 'CHAT';
+
+  if (type === 'EMBEDDING' && !dto.embeddingDimensions) {
+    throw apiError.badRequest('VALIDATION_FAILED', 'Embedding models require embeddingDimensions');
+  }
+
+  if (type === 'CHAT' && dto.embeddingDimensions !== undefined) {
+    throw apiError.badRequest('VALIDATION_FAILED', 'CHAT models cannot define embeddingDimensions');
+  }
 }
 
 /** @@unique([credentialId, modelName]) */

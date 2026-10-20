@@ -1,6 +1,6 @@
 import type { CredentialProvider } from './credential';
 
-export type ModelType = 'CHAT';
+export type ModelType = 'CHAT' | 'EMBEDDING';
 
 /** A model callable through one credential. credentialId and modelName never change. */
 export interface Model {
@@ -13,6 +13,7 @@ export interface Model {
   type: ModelType;
   contextWindow: number | null;
   supportsTemperature: boolean;
+  embeddingDimensions: number | null;
   /** false: hidden from new node configuration; published versions using it still run. */
   enabled: boolean;
   createdAt: string;
@@ -27,6 +28,7 @@ export interface AvailableModel {
   type: ModelType;
   contextWindow: number | null;
   supportsTemperature: boolean;
+  embeddingDimensions: number | null;
   credential: {
     id: string;
     name: string;
@@ -39,6 +41,8 @@ export interface CreateModelInput {
   modelName: string;
   contextWindow?: number;
   supportsTemperature?: boolean;
+  type?: ModelType;
+  embeddingDimensions?: number;
 }
 
 /** Metadata only. */

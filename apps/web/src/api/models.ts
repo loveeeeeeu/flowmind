@@ -1,12 +1,12 @@
-import type { AvailableModel, CreateModelInput, Model, UpdateModelInput } from '../types/model';
+import type { AvailableModel, CreateModelInput, Model, ModelType, UpdateModelInput } from '../types/model';
 import { request } from './client';
 
 export function getCredentialModels(projectId: string, credentialId: string): Promise<Model[]> {
   return request<Model[]>(`/projects/${projectId}/credentials/${credentialId}/models`);
 }
 
-export function getAvailableModels(projectId: string): Promise<AvailableModel[]> {
-  return request<AvailableModel[]>(`/projects/${projectId}/models/available`);
+export function getAvailableModels(projectId: string, type: ModelType = 'CHAT'): Promise<AvailableModel[]> {
+  return request<AvailableModel[]>(`/projects/${projectId}/models/available?type=${type}`);
 }
 
 export function createModel(projectId: string, credentialId: string, input: CreateModelInput): Promise<Model> {

@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17
+    # Includes the pgvector extension used by KnowledgeChunk.embedding.
+    image: pgvector/pgvector:pg17
     container_name: flowmind-postgres
     restart: unless-stopped
     environment:

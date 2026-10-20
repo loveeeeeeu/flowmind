@@ -8,12 +8,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateModelDto } from './dto/create-model.dto.js';
 import { ImportModelsDto } from './dto/import-models.dto.js';
 import { UpdateModelDto } from './dto/update-model.dto.js';
+import { ListAvailableModelsDto } from './dto/list-available-models.dto.js';
 import { ModelService } from './model.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ProjectMembershipGuard } from '../project/project-membership.guard.js';
@@ -68,10 +70,10 @@ export class ModelController {
   constructor(private readonly models: ModelService) {}
 
   // Declared before ':id' so "available" is not taken as an id.
-  @ApiOperation({ summary: 'Models selectable for new configuration (enabled, credential not revoked, in project)' })
+  @ApiOperation({ summary: 'Enabled models selectable for one capability; defaults to CHAT for the LLM picker' })
   @Get('available')
-  findAvailable(@Param('projectId') projectId: string) {
-    return this.models.findAvailable(projectId);
+  findAvailable(@Param('projectId') projectId: string, @Query() query: ListAvailableModelsDto) {
+    return this.models.findAvailable(projectId, query.type);
   }
 
   @ApiOperation({ summary: 'Get one model with its credential summary' })

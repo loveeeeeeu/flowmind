@@ -61,9 +61,21 @@ enum CredentialProvider {
   OPENAI_COMPATIBLE
 }
 
-// Only chat models exist for now (LLM node). EMBEDDING / RERANK arrive with RAG.
 enum ModelType {
   CHAT
+  EMBEDDING
+}
+
+enum KnowledgeDocumentStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum KnowledgeDocumentSourceType {
+  TEXT
+  FILE
 }
 
 model User {
@@ -82,9 +94,10 @@ model Project {
   id   String @id @default(cuid())
   name String
 
-  members     ProjectMember[]
-  workflows   Workflow[]
-  credentials Credential[]
+  members        ProjectMember[]
+  workflows      Workflow[]
+  credentials    Credential[]
+  knowledgeBases KnowledgeBase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -120,10 +133,10 @@ model Workflow {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Mutable working copy edited in the canvas editor. Never executed by published runs.
-  draftCanvas Json?
+  draftCanvas   Json?
   // Incremented on every draft save; compared with the latest version's revision to detect
   // unpublished changes, and checked at publish time so only the validated draft is published.
-  draftRevision Int @default(0)
+  draftRevision Int   @default(0)
 
   versions WorkflowVersion[]
   runs     WorkflowRun[]
@@ -152,7 +165,7 @@ model WorkflowApiKey {
   // Best effort metadata, not part of authentication.
   lastUsedAt DateTime?
   // Kept instead of deleting so past runs still point to the key that triggered them.
-  revokedAt DateTime?
+  revokedAt  DateTime?
 
   createdAt DateTime @default(now())
 
@@ -215,15 +228,92 @@ model Model {
   // Capability hints for the UI, not used to execute.
   contextWindow       Int?
   supportsTemperature Boolean @default(true)
+  // Required for EMBEDDING models and null for CHAT models (validated in ModelService).
+  embeddingDimensions Int?
 
   // false: hidden from new node configuration; versions that already use it keep running.
   enabled Boolean @default(true)
+
+  knowledgeBases KnowledgeBase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Also serves as the credentialId index.
   @@unique([credentialId, modelName])
+}
+
+// A project-owned collection of documents. It can be created before an embedding model is chosen;
+// ingestion will require one later. Restrict preserves the model identity used by existing chunks.
+model KnowledgeBase {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  embeddingModelId String?
+  embeddingModel   Model?  @relation(fields: [embeddingModelId], references: [id], onDelete: Restrict)
+
+  name        String
+  description String?
+
+  documents KnowledgeDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([embeddingModelId])
+}
+
+// Ingestion status belongs to the complete document. A retry can delete and rebuild all chunks
+// atomically instead of maintaining an unnecessary state machine for every individual chunk.
+model KnowledgeDocument {
+  id String @id @default(cuid())
+
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  name       String
+  sourceType KnowledgeDocumentSourceType
+  mimeType   String?
+
+  // FILE documents will point to object storage later. TEXT documents need neither field.
+  originalFileName String?
+  storageKey       String?
+
+  status       KnowledgeDocumentStatus @default(PENDING)
+  errorCode    String?
+  errorMessage String?
+
+  chunks KnowledgeChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([knowledgeBaseId])
+  @@index([status])
+}
+
+// `embedding` is a pgvector extension type. Prisma manages normal fields while future vector
+// writes and similarity search use narrowly scoped raw SQL / TypedSQL.
+model KnowledgeChunk {
+  id String @id @default(cuid())
+
+  documentId String
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  chunkIndex Int
+  content    String
+  tokenCount Int?
+  metadata   Json?
+
+  embedding Unsupported("vector")?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
 }
 
 // Immutable snapshot created by publishing. No update or delete API: runs must stay reproducible.
@@ -236,7 +326,7 @@ model WorkflowVersion {
   // Per-workflow sequence: 1, 2, 3...
   version Int
 
-  canvas Json
+  canvas        Json
   // Workflow.draftRevision that was published; versions created before revisions existed have 0.
   draftRevision Int
 
@@ -281,8 +371,8 @@ model WorkflowRun {
   errorCode    String?
   errorMessage String?
 
-  startedAt  DateTime?
-  finishedAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
   // Refreshed by the worker while RUNNING; a stale value means the worker died mid-run.
   heartbeatAt DateTime?
 
@@ -312,7 +402,7 @@ model NodeRun {
 
   sequence  Int
   iteration Int?
-  attempt   Int @default(1)
+  attempt   Int  @default(1)
 
   input  Json?
   output Json?
@@ -343,8 +433,8 @@ model ExecutionLog {
   nodeRunId String?
   nodeRun   NodeRun? @relation(fields: [nodeRunId], references: [id], onDelete: Cascade)
 
-  level   ExecutionLogLevel @default(INFO)
-  message String
+  level    ExecutionLogLevel @default(INFO)
+  message  String
   // IDs and codes only, never secrets, prompts or full URLs.
   metadata Json?
 

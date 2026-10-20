@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -13,8 +14,9 @@ import {
 import { trim } from '../../credential/dto/create-credential.dto.js';
 
 export const MAX_CONTEXT_WINDOW = 100_000_000;
+export const MAX_EMBEDDING_DIMENSIONS = 100_000;
 
-/** credentialId comes from the route and type is always CHAT for now, so neither is accepted here. */
+/** credentialId comes from the route; modelName remains immutable after creation. */
 export class CreateModelDto {
   @ApiProperty({ description: '在 FlowMind 中显示的名称', example: 'GPT-4.1 Mini' })
   @Transform(trim)
@@ -44,4 +46,19 @@ export class CreateModelDto {
   @IsOptional()
   @IsBoolean()
   supportsTemperature?: boolean;
+
+  @ApiPropertyOptional({ enum: ['CHAT', 'EMBEDDING'], default: 'CHAT' })
+  @IsOptional()
+  @IsIn(['CHAT', 'EMBEDDING'])
+  type?: 'CHAT' | 'EMBEDDING';
+
+  @ApiPropertyOptional({
+    description: 'Required when type is EMBEDDING; all Knowledge Bases in this deployment use one dimension.',
+    example: 1536,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(MAX_EMBEDDING_DIMENSIONS)
+  embeddingDimensions?: number;
 }

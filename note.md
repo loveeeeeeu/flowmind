@@ -1162,3 +1162,60 @@ GET NodeRun Detail，建立详情缓存
 因为 `nodeId` 是工作流定义中的节点身份；`nodeRunId` 才是某一次 Run 中的具体执行实例。
 
 如果 SSE 中途漏掉日志，节点进入 `SUCCESS` / `FAILED` 后会重新请求完整 NodeRun Detail，因此最终的 input、output、error、logs 仍以数据库为准。
+
+# RAG数据底座搭建 KnowledgeBase
+## 什么是RAG
+```这条模式叫 RAG：
+用户问题
+  ↓（下一课才做）
+问题 → Embedding 向量
+  ↓
+在知识库中找相似 Chunk
+  ↓
+把相关 Chunk 放进 Prompt
+  ↓
+LLM 基于项目知识回答
+```
+Retrieval       检索相关知识
+Augmented       把知识补进上下文
+Generation      LLM 生成回答
+它不是重新训练模型。模型本来不知道“你公司的报销规则”；RAG 是在每次提问时，先从你的知识库中找相关内容，再把内容提供给 LLM。
+
+## 本课新增的核心数据关系
+```
+Project
+├─ Workflow
+├─ Credential
+├─ Model
+└─ KnowledgeBase：用户看到的知识库，例如“产品文档”“HR 制度”
+   └─ KnowledgeDocument：知识库里的一份原始资料，例如 employee-handbook.pdf
+      └─ KnowledgeChunk：把长文切成的小段；未来真正检索的是它
+         └─ embedding：Chunk 对应的语义向量
+```
+
+## pgvector 是什么
+pgvector 是 PostgreSQL 的扩展，它新增了 vector.(本项目没有引入 Pinecone、Milvus 等独立向量数据库，而是在 PostgreSQL 中启用 pgvector。)
+## 为什么 Prisma 写 Unsupported("vector")
+Prisma 能很好处理普通字段,但 vector 是 PostgreSQL extension 的自定义类型，Prisma 目前不把它当作普通字段完整支持.所以
+```
+普通 Knowledge CRUD
+→ Prisma
+
+将向量写入 embedding
+相似度搜索 ORDER BY embedding <=> ...
+→ Prisma $executeRaw / $queryRaw
+```
+这不是设计失败，而是明确的边界：普通数据交给 Prisma；pgvector 特有能力用少量 Raw SQL。
+
+## 为什么 Vector Dimension 很重要
+向量长度必须一致。当前的规则是
+一个 FlowMind 部署→ 使用一套固定的知识向量维度
+所有 KnowledgeChunk→ 使用相同维度
+## Model 为什么多了 EMBEDDING
+以前只有：CHAT Model → 输入文字，输出文字，现在多了 EMBEDDING Model → 输入文字，输出向量
+## 一句话总结
+本课把 Project 内的知识，建模为：
+KnowledgeBase → Document → Chunk → Vector，
+用 pgvector 存向量，
+用 Embedding Model 生成向量，
+下一步才是把文档真正切块、生成向量并检索出来。
