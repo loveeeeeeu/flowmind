@@ -14,6 +14,9 @@ export interface ResolvedModelConfig {
   provider: CredentialProvider;
   baseUrl: string | null;
   apiKey: string;
+  type: 'CHAT' | 'EMBEDDING';
+  embeddingDimensions: number | null;
+  enabled: boolean;
   supportsTemperature: boolean;
 }
 
@@ -42,6 +45,9 @@ export class RuntimeModelResolver {
       select: {
         id: true,
         modelName: true,
+        type: true,
+        embeddingDimensions: true,
+        enabled: true,
         supportsTemperature: true,
         credential: {
           select: {
@@ -84,7 +90,32 @@ export class RuntimeModelResolver {
       provider: credential.provider,
       baseUrl: credential.baseUrl,
       apiKey,
+      type: model.type,
+      embeddingDimensions: model.embeddingDimensions,
+      enabled: model.enabled,
       supportsTemperature: model.supportsTemperature,
     };
+  }
+
+  async resolveChatModel(modelId: string): Promise<ResolvedModelConfig> {
+    const model = await this.resolve(modelId);
+    if (model.type !== 'CHAT') {
+      throw resolutionError('MODEL_TYPE_MISMATCH', `Model ${modelId} is not a chat model`);
+    }
+    return model;
+  }
+
+  async resolveEmbeddingModel(modelId: string): Promise<ResolvedModelConfig> {
+    const model = await this.resolve(modelId);
+    if (model.type !== 'EMBEDDING') {
+      throw resolutionError('MODEL_TYPE_MISMATCH', `Model ${modelId} is not an embedding model`);
+    }
+    if (!model.enabled) {
+      throw resolutionError('MODEL_DISABLED', `Embedding model ${modelId} is disabled`);
+    }
+    if (!model.embeddingDimensions || model.embeddingDimensions <= 0) {
+      throw resolutionError('EMBEDDING_DIMENSIONS_MISSING', `Embedding model ${modelId} has no dimensions`);
+    }
+    return model;
   }
 }

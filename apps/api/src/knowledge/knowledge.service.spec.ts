@@ -6,6 +6,7 @@ function setup({
   knowledgeBase = { id: 'kb-1' } as { id: string } | null,
   embeddingModel = { id: 'embedding-1' } as { id: string } | null,
   deleteCount = 1,
+  chunkCount = 0,
 } = {}) {
   const prisma = {
     knowledgeBase: {
@@ -17,6 +18,9 @@ function setup({
     },
     model: {
       findFirst: vi.fn(async () => embeddingModel),
+    },
+    knowledgeChunk: {
+      count: vi.fn(async () => chunkCount),
     },
   };
 
@@ -91,6 +95,18 @@ describe('KnowledgeService', () => {
     expect(prisma.knowledgeBase.deleteMany).toHaveBeenCalledWith({
       where: { id: 'kb-1', projectId: 'project-a' },
     });
+  });
+
+  it('requires re-embedding instead of silently changing the model behind existing chunks', async () => {
+    const knowledgeBase = { id: 'kb-1', embeddingModelId: 'embedding-old' };
+    const { service, prisma } = setup({ knowledgeBase, chunkCount: 2 });
+
+    await expect(service.update('project-a', 'kb-1', { embeddingModelId: 'embedding-new' }))
+      .rejects.toThrow(apiError.conflict(
+        'KNOWLEDGE_REEMBED_REQUIRED',
+        'Cannot change the embedding model after chunks have been embedded; re-embed first',
+      ));
+    expect(prisma.knowledgeBase.update).not.toHaveBeenCalled();
   });
 
   it('returns 404 when a scoped delete changed no rows', async () => {

@@ -65,10 +65,22 @@ export class KnowledgeService {
   }
 
   async update(projectId: string, id: string, dto: UpdateKnowledgeBaseDto) {
-    await this.findOne(projectId, id);
+    const existing = await this.findOne(projectId, id);
 
     if (dto.embeddingModelId) {
       await this.assertEmbeddingModel(projectId, dto.embeddingModelId);
+    }
+
+    if (dto.embeddingModelId !== undefined && dto.embeddingModelId !== existing.embeddingModelId) {
+      const chunkCount = await this.prisma.knowledgeChunk.count({
+        where: { document: { knowledgeBaseId: id } },
+      });
+      if (chunkCount > 0) {
+        throw apiError.conflict(
+          'KNOWLEDGE_REEMBED_REQUIRED',
+          'Cannot change the embedding model after chunks have been embedded; re-embed first',
+        );
+      }
     }
 
     return this.prisma.knowledgeBase.update({

@@ -16,7 +16,7 @@ export class WorkerLlmClient implements LlmClient {
   ) {}
 
   async generate(request: LlmGenerateRequest): Promise<LlmGenerateResponse> {
-    const model = await this.resolver.resolve(request.modelId);
+    const model = await this.resolver.resolveChatModel(request.modelId);
     const provider = this.registry.get(model.provider);
 
     const result = await provider.generate({

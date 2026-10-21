@@ -1,5 +1,8 @@
 import { LlmProviderError } from './llm-provider.error.js';
 import type {
+  EmbeddingProvider,
+  EmbeddingProviderRequest,
+  EmbeddingResult,
   LlmGenerateResult,
   LlmProvider,
   LlmProviderRequest,
@@ -41,7 +44,12 @@ function invalidModelList() {
 }
 
 /** The OpenAI protocol spoken by OpenAI, DeepSeek and OpenAI-compatible servers. */
-export class OpenAICompatibleProvider implements LlmProvider {
+interface EmbeddingResponse {
+  data?: Array<{ index?: number; embedding?: unknown }>;
+  usage?: { prompt_tokens?: number; total_tokens?: number };
+}
+
+export class OpenAICompatibleProvider implements LlmProvider, EmbeddingProvider {
   private readonly generateTimeoutMs: number;
   private readonly connectionTimeoutMs: number;
 
@@ -90,6 +98,50 @@ export class OpenAICompatibleProvider implements LlmProvider {
         completionTokens: data.usage?.completion_tokens,
         totalTokens: data.usage?.total_tokens,
       },
+      raw: data,
+    };
+  }
+
+  async embed(request: EmbeddingProviderRequest): Promise<EmbeddingResult> {
+    const data = (await this.send(request, '/embeddings', this.generateTimeoutMs, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: request.model, input: request.texts }),
+    })) as EmbeddingResponse;
+
+    if (!Array.isArray(data.data) || data.data.length !== request.texts.length) {
+      throw new LlmProviderError({
+        code: 'INVALID_PROVIDER_RESPONSE',
+        retryable: false,
+        message: 'Embedding provider returned an invalid number of vectors',
+      });
+    }
+
+    const ordered = [...data.data].sort((a, b) => (a.index ?? -1) - (b.index ?? -1));
+    const embeddings = ordered.map((item, expectedIndex) => {
+      if (item.index !== expectedIndex || !Array.isArray(item.embedding) || item.embedding.length === 0 ||
+        !item.embedding.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+        throw new LlmProviderError({
+          code: 'INVALID_PROVIDER_RESPONSE',
+          retryable: false,
+          message: 'Embedding provider returned an invalid vector',
+        });
+      }
+      return item.embedding;
+    });
+    const dimensions = embeddings[0].length;
+    if (embeddings.some((embedding) => embedding.length !== dimensions)) {
+      throw new LlmProviderError({
+        code: 'INVALID_PROVIDER_RESPONSE',
+        retryable: false,
+        message: 'Embedding provider returned vectors with inconsistent dimensions',
+      });
+    }
+
+    return {
+      embeddings,
+      dimensions,
+      usage: { promptTokens: data.usage?.prompt_tokens, totalTokens: data.usage?.total_tokens },
       raw: data,
     };
   }

@@ -22,6 +22,22 @@ export interface LlmGenerateResult {
   raw?: unknown;
 }
 
+/** A batch request because embedding providers are most efficient when called with many texts. */
+export interface EmbeddingProviderRequest extends ProviderConnection {
+  model: string;
+  texts: string[];
+}
+
+export interface EmbeddingResult {
+  embeddings: number[][];
+  dimensions: number;
+  usage?: {
+    promptTokens?: number;
+    totalTokens?: number;
+  };
+  raw?: unknown;
+}
+
 /** Only the id is reliable across OpenAI-compatible servers; capabilities are not reported. */
 export interface RemoteModelInfo {
   id: string;
@@ -33,3 +49,10 @@ export interface LlmProvider {
   /** Resolves when the provider accepts the credential; never costs tokens. */
   testConnection(connection: ProviderConnection): Promise<void>;
 }
+
+/** Kept separate from chat: a provider may support one capability but not the other. */
+export interface EmbeddingProvider {
+  embed(request: EmbeddingProviderRequest): Promise<EmbeddingResult>;
+}
+
+export type ModelProvider = LlmProvider & Partial<EmbeddingProvider>;

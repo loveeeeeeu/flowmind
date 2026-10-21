@@ -6,11 +6,13 @@ import { RuntimeModelResolver } from './runtime-model-resolver.js';
 const SECRET = 'sk-runtime-secret';
 const crypto = new CredentialCrypto(randomBytes(32));
 
-function modelRow(overrides: { revokedAt?: Date | null; enabled?: boolean } = {}) {
+function modelRow(overrides: { revokedAt?: Date | null; enabled?: boolean; type?: 'CHAT' | 'EMBEDDING'; embeddingDimensions?: number | null } = {}) {
   return {
     id: 'model-1',
     modelName: 'deepseek-chat',
     supportsTemperature: true,
+    type: overrides.type ?? 'CHAT',
+    embeddingDimensions: overrides.embeddingDimensions ?? null,
     enabled: overrides.enabled ?? true,
     credential: {
       provider: 'DEEPSEEK',
@@ -41,9 +43,29 @@ describe('RuntimeModelResolver', () => {
       provider: 'DEEPSEEK',
       baseUrl: null,
       apiKey: SECRET,
+      type: 'CHAT',
+      embeddingDimensions: null,
+      enabled: true,
       supportsTemperature: true,
     });
     expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'model-1' } }));
+  });
+
+  it('only resolves embedding models with configured dimensions for embedding calls', async () => {
+    const { resolver } = setup(modelRow({ type: 'EMBEDDING', embeddingDimensions: 1536 }));
+    await expect(resolver.resolveEmbeddingModel('model-1')).resolves.toMatchObject({
+      type: 'EMBEDDING', embeddingDimensions: 1536,
+    });
+
+    await expect(setup(modelRow()).resolver.resolveEmbeddingModel('model-1')).rejects.toMatchObject({
+      code: 'MODEL_TYPE_MISMATCH', retryable: false,
+    });
+    await expect(setup(modelRow({ type: 'EMBEDDING' })).resolver.resolveEmbeddingModel('model-1')).rejects.toMatchObject({
+      code: 'EMBEDDING_DIMENSIONS_MISSING', retryable: false,
+    });
+    await expect(setup(modelRow({ type: 'EMBEDDING', embeddingDimensions: 1536, enabled: false })).resolver.resolveEmbeddingModel('model-1')).rejects.toMatchObject({
+      code: 'MODEL_DISABLED', retryable: false,
+    });
   });
 
   it('does not check Model.enabled: a disabled model still runs for published versions', async () => {

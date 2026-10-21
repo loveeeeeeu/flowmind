@@ -1,5 +1,5 @@
 import { LlmProviderError } from './llm-provider.error.js';
-import type { LlmProvider } from './llm-provider.js';
+import type { EmbeddingProvider, LlmProvider, ModelProvider } from './llm-provider.js';
 import type { SupportedProvider } from './provider-config.js';
 
 /**
@@ -7,7 +7,7 @@ import type { SupportedProvider } from './provider-config.js';
  * with its own protocol (Anthropic, Gemini) gets its own adapter here.
  */
 export class ProviderRegistry {
-  constructor(private readonly openAiCompatible: LlmProvider) {}
+  constructor(private readonly openAiCompatible: ModelProvider) {}
 
   get(provider: SupportedProvider): LlmProvider {
     switch (provider) {
@@ -22,5 +22,19 @@ export class ProviderRegistry {
           message: `Unsupported provider: ${String(provider)}`,
         });
     }
+  }
+
+  getEmbeddingProvider(provider: SupportedProvider): EmbeddingProvider {
+    const adapter = this.get(provider) as ModelProvider;
+
+    if (typeof adapter.embed !== 'function') {
+      throw new LlmProviderError({
+        code: 'PROVIDER_NOT_SUPPORTED',
+        retryable: false,
+        message: `Provider ${String(provider)} does not support embeddings`,
+      });
+    }
+
+    return adapter as EmbeddingProvider;
   }
 }

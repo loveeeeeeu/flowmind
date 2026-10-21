@@ -1214,8 +1214,37 @@ Prisma 能很好处理普通字段,但 vector 是 PostgreSQL extension 的自定
 ## Model 为什么多了 EMBEDDING
 以前只有：CHAT Model → 输入文字，输出文字，现在多了 EMBEDDING Model → 输入文字，输出向量
 ## 一句话总结
-本课把 Project 内的知识，建模为：
+本课把 Project 内的Knowledge 的骨架搭好了：
 KnowledgeBase → Document → Chunk → Vector，
 用 pgvector 存向量，
 用 Embedding Model 生成向量，
 下一步才是把文档真正切块、生成向量并检索出来。
+
+# 让骨架动起来 Embedding Model 解析 + Provider 调用 + Vector 写入
+本节课把“知识库表里能存向量”变成了“Worker 能调用 Embedding 模型，生成向量，并安全写进 pgvector”。
+## 核心架构
+```与 llm chat 不同的执行链路
+KnowledgeEmbeddingService
+  ├─ 校验 Project / KnowledgeBase / Chunk
+  ├─ 保证 Chunk 顺序
+  ↓
+EmbeddingService
+  ├─ 校验模型类型（embedding/chat、是否启用、维度
+  ↓
+RuntimeModelResolver
+  ├─ Model
+  ├─ Credential
+  └─ 解密 API Key
+  ↓
+ProviderRegistry = “这个 Model 的供应商是 OpenAI / DeepSeek / Compatible， 应该拿哪个适配器？”
+  ↓
+OpenAICompatibleProvider.embed() 拆成能力接口embed（新增），generate(原来)  = “我知道如何按该供应商协议发 HTTP 请求”
+  ↓
+POST /embeddings 写入数据库
+  ↓
+KnowledgeVectorService
+  ↓
+KnowledgeChunk.embedding（pgvector）
+```
+
+#

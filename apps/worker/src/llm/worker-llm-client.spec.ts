@@ -8,6 +8,9 @@ const deepseek: ResolvedModelConfig = {
   provider: 'DEEPSEEK',
   baseUrl: null,
   apiKey: 'sk-decrypted',
+  type: 'CHAT',
+  embeddingDimensions: null,
+  enabled: true,
   supportsTemperature: true,
 };
 
@@ -20,7 +23,7 @@ function setup(model: ResolvedModelConfig | Error) {
   });
   const generate = vi.fn(async () => ({ text: 'hi', usage: { totalTokens: 3 }, raw: {} }));
   const registry = new ProviderRegistry({ generate } as unknown as LlmProvider);
-  const client = new WorkerLlmClient({ resolve } as unknown as RuntimeModelResolver, registry);
+  const client = new WorkerLlmClient({ resolveChatModel: resolve } as unknown as RuntimeModelResolver, registry);
 
   return { client, resolve, generate };
 }

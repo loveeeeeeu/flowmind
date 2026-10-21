@@ -21,6 +21,9 @@ import { WorkflowExecutionService } from './execution/workflow-execution.service
 import { WorkflowRunProcessor } from './execution/workflow-run.processor.js';
 import { RuntimeModelResolver } from './llm/runtime-model-resolver.js';
 import { WorkerLlmClient } from './llm/worker-llm-client.js';
+import { EmbeddingService } from './embedding/embedding.service.js';
+import { KnowledgeEmbeddingService } from './knowledge/knowledge-embedding.service.js';
+import { KnowledgeVectorService } from './knowledge/knowledge-vector.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
@@ -62,6 +65,9 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
         ),
     },
     WorkerLlmClient,
+    EmbeddingService,
+    KnowledgeVectorService,
+    KnowledgeEmbeddingService,
     CodeRunnerService,
     {
       provide: WorkflowEngine,

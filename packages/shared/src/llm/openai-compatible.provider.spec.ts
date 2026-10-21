@@ -101,6 +101,40 @@ describe('OpenAICompatibleProvider.generate', () => {
   });
 });
 
+describe('OpenAICompatibleProvider.embed', () => {
+  const provider = new OpenAICompatibleProvider({ generateTimeoutMs: 1000 });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('POSTs a batch to /embeddings and puts indexed vectors back in input order', async () => {
+    const fetchMock = mockFetchResponse(JSON.stringify({
+      data: [
+        { index: 1, embedding: [0.3, 0.4] },
+        { index: 0, embedding: [0.1, 0.2] },
+      ],
+      usage: { prompt_tokens: 4, total_tokens: 4 },
+    }), 200);
+
+    await expect(provider.embed({ ...connection, model: 'embed-model', texts: ['one', 'two'] })).resolves.toMatchObject({
+      embeddings: [[0.1, 0.2], [0.3, 0.4]],
+      usage: { promptTokens: 4, totalTokens: 4 },
+    });
+    expect(lastRequest(fetchMock)[0]).toBe('https://example.com/v1/embeddings');
+    expect(JSON.parse(lastRequest(fetchMock)[1].body as string)).toEqual({
+      model: 'embed-model', input: ['one', 'two'],
+    });
+  });
+
+  it('rejects missing, malformed, or non-finite vectors', async () => {
+    mockFetchResponse(JSON.stringify({ data: [{ index: 0, embedding: [] }] }), 200);
+    await expect(provider.embed({ ...connection, model: 'embed', texts: ['one'] })).rejects.toMatchObject({
+      code: 'INVALID_PROVIDER_RESPONSE', retryable: false,
+    });
+  });
+});
+
 describe('OpenAICompatibleProvider.listModels', () => {
   const provider = new OpenAICompatibleProvider({ connectionTimeoutMs: 500 });
 
