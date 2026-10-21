@@ -33,7 +33,16 @@ export class KnowledgeIngestionService {
       }
 
       await this.createChunks(documentId, chunks);
-      await this.embedDocumentChunks(document.id, document.knowledgeBase.embeddingModelId!);
+      const dimensions = await this.embedDocumentChunks(document.id, document.knowledgeBase.embeddingModelId!);
+      if (document.knowledgeBase.embeddingDimensions && document.knowledgeBase.embeddingDimensions !== dimensions) {
+        throw new KnowledgeIngestionError('KNOWLEDGE_VECTOR_DIMENSION_MISMATCH', 'Knowledge base dimensions do not match embedding model dimensions');
+      }
+      if (!document.knowledgeBase.embeddingDimensions) {
+        await this.prisma.knowledgeBase.updateMany({
+          where: { id: document.knowledgeBase.id, embeddingDimensions: null },
+          data: { embeddingDimensions: dimensions },
+        });
+      }
       await this.prisma.knowledgeDocument.updateMany({
         where: { id: documentId, status: 'PROCESSING' },
         data: { status: 'READY', errorCode: null, errorMessage: null },
@@ -62,7 +71,7 @@ export class KnowledgeIngestionService {
         id: true,
         sourceType: true,
         sourceText: true,
-        knowledgeBase: { select: { embeddingModelId: true } },
+        knowledgeBase: { select: { id: true, embeddingModelId: true, embeddingDimensions: true } },
       },
     });
     if (!document) return null;
@@ -83,16 +92,19 @@ export class KnowledgeIngestionService {
     });
   }
 
-  private async embedDocumentChunks(documentId: string, modelId: string) {
+  private async embedDocumentChunks(documentId: string, modelId: string): Promise<number> {
     const chunks = await this.prisma.knowledgeChunk.findMany({
       where: { documentId }, orderBy: { chunkIndex: 'asc' }, select: { id: true, content: true },
     });
+    let dimensions = 0;
     for (let start = 0; start < chunks.length; start += EMBEDDING_BATCH_SIZE) {
       const batch = chunks.slice(start, start + EMBEDDING_BATCH_SIZE);
       const result = await this.embeddings.embed(modelId, batch.map((chunk) => chunk.content));
+      dimensions = result.dimensions;
       for (let index = 0; index < batch.length; index += 1) {
         await this.vectors.writeEmbedding(batch[index].id, result.embeddings[index]);
       }
     }
+    return dimensions;
   }
 }

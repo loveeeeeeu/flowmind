@@ -17,6 +17,7 @@ const KNOWLEDGE_BASE_SUMMARY = {
   name: true,
   description: true,
   embeddingModelId: true,
+  embeddingDimensions: true,
   embeddingModel: { select: EMBEDDING_MODEL_SUMMARY },
   _count: { select: { documents: true } },
   createdAt: true,
@@ -28,9 +29,7 @@ export class KnowledgeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(projectId: string, dto: CreateKnowledgeBaseDto) {
-    if (dto.embeddingModelId) {
-      await this.assertEmbeddingModel(projectId, dto.embeddingModelId);
-    }
+    const model = dto.embeddingModelId ? await this.assertEmbeddingModel(projectId, dto.embeddingModelId) : null;
 
     return this.prisma.knowledgeBase.create({
       data: {
@@ -38,6 +37,7 @@ export class KnowledgeService {
         name: dto.name,
         description: dto.description,
         embeddingModelId: dto.embeddingModelId,
+        embeddingDimensions: model?.embeddingDimensions ?? null,
       },
       select: KNOWLEDGE_BASE_SUMMARY,
     });
@@ -67,9 +67,7 @@ export class KnowledgeService {
   async update(projectId: string, id: string, dto: UpdateKnowledgeBaseDto) {
     const existing = await this.findOne(projectId, id);
 
-    if (dto.embeddingModelId) {
-      await this.assertEmbeddingModel(projectId, dto.embeddingModelId);
-    }
+    const model = dto.embeddingModelId ? await this.assertEmbeddingModel(projectId, dto.embeddingModelId) : null;
 
     if (dto.embeddingModelId !== undefined && dto.embeddingModelId !== existing.embeddingModelId) {
       const chunkCount = await this.prisma.knowledgeChunk.count({
@@ -89,6 +87,7 @@ export class KnowledgeService {
         name: dto.name,
         description: dto.description,
         embeddingModelId: dto.embeddingModelId,
+        embeddingDimensions: dto.embeddingModelId === undefined ? undefined : (model?.embeddingDimensions ?? null),
       },
       select: KNOWLEDGE_BASE_SUMMARY,
     });
@@ -112,12 +111,14 @@ export class KnowledgeService {
         embeddingDimensions: { not: null },
         credential: { projectId, revokedAt: null },
       },
-      select: { id: true },
+      select: { id: true, embeddingDimensions: true },
     });
 
     if (!model) {
       throw apiError.notFound('EMBEDDING_MODEL_NOT_FOUND', 'Embedding model not found');
     }
+
+    return model;
   }
 }
 

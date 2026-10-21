@@ -40,6 +40,7 @@ describe('KnowledgeService', () => {
         name: 'Product docs',
         description: 'Support material',
         embeddingModelId: undefined,
+        embeddingDimensions: null,
       },
     }));
   });
@@ -57,7 +58,7 @@ describe('KnowledgeService', () => {
         embeddingDimensions: { not: null },
         credential: { projectId: 'project-a', revokedAt: null },
       },
-      select: { id: true },
+      select: { id: true, embeddingDimensions: true },
     });
   });
 

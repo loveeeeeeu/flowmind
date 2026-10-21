@@ -11,7 +11,7 @@ function setup({ text = 'alpha beta gamma delta epsilon zeta', embedError }: { t
     .mockResolvedValue({ count: 1 });
   const findUnique = vi.fn(async () => ({
     id: 'document-1', sourceType: 'TEXT', sourceText: text,
-    knowledgeBase: { embeddingModelId: 'embedding-1' },
+    knowledgeBase: { id: 'kb-1', embeddingModelId: 'embedding-1', embeddingDimensions: 2 },
   }));
   const chunks = [{ id: 'chunk-0', content: 'alpha beta' }, { id: 'chunk-1', content: 'gamma delta' }];
   const createMany = vi.fn(async ({ data }: { data: Array<{ content: string }> }) => {
@@ -25,7 +25,7 @@ function setup({ text = 'alpha beta gamma delta epsilon zeta', embedError }: { t
   const writeEmbedding = vi.fn(async () => undefined);
   const service = new KnowledgeIngestionService(
     {
-      knowledgeDocument: { updateMany, findUnique },
+      knowledgeDocument: { updateMany, findUnique }, knowledgeBase: { updateMany: vi.fn(async () => ({ count: 1 })) },
       knowledgeChunk: { deleteMany: vi.fn(async () => ({ count: 0 })), createMany, findMany },
     } as unknown as PrismaService,
     new DocumentTextExtractor(), new TextChunker(12, 2),

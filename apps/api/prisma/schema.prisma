@@ -253,6 +253,9 @@ model KnowledgeBase {
 
   embeddingModelId String?
   embeddingModel   Model?  @relation(fields: [embeddingModelId], references: [id], onDelete: Restrict)
+  // Snapshot of the vector space identity. It prevents a misconfigured model dimension from
+  // reaching pgvector only to fail with an opaque database error.
+  embeddingDimensions Int?
 
   name        String
   description String?

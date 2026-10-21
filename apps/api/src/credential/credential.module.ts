@@ -16,6 +16,6 @@ import { ProjectModule } from '../project/project.module.js';
     // The api never generates text: only the 10 s connection timeout matters here.
     { provide: ProviderRegistry, useValue: new ProviderRegistry(new OpenAICompatibleProvider()) },
   ],
-  exports: [CredentialService, CredentialConnectionService],
+  exports: [CredentialService, CredentialConnectionService, CredentialCryptoService],
 })
 export class CredentialModule {}
