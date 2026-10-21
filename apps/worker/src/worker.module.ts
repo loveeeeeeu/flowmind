@@ -6,6 +6,7 @@ import {
   decodeMasterKey,
   OpenAICompatibleProvider,
   ProviderRegistry,
+  KNOWLEDGE_INGESTION_QUEUE,
   WORKFLOW_EXECUTION_QUEUE,
 } from '@flowmind/shared';
 import { createWorkflowEngine, WorkflowEngine } from '@flowmind/workflow-core';
@@ -24,6 +25,10 @@ import { WorkerLlmClient } from './llm/worker-llm-client.js';
 import { EmbeddingService } from './embedding/embedding.service.js';
 import { KnowledgeEmbeddingService } from './knowledge/knowledge-embedding.service.js';
 import { KnowledgeVectorService } from './knowledge/knowledge-vector.service.js';
+import { DocumentTextExtractor } from './knowledge/document-text-extractor.service.js';
+import { KnowledgeIngestionProcessor } from './knowledge/knowledge-ingestion.processor.js';
+import { KnowledgeIngestionService } from './knowledge/knowledge-ingestion.service.js';
+import { TextChunker } from './knowledge/text-chunker.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
@@ -45,6 +50,7 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
       }),
     }),
     BullModule.registerQueue({ name: WORKFLOW_EXECUTION_QUEUE }),
+    BullModule.registerQueue({ name: KNOWLEDGE_INGESTION_QUEUE }),
     PrismaModule,
     ExecutionEventsModule,
   ],
@@ -68,6 +74,10 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     EmbeddingService,
     KnowledgeVectorService,
     KnowledgeEmbeddingService,
+    DocumentTextExtractor,
+    TextChunker,
+    KnowledgeIngestionService,
+    KnowledgeIngestionProcessor,
     CodeRunnerService,
     {
       provide: WorkflowEngine,

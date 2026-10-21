@@ -276,6 +276,8 @@ model KnowledgeDocument {
 
   name       String
   sourceType KnowledgeDocumentSourceType
+  // TEXT documents keep their original source here in v1; FILE will read from storageKey later.
+  sourceText String?
   mimeType   String?
 
   // FILE documents will point to object storage later. TEXT documents need neither field.

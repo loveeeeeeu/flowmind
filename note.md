@@ -1176,8 +1176,8 @@ GET NodeRun Detail，建立详情缓存
   ↓
 LLM 基于项目知识回答
 ```
+Ingestion       文档 → Chunk → Embedding → pgvector
 Retrieval       检索相关知识
-Augmented       把知识补进上下文
 Generation      LLM 生成回答
 它不是重新训练模型。模型本来不知道“你公司的报销规则”；RAG 是在每次提问时，先从你的知识库中找相关内容，再把内容提供给 LLM。
 
@@ -1228,17 +1228,17 @@ KnowledgeEmbeddingService
   ├─ 校验 Project / KnowledgeBase / Chunk
   ├─ 保证 Chunk 顺序
   ↓
-EmbeddingService
+EmbeddingService：Chunk 文本 → 向量
   ├─ 校验模型类型（embedding/chat、是否启用、维度
-  ↓
-RuntimeModelResolver
-  ├─ Model
-  ├─ Credential
-  └─ 解密 API Key
-  ↓
-ProviderRegistry = “这个 Model 的供应商是 OpenAI / DeepSeek / Compatible， 应该拿哪个适配器？”
-  ↓
-OpenAICompatibleProvider.embed() 拆成能力接口embed（新增），generate(原来)  = “我知道如何按该供应商协议发 HTTP 请求”
+    ↓ 调用
+  RuntimeModelResolver
+    ├─ Model
+    ├─ Credential
+    └─ 解密 API Key
+    ↓
+  ProviderRegistry = “这个 Model 的供应商是 OpenAI / DeepSeek / Compatible， 应该拿哪个适配器？”
+    ↓
+  OpenAICompatibleProvider.embed() 拆成能力接口embed（新增），generate(原来)  = “我知道如何按该供应商协议发 HTTP 请求”
   ↓
 POST /embeddings 写入数据库
   ↓
@@ -1247,4 +1247,84 @@ KnowledgeVectorService
 KnowledgeChunk.embedding（pgvector）
 ```
 
-#
+# 把一篇文档可靠地加工成可检索知识： Document Ingestion + Chunking Pipeline 
+这一课最重要的不是“怎么上传 PDF”，而是三件事：
+1. 文档如何变成稳定的 Chunk
+2. 中途失败时如何避免留下半套脏数据
+3. ingestion 为什么应该异步执行
+## 本节课流水线
+```
+前端 / API
+  ↓
+创建 KnowledgeDocument：PENDING
+  ↓
+BullMQ Queue（只放 documentId）
+  ↓
+Worker
+  ↓
+PROCESSING
+  ↓
+DocumentTextExtractor：文档 → 文本
+  ↓
+TextChunker：文本 → batch Chunk[]
+  ↓
+createMany：将每个Chunk 写入 KnowledgeChunk 表（此时已有 content / chunkIndex，embedding = null）
+  ↓
+查询 KnowledgeChunk表 （ORDER BY chunkIndex ASC按照顺序查询chunk
+  ↓
+EmbeddingService：Chunk 文本chunk → 向量
+  ↓
+KnowledgeVectorService：向量写入 pgvector
+  ↓
+KnowledgeDocument：READY
+```
+
+## 1. 为什么 Ingestion 必须异步
+从http请求-解析文档-chunk-embedding-写数据库-响应
+问题：请求容易超时；用户关闭浏览器不该导致任务停止；大文档会影响其他普通 API 请求
+所以本课复用以前的 BullMQ + Worker
+## Document 状态机
+PENDING
+→ PROCESSING
+→ READY
+
+PROCESSING
+→ FAILED
+只有 READY 文档的 Chunk，未来才允许被检索。中途失败时，数据库里可能确实留下半套数据；但 Document.status 保证它们对检索功能不可见。下次重试会删掉旧 Chunk，从头生成。
+## <mark>当前 Chunker 的策略</mark>
+按字符长度切分,不是 Token 切分，也不是高级语义切分。
+chunkSize = 1200
+overlap = 200 
+### 为什么要 overlap
+保留边界上下文
+### 为什么优先自然边界
+不是每 1200 个字符硬切，而是会优先找附近的：
+-段落空行
+-换行
+-中文句号：。
+-英文句号：. 
+避免把一句话切成两半
+### Chunk 中保存什么
+documentId       属于哪个文档
+chunkIndex       第几个 Chunk：0、1、2……
+content          实际文本
+metadata         辅助信息（字符范围，pdf第几页...）
+embedding        向量
+### 为什么要批量 Embedding
+```Chunk 不是一个个发送，而是例如每批 32 个
+[Chunk 0, Chunk 1, ..., Chunk 31]
+  ↓
+Embedding Provider
+  ↓
+[Vector 0, Vector 1, ..., Vector 31]
+```
+这样比一个 Chunk 一次 HTTP 请求更高效
+### 为什么要特别保证 Chunk 和向量顺序
+因为向量本身没有“我是属于哪个 Chunk”的名字，系统只能靠位置把它们配对
+第 4 步：从 KnowledgeChunk 表查询这些 Chunk
+↓
+第 5 步：拿查询结果去调用 Embedding
+↓
+第 6 步：把向量更新到对应 Chunk 行
+所以要保证返回向量的顺序要和查询chunk的顺序一致，才能把向量更新到对应 Chunk 行
+# 
