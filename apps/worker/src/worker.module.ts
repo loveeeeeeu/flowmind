@@ -33,7 +33,11 @@ import { TextChunker } from './knowledge/text-chunker.service.js';
 import { WorkflowKnowledgeRetrieverAdapter } from './knowledge/workflow-knowledge-retriever.adapter.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { EchoTool } from './tools/echo.tool.js';
+import { HttpRequestTool } from './tools/http-request.tool.js';
+import { HttpUrlSafetyService } from './tools/http-url-safety.service.js';
+import { RunWorkflowTool } from './tools/run-workflow.tool.js';
 import { SearchKnowledgeTool } from './tools/search-knowledge.tool.js';
+import { PublishedWorkflowRunService } from './execution/published-workflow-run.service.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
 // share the same CREDENTIAL_ENCRYPTION_KEY locally.
@@ -91,13 +95,32 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
       inject: [WorkflowKnowledgeRetrieverAdapter],
       useFactory: (retriever: WorkflowKnowledgeRetrieverAdapter) => new SearchKnowledgeTool(retriever),
     },
+    { provide: HttpUrlSafetyService, useFactory: () => new HttpUrlSafetyService() },
+    {
+      provide: HttpRequestTool,
+      inject: [HttpUrlSafetyService],
+      useFactory: (urlSafety: HttpUrlSafetyService) => new HttpRequestTool(urlSafety),
+    },
+    PublishedWorkflowRunService,
+    {
+      provide: RunWorkflowTool,
+      inject: [PublishedWorkflowRunService],
+      useFactory: (runs: PublishedWorkflowRunService) => new RunWorkflowTool(runs),
+    },
     {
       provide: ToolRegistry,
-      inject: [EchoTool, SearchKnowledgeTool],
-      useFactory: (echo: EchoTool, searchKnowledge: SearchKnowledgeTool) => {
+      inject: [EchoTool, SearchKnowledgeTool, HttpRequestTool, RunWorkflowTool],
+      useFactory: (
+        echo: EchoTool,
+        searchKnowledge: SearchKnowledgeTool,
+        httpRequest: HttpRequestTool,
+        runWorkflow: RunWorkflowTool,
+      ) => {
         const registry = new ToolRegistry();
         registry.register(echo);
         registry.register(searchKnowledge);
+        registry.register(httpRequest);
+        registry.register(runWorkflow);
         return registry;
       },
     },

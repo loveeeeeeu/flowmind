@@ -1,6 +1,7 @@
 export class ToolRuntimeError extends Error {
   constructor(
-    readonly code: 'TOOL_NOT_FOUND' | 'TOOL_NOT_ALLOWED' | 'TOOL_INPUT_INVALID' | 'TOOL_EXECUTION_FAILED',
+    /** Concrete adapters may expose additional stable, safe error codes. */
+    readonly code: string,
     message: string,
   ) {
     super(message);

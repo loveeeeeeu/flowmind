@@ -20,8 +20,12 @@ export interface ToolDefinition {
 /** Trusted runtime identity. It is deliberately not part of ToolDefinition or model arguments. */
 export interface ToolExecutionContext {
   projectId: string;
+  /** The workflow currently hosting the Agent call, when there is one. */
+  workflowId?: string;
   workflowRunId?: string;
   nodeRunId?: string;
+  /** Propagated to child workflow calls so a tool cannot recurse forever. */
+  workflowCallDepth?: number;
 }
 
 export interface ToolExecutionResult {
