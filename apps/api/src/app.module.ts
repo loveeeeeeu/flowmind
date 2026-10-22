@@ -12,6 +12,7 @@ import { ModelModule } from './model/model.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ProjectModule } from './project/project.module.js';
 import { KnowledgeModule } from './knowledge/knowledge.module.js';
+import { McpModule } from './mcp/mcp.module.js';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module.js';
     CredentialModule,
     ModelModule,
     KnowledgeModule,
+    McpModule,
   ],
 })
 export class AppModule {}

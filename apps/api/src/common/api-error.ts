@@ -73,6 +73,11 @@ export const API_ERROR_CODES = [
   'TIMEOUT',
   'NETWORK_ERROR',
   'PROVIDER_ERROR',
+  'MCP_CONNECTION_NOT_FOUND',
+  'MCP_CONNECTION_DISABLED',
+  'MCP_CONNECTION_FAILED',
+  'MCP_CREDENTIAL_MISSING',
+  'MCP_URL_INVALID',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

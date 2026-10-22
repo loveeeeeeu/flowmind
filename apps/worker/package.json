@@ -17,6 +17,7 @@
     "@flowmind/shared": "workspace:*",
     "@flowmind/tool-runtime": "workspace:*",
     "@flowmind/workflow-core": "workspace:*",
+    "@modelcontextprotocol/client": "^2.3.1",
     "@nestjs/bullmq": "^12.0.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.1",

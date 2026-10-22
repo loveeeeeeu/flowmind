@@ -38,6 +38,11 @@ import { HttpUrlSafetyService } from './tools/http-url-safety.service.js';
 import { RunWorkflowTool } from './tools/run-workflow.tool.js';
 import { SearchKnowledgeTool } from './tools/search-knowledge.tool.js';
 import { PublishedWorkflowRunService } from './execution/published-workflow-run.service.js';
+import { McpConnectionResolver } from './mcp/mcp-connection-resolver.service.js';
+import { McpClientFactory } from './mcp/mcp-client.factory.js';
+import { McpToolCaller } from './mcp/mcp-tool-caller.service.js';
+import { McpToolDiscoveryService } from './mcp/mcp-tool-discovery.service.js';
+import { ToolCatalogService } from './mcp/tool-catalog.service.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
 // share the same CREDENTIAL_ENCRYPTION_KEY locally.
@@ -129,6 +134,11 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
       inject: [ToolRegistry],
       useFactory: (registry: ToolRegistry) => new ToolExecutor(registry),
     },
+    McpConnectionResolver,
+    McpClientFactory,
+    McpToolCaller,
+    McpToolDiscoveryService,
+    ToolCatalogService,
     CodeRunnerService,
     {
       provide: WorkflowEngine,

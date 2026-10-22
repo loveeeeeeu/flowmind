@@ -1471,4 +1471,29 @@ Tool.execute(arguments, context)
                  │
                  └─ Sprint 12 RAG 检索能力
 ```
-#
+# 接入真实 Tool，并证明抽象可复用、安全、可控
+# 外部 MCP Server 提供的工具，接入 FlowMind 原有的 Tool Runtime
+本节课的 MCP Tool 是外部服务动态提供的能力：
+GitHub MCP → search_issues
+Notion MCP → search_pages
+企业内部 MCP → query_customer
+最终，未来 Agent 不需要区分它调用的是内置工具还是 MCP 工具。
+```
+Agent
+  ↓
+ToolExecutor
+  ↓
+Tool 统一 Tool 接口
+  ├── Built-in Tool
+  └── MCP Tool Adapter
+         ↓
+       MCP Client
+         ↓
+       Remote MCP Server
+```
+## MCP 是什么
+MCP 可以先理解为一套统一协议.它让外部服务可以向 AI 应用声明:
+“我有哪些工具”
+“每个工具需要什么参数”
+“怎样调用这些工具”
+“工具执行后返回什么”

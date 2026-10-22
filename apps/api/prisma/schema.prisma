@@ -78,6 +78,20 @@ enum KnowledgeDocumentSourceType {
   FILE
 }
 
+enum McpTransportType {
+  STREAMABLE_HTTP
+}
+
+enum McpConnectionStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum McpAuthType {
+  NONE
+  BEARER
+}
+
 model User {
   id           String  @id @default(cuid())
   email        String  @unique
@@ -98,9 +112,34 @@ model Project {
   workflows      Workflow[]
   credentials    Credential[]
   knowledgeBases KnowledgeBase[]
+  mcpConnections McpConnection[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A project-owned remote MCP endpoint. The secret is optional for NONE and is encrypted at rest
+// for BEARER; it is deliberately never part of a workflow canvas or API response projection.
+model McpConnection {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name      String
+  transport McpTransportType @default(STREAMABLE_HTTP)
+  url       String
+  status    McpConnectionStatus @default(ACTIVE)
+  authType  McpAuthType @default(NONE)
+
+  encryptedSecret String?
+  secretIv        String?
+  secretAuthTag   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 model ProjectMember {

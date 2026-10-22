@@ -28,4 +28,9 @@ export class ToolRegistry {
     return Array.from(this.tools.values(), (tool) => tool.definition)
       .sort((left, right) => left.name.localeCompare(right.name));
   }
+
+  /** Built-ins are process-global; project MCP tools are merged by ToolCatalogService. */
+  list(): Tool[] {
+    return Array.from(this.tools.values());
+  }
 }
