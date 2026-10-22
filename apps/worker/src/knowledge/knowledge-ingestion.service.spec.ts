@@ -18,9 +18,9 @@ function setup({ text = 'alpha beta gamma delta epsilon zeta', embedError }: { t
     chunks.splice(0, chunks.length, ...data.map((item, index) => ({ id: `chunk-${index}`, content: item.content })));
   });
   const findMany = vi.fn(async () => chunks);
-  const embed = vi.fn(async () => {
+  const embed = vi.fn(async (_modelId: string, inputs: string[]) => {
     if (embedError) throw embedError;
-    return { embeddings: chunks.map(() => [0.1, 0.2]), dimensions: 2 };
+    return { embeddings: inputs.map(() => [0.1, 0.2]), dimensions: 2 };
   });
   const writeEmbedding = vi.fn(async () => undefined);
   const service = new KnowledgeIngestionService(
@@ -49,5 +49,17 @@ describe('KnowledgeIngestionService', () => {
     const { service, updateMany } = setup({ embedError: timeout });
     await expect(service.ingest('document-1')).rejects.toBe(timeout);
     expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED', errorCode: 'TIMEOUT' }) }));
+  });
+
+  it('splits a large document into embedding batches of at most twenty chunks', async () => {
+    const text = Array.from({ length: 90 }, (_, index) => `token-${index}`).join(' ');
+    const { service, embed } = setup({ text });
+
+    await expect(service.ingest('document-1')).resolves.toBe('processed');
+
+    const batchSizes = embed.mock.calls.map(([, inputs]) => (inputs as string[]).length);
+    expect(batchSizes.length).toBeGreaterThan(1);
+    expect(batchSizes.every((size) => size > 0 && size <= 20)).toBe(true);
+    expect(batchSizes.slice(0, -1).every((size) => size === 20)).toBe(true);
   });
 });

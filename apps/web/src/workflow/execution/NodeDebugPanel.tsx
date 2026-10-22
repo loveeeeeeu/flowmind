@@ -42,6 +42,43 @@ function JsonBlock({ value }: { value: unknown | null }) {
   return <pre className="run-json">{value === null ? 'No data' : formatJson(value)}</pre>;
 }
 
+interface RetrievedChunk {
+  chunkId: string;
+  documentName: string;
+  chunkIndex: number;
+  content: string;
+  score: number;
+}
+
+function isRetrieverOutput(value: unknown): value is { query: string; context: string; items: RetrievedChunk[] } {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.query === 'string' && typeof candidate.context === 'string' && Array.isArray(candidate.items);
+}
+
+function RetrieverOutput({ value }: { value: unknown | null }) {
+  if (!isRetrieverOutput(value)) return <JsonBlock value={value} />;
+
+  return (
+    <div className="retriever-debug-output">
+      <p><strong>Query:</strong> {value.query}</p>
+      <p><strong>Retrieved:</strong> {value.items.length} chunk(s)</p>
+      {value.items.length === 0 ? (
+        <p className="panel-text">No chunks matched this query. The node completed normally and passed an empty context to the next node.</p>
+      ) : value.items.map((item, index) => (
+        <article key={item.chunkId} className="retriever-debug-result">
+          <header><strong>Source {index + 1} · {item.documentName}</strong><span>Chunk {item.chunkIndex} · score {item.score.toFixed(3)}</span></header>
+          <p>{item.content}</p>
+        </article>
+      ))}
+      <details className="run-json-details">
+        <summary>Context passed to the next node</summary>
+        <pre className="run-json">{value.context || '(empty)'}</pre>
+      </details>
+    </div>
+  );
+}
+
 /** Full debug data is fetched on demand; SSE only appends safe logs to an already-open detail. */
 export function NodeDebugPanel({
   projectId,
@@ -159,7 +196,7 @@ export function NodeDebugPanel({
           )}
 
           <section className="node-debug-section"><h4>Input</h4><JsonBlock value={debug.input} /></section>
-          <section className="node-debug-section"><h4>Output</h4><JsonBlock value={debug.output} /></section>
+          <section className="node-debug-section"><h4>Output</h4>{node.type === 'knowledgeRetriever' ? <RetrieverOutput value={debug.output} /> : <JsonBlock value={debug.output} />}</section>
 
           <section className="node-debug-section">
             <h4>Logs</h4>

@@ -106,12 +106,19 @@ export class RuntimeModelResolver {
   }
 
   async resolveEmbeddingModel(modelId: string): Promise<ResolvedModelConfig> {
+    const model = await this.resolveExistingEmbeddingModel(modelId);
+    if (!model.enabled) {
+      throw resolutionError('MODEL_DISABLED', `Embedding model ${modelId} is disabled`);
+    }
+    return model;
+  }
+
+  /** Published workflows and existing knowledge bases keep working after a model is disabled.
+   * The caller must already have resolved the resource through a project-scoped knowledge base. */
+  async resolveExistingEmbeddingModel(modelId: string): Promise<ResolvedModelConfig> {
     const model = await this.resolve(modelId);
     if (model.type !== 'EMBEDDING') {
       throw resolutionError('MODEL_TYPE_MISMATCH', `Model ${modelId} is not an embedding model`);
-    }
-    if (!model.enabled) {
-      throw resolutionError('MODEL_DISABLED', `Embedding model ${modelId} is disabled`);
     }
     if (!model.embeddingDimensions || model.embeddingDimensions <= 0) {
       throw resolutionError('EMBEDDING_DIMENSIONS_MISSING', `Embedding model ${modelId} has no dimensions`);

@@ -10,6 +10,7 @@ import { WorkflowEditorPage } from './pages/workflows/WorkflowEditorPage.tsx';
 import { CredentialsPage } from './pages/settings/CredentialsPage';
 import { ModelCenterPage } from './pages/settings/ModelCenterPage';
 import { ProjectMembersPage } from './pages/settings/ProjectMembersPage';
+import { KnowledgeBasePage } from './pages/knowledge/KnowledgeBasePage';
 
 function App() {
   return (
@@ -52,7 +53,7 @@ function AppShell({ userName }: { userName: string }) {
         <ProjectSwitcher />
         <nav className="global-nav-links" aria-label="主导航">
           <ProjectNav />
-          <a href="#knowledge" onClick={(event) => event.preventDefault()}>▤ 知识库</a>
+          <KnowledgeNav />
           <a href="#tools" onClick={(event) => event.preventDefault()}>⌘ 工具</a>
           <SettingsNav />
         </nav>
@@ -63,6 +64,7 @@ function AppShell({ userName }: { userName: string }) {
         <Route path="/projects/:projectId/workflows" element={<WorkflowListPage />} />
         <Route path="/projects/:projectId/workflows/:id" element={<WorkflowDetailPage />} />
         <Route path="/projects/:projectId/workflows/:id/editor" element={<WorkflowEditorPage />} />
+        <Route path="/projects/:projectId/knowledge" element={<KnowledgeBasePage />} />
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsEntry />} />
         <Route path="/projects/:projectId/settings/models" element={<ModelCenterPage />} />
         <Route path="/projects/:projectId/settings/credentials" element={<CredentialsPage />} />
@@ -102,6 +104,11 @@ function ProjectSwitcher() {
 function ProjectNav() {
   const projectId = useCurrentProjectId();
   return <NavLink to={projectId ? `/projects/${projectId}/workflows` : '/'}>▦ 工作室</NavLink>;
+}
+
+function KnowledgeNav() {
+  const projectId = useCurrentProjectId();
+  return <NavLink to={projectId ? `/projects/${projectId}/knowledge` : '/'}>▤ 知识库</NavLink>;
 }
 
 function SettingsNav() {

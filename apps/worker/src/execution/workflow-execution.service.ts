@@ -44,6 +44,7 @@ export class WorkflowExecutionService {
     try {
       // The engine re-validates the snapshot before executing any node.
       result = await this.engine.execute(canvas, input, {
+        projectId: run.workflow?.projectId,
         observer: new PrismaExecutionObserver(this.prisma, this.logs, runId, this.events),
       });
     } catch (error) {

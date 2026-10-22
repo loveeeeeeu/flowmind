@@ -8,6 +8,7 @@ interface NodeLibraryProps {
   onAddIf: () => void;
   onAddLoop: () => void;
   onAddCode: () => void;
+  onAddKnowledgeRetriever: () => void;
 }
 
 export function NodeLibrary({
@@ -19,6 +20,7 @@ export function NodeLibrary({
   onAddIf,
   onAddLoop,
   onAddCode,
+  onAddKnowledgeRetriever,
 }: NodeLibraryProps) {
   return (
     <aside className={`node-library ${disabled ? 'disabled' : ''}`}>
@@ -28,6 +30,7 @@ export function NodeLibrary({
       </div>
 
       <p className="node-group">AI</p>
+      <button type="button" disabled={disabled} onClick={onAddKnowledgeRetriever}><span className="node-icon knowledge">⌕</span>Knowledge Retriever</button>
       <button type="button" disabled={disabled} onClick={onAddLlm}><span className="node-icon ai">✦</span>LLM</button>
       <button type="button" disabled={disabled} onClick={onAddTemplate}><span className="node-icon template">T</span>模板</button>
 

@@ -16,6 +16,8 @@ import { ProjectModule } from '../project/project.module.js';
     // The api never generates text: only the 10 s connection timeout matters here.
     { provide: ProviderRegistry, useValue: new ProviderRegistry(new OpenAICompatibleProvider()) },
   ],
-  exports: [CredentialService, CredentialConnectionService, CredentialCryptoService],
+  // Knowledge query embedding reuses the same provider adapter registry; exporting it avoids
+  // constructing a second registry with subtly different provider configuration.
+  exports: [CredentialService, CredentialConnectionService, CredentialCryptoService, ProviderRegistry],
 })
 export class CredentialModule {}

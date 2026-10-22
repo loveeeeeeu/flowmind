@@ -7,7 +7,9 @@ import { KnowledgeIngestionError, normalizeKnowledgeError } from './knowledge-in
 import { TextChunker, type TextChunk } from './text-chunker.service.js';
 
 const MAX_DOCUMENT_CHUNKS = 1000;
-const EMBEDDING_BATCH_SIZE = 32;
+// Qwen's OpenAI-compatible embedding endpoint accepts at most 20 input texts per request.
+// Keep the shared worker limit at the lowest currently supported provider limit.
+const EMBEDDING_BATCH_SIZE = 20;
 
 @Injectable()
 export class KnowledgeIngestionService {

@@ -11,6 +11,11 @@ export interface WorkflowExecutionResult {
   nodeOutputs: Record<string, unknown>;
 }
 
+export interface WorkflowExecuteOptions extends SchedulerOptions {
+  /** Project scope travels with the immutable run snapshot into every executor. */
+  projectId?: string;
+}
+
 export class WorkflowEngine {
   constructor(
     private readonly validator: WorkflowValidator,
@@ -24,11 +29,11 @@ export class WorkflowEngine {
   async execute(
     canvas: WorkflowCanvas,
     input: Record<string, unknown>,
-    options?: SchedulerOptions,
+    options?: WorkflowExecuteOptions,
   ): Promise<WorkflowExecutionResult> {
     const graph = new WorkflowGraph(canvas);
     const { startNode } = this.validator.validate(graph);
-    const context = new ExecutionContext(input);
+    const context = new ExecutionContext(input, options?.projectId);
     const { result, executedNodeIds } = await this.scheduler.run(
       graph,
       startNode,

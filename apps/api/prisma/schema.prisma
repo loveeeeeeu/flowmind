@@ -257,6 +257,9 @@ model KnowledgeBase {
   // reaching pgvector only to fail with an opaque database error.
   embeddingDimensions Int?
 
+  // Hidden from new workflow drafts when false. Historical published versions keep resolving it.
+  enabled Boolean @default(true)
+
   name        String
   description String?
 

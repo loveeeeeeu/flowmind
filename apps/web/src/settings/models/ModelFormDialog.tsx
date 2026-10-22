@@ -5,7 +5,7 @@ import { ApiRequestError } from '../../api/client';
 import { createModel, updateModel } from '../../api/models';
 import { queryKeys } from '../../api/queryKeys';
 import type { Credential } from '../../types/credential';
-import type { Model } from '../../types/model';
+import type { Model, ModelType } from '../../types/model';
 import { parseContextWindow } from './modelFormat';
 
 interface ModelFormDialogProps {
@@ -24,17 +24,26 @@ function errorText(error: Error, modelName: string) {
   return `保存失败：${error.message}`;
 }
 
+function parseEmbeddingDimensions(value: string): number | undefined {
+  if (!/^\d+$/.test(value.trim())) return undefined;
+  const dimensions = Number(value);
+  return Number.isSafeInteger(dimensions) && dimensions > 0 && dimensions <= 100_000 ? dimensions : undefined;
+}
+
 /** modelName is read-only when editing: published LLM nodes call whatever the id points at. */
 export function ModelFormDialog({ projectId, credential, model, onClose }: ModelFormDialogProps) {
   const queryClient = useQueryClient();
   const isEdit = model !== undefined;
   const [name, setName] = useState(model?.name ?? '');
   const [modelName, setModelName] = useState(model?.modelName ?? '');
+  const [type, setType] = useState<ModelType>(model?.type ?? 'CHAT');
+  const [embeddingDimensions, setEmbeddingDimensions] = useState(model?.embeddingDimensions?.toString() ?? '');
   const [contextWindow, setContextWindow] = useState(model?.contextWindow?.toString() ?? '');
   const [supportsTemperature, setSupportsTemperature] = useState(model?.supportsTemperature ?? true);
 
   // undefined: not a positive integer; null: left empty.
   const parsedContextWindow = parseContextWindow(contextWindow);
+  const parsedEmbeddingDimensions = parseEmbeddingDimensions(embeddingDimensions);
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -49,8 +58,11 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
       return createModel(projectId, credential.id, {
         name: name.trim(),
         modelName: modelName.trim(),
+        type,
         ...(parsedContextWindow ? { contextWindow: parsedContextWindow } : {}),
-        supportsTemperature,
+        ...(type === 'EMBEDDING'
+          ? { embeddingDimensions: parsedEmbeddingDimensions, supportsTemperature: false }
+          : { supportsTemperature }),
       });
     },
     onSuccess: async () => {
@@ -63,6 +75,7 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
     name.trim() !== '' &&
     modelName.trim() !== '' &&
     parsedContextWindow !== undefined &&
+    (type === 'CHAT' || parsedEmbeddingDimensions !== undefined) &&
     !saveMutation.isPending;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -116,6 +129,31 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
           </label>
 
           <label>
+            模型类型
+            <select value={type} disabled={isEdit} onChange={(event) => setType(event.target.value as ModelType)}>
+              <option value="CHAT">对话（CHAT）</option>
+              <option value="EMBEDDING">向量（EMBEDDING）</option>
+            </select>
+            <span className="settings-dialog-hint">
+              {isEdit ? '创建后类型不可修改。' : 'EMBEDDING 用于把知识库文档和查询文本转换成向量。'}
+            </span>
+          </label>
+
+          {type === 'EMBEDDING' && (
+            <label>
+              向量维度
+              <input
+                value={embeddingDimensions}
+                inputMode="numeric"
+                placeholder="例如：1536"
+                onChange={(event) => setEmbeddingDimensions(event.target.value)}
+              />
+              <span className="settings-dialog-hint">必须与供应商实际返回的向量长度完全一致；创建后不能修改。</span>
+            </label>
+          )}
+
+          {type === 'CHAT' && <>
+          <label>
             上下文窗口（可选）
             <input
               value={contextWindow}
@@ -136,6 +174,7 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
             />
             支持 temperature 参数
           </label>
+          </>}
 
           {saveMutation.isError && (
             <p className="settings-dialog-error">{errorText(saveMutation.error, modelName)}</p>

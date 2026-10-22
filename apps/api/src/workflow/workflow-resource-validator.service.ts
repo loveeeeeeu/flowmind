@@ -22,14 +22,14 @@ export class WorkflowResourceValidator {
       .filter((node) => node.type === 'llm')
       .map((node) => ({ nodeId: node.id, modelId: node.data.modelId as string }));
 
-    if (llmNodes.length === 0) {
-      return;
-    }
+    const retrieverNodes = canvas.nodes
+      .filter((node) => node.type === 'knowledgeRetriever')
+      .map((node) => ({ nodeId: node.id, knowledgeBaseId: node.data.knowledgeBaseId as string }));
 
     // One query however many nodes share a model.
     // The credential.projectId join enforces project isolation: a modelId from another
     // project simply returns no row → MODEL_NOT_FOUND (not 403).
-    const models = await this.prisma.model.findMany({
+    const models = llmNodes.length === 0 ? [] : await this.prisma.model.findMany({
       where: {
         id: { in: [...new Set(llmNodes.map((node) => node.modelId))] },
         credential: { projectId },
@@ -59,6 +59,37 @@ export class WorkflowResourceValidator {
         throw apiError.badRequest(
           'CREDENTIAL_REVOKED',
           `LLM node ${nodeId} uses a model whose credential is revoked; select another model`,
+        );
+      }
+    }
+
+    if (retrieverNodes.length === 0) return;
+
+    // Bulk check, scoped by project. A foreign ID therefore looks exactly like a missing ID.
+    const knowledgeBases = await this.prisma.knowledgeBase.findMany({
+      where: {
+        id: { in: [...new Set(retrieverNodes.map((node) => node.knowledgeBaseId))] },
+        projectId,
+      },
+      select: { id: true, enabled: true, embeddingModelId: true, embeddingDimensions: true },
+    });
+    const knowledgeBasesById = new Map(knowledgeBases.map((knowledgeBase) => [knowledgeBase.id, knowledgeBase]));
+
+    for (const { nodeId, knowledgeBaseId } of retrieverNodes) {
+      const knowledgeBase = knowledgeBasesById.get(knowledgeBaseId);
+      if (!knowledgeBase) {
+        throw apiError.badRequest(
+          'KNOWLEDGE_BASE_NOT_FOUND',
+          `Retriever node ${nodeId} references knowledge base ${knowledgeBaseId}, which does not exist`,
+        );
+      }
+      if (!knowledgeBase.enabled) {
+        throw apiError.badRequest('KNOWLEDGE_BASE_DISABLED', `Retriever node ${nodeId} uses a disabled knowledge base`);
+      }
+      if (!knowledgeBase.embeddingModelId || !knowledgeBase.embeddingDimensions) {
+        throw apiError.badRequest(
+          'KNOWLEDGE_EMBEDDING_MODEL_REQUIRED',
+          `Retriever node ${nodeId} uses a knowledge base without a configured embedding model`,
         );
       }
     }

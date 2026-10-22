@@ -22,6 +22,9 @@ function setup({
     knowledgeChunk: {
       count: vi.fn(async () => chunkCount),
     },
+    workflow: {
+      findMany: vi.fn(async () => []),
+    },
   };
 
   return { prisma, service: new KnowledgeService(prisma as unknown as PrismaService) };

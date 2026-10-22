@@ -1,0 +1,2 @@
+ALTER TABLE "KnowledgeBase"
+ADD COLUMN "enabled" BOOLEAN NOT NULL DEFAULT true;

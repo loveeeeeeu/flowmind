@@ -51,6 +51,7 @@ export class RunStateService {
       // A run executes its bound version or its own draft snapshot; Workflow.draftCanvas is
       // deliberately not loaded, so the live draft can never leak into a queued run.
       include: {
+        workflow: { select: { projectId: true } },
         workflowVersion: { select: { id: true, version: true, canvas: true } },
       },
     });

@@ -27,9 +27,12 @@ export class KnowledgeDocumentService {
   async create(projectId: string, knowledgeBaseId: string, dto: CreateKnowledgeDocumentDto) {
     const knowledgeBase = await this.prisma.knowledgeBase.findFirst({
       where: { id: knowledgeBaseId, projectId },
-      select: { id: true, embeddingModelId: true },
+      select: { id: true, embeddingModelId: true, enabled: true },
     });
     if (!knowledgeBase) throw knowledgeBaseNotFound(knowledgeBaseId);
+    if (knowledgeBase.enabled === false) {
+      throw apiError.badRequest('KNOWLEDGE_BASE_DISABLED', 'Knowledge base is disabled');
+    }
     if (!knowledgeBase.embeddingModelId) {
       throw apiError.badRequest('KNOWLEDGE_EMBEDDING_MODEL_REQUIRED', 'Knowledge base requires an embedding model');
     }

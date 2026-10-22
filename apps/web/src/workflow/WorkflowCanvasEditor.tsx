@@ -45,6 +45,7 @@ import { HttpNode } from './nodes/HttpNode';
 import { IfNode } from './nodes/IfNode';
 import { LoopNode } from './nodes/LoopNode';
 import { CodeNode } from './nodes/CodeNode';
+import { KnowledgeRetrieverNode } from './nodes/KnowledgeRetrieverNode';
 import { ExecutionPanel } from './execution/ExecutionPanel';
 import { NodeDebugPanel } from './execution/NodeDebugPanel';
 import { buildNodeExecutionViews, getUnexecutedNodeView } from './execution/runUtils';
@@ -53,6 +54,8 @@ import { VersionHistory } from './version/VersionHistory';
 import { VersionPreviewBanner } from './version/VersionPreviewBanner';
 import { hasUnpublishedChanges } from './version/publishState';
 import { AvailableModelsContext } from './llm/llmNodeData';
+import { AvailableKnowledgeBasesContext } from './knowledge/knowledgeRetrieverNodeData';
+import { getKnowledgeBases } from '../api/knowledge';
 import { useProjectPermissions } from '../auth/useProjectPermissions';
 
 const nodeTypes = {
@@ -65,6 +68,7 @@ const nodeTypes = {
   if: IfNode,
   loop: LoopNode,
   code: CodeNode,
+  knowledgeRetriever: KnowledgeRetrieverNode,
 };
 
 const defaultNodes: WorkflowNode[] = [
@@ -116,6 +120,14 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
         ? new Map(availableModelsQuery.data.map((model) => [model.id, model]))
         : undefined,
     [availableModelsQuery.data],
+  );
+  const knowledgeBasesQuery = useQuery({
+    queryKey: queryKeys.knowledgeBases.list(projectId),
+    queryFn: () => getKnowledgeBases(projectId),
+  });
+  const availableKnowledgeBases = useMemo(
+    () => knowledgeBasesQuery.data ? new Map(knowledgeBasesQuery.data.map((knowledgeBase) => [knowledgeBase.id, knowledgeBase])) : undefined,
+    [knowledgeBasesQuery.data],
   );
 
   const [nodes, setNodes] = useNodesState<WorkflowNode>(
@@ -309,6 +321,17 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
     };
 
     setNodes((currentNodes) => [...currentNodes, newNode]);
+    setIsDirty(true);
+  }
+
+  function addKnowledgeRetrieverNode() {
+    if (!canEdit) return;
+    setNodes((currentNodes) => [...currentNodes, {
+      id: crypto.randomUUID(),
+      type: 'knowledgeRetriever',
+      position: { x: 300, y: 380 },
+      data: { label: 'Knowledge Retriever', knowledgeBaseId: '', query: '{{question}}', outputVariable: 'retrieved', topK: 5 },
+    }]);
     setIsDirty(true);
   }
 
@@ -634,10 +657,12 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
         onAddIf={addIfNode}
         onAddLoop={addLoopNode}
         onAddCode={addCodeNode}
+        onAddKnowledgeRetriever={addKnowledgeRetrieverNode}
       />
 
         <div className="canvas-stage">
           <AvailableModelsContext.Provider value={availableModels}>
+            <AvailableKnowledgeBasesContext.Provider value={availableKnowledgeBases}>
             {/* Keyed by what is shown so each switch remounts and fits the view to that canvas. */}
             <ReactFlow
               key={previewVersion?.id ?? 'draft'}
@@ -668,6 +693,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
               <Controls showInteractive={!isPreviewing} />
               <MiniMap zoomable pannable />
             </ReactFlow>
+            </AvailableKnowledgeBasesContext.Provider>
           </AvailableModelsContext.Provider>
         </div>
 
@@ -681,6 +707,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
           />
         ) : (
           <PropertiesPanel
+            projectId={projectId}
             node={isPreviewing ? null : selectedNode}
             onNodeDataChange={updateNodeData}
             onNodeDataReplace={replaceNodeData}

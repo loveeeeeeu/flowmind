@@ -1,4 +1,5 @@
 import { ExecutorRegistry } from './engine/executor-registry.js';
+import { WorkflowExecutionError } from './engine/workflow-execution.error.js';
 import type { NodeRetryPolicy } from './engine/node-retry-policy.js';
 import { VariableResolver } from './engine/variable-resolver.js';
 import { WorkflowEngine } from './engine/workflow-engine.js';
@@ -9,6 +10,7 @@ import { EndExecutor } from './executors/end.executor.js';
 import { HttpExecutor } from './executors/http.executor.js';
 import { IfExecutor } from './executors/if.executor.js';
 import { LlmExecutor } from './executors/llm.executor.js';
+import { KnowledgeRetrieverExecutor } from './executors/knowledge-retriever.executor.js';
 import { LoopExecutor } from './executors/loop.executor.js';
 import { StartExecutor } from './executors/start.executor.js';
 import { TemplateExecutor } from './executors/template.executor.js';
@@ -16,16 +18,26 @@ import { VariableExecutor } from './executors/variable.executor.js';
 import { SUPPORTED_NODE_TYPES } from './node-types.js';
 import type { CodeRunner } from './ports/code-runner.js';
 import type { LlmClient } from './ports/llm-client.js';
+import type { KnowledgeRetrieverPort } from './ports/knowledge-retriever.js';
 
 export interface CreateWorkflowEngineOptions {
   llmClient: LlmClient;
   codeRunner: CodeRunner;
+  /** Required by production workers; a default keeps non-retriever engine tests lightweight. */
+  knowledgeRetriever?: KnowledgeRetrieverPort;
   /** Defaults to DEFAULT_NODE_RETRY_POLICY; tests pass a zero backoff. */
   retryPolicy?: NodeRetryPolicy;
 }
 
 function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retryPolicy'>) {
   const resolver = new VariableResolver();
+  const knowledgeRetriever = options.knowledgeRetriever ?? {
+    retrieve: async () => {
+      throw new WorkflowExecutionError('Knowledge retriever runtime is not configured', {
+        code: 'KNOWLEDGE_RETRIEVER_NOT_CONFIGURED',
+      });
+    },
+  } satisfies KnowledgeRetrieverPort;
 
   return new ExecutorRegistry([
     new StartExecutor(),
@@ -36,6 +48,7 @@ function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retr
     new LoopExecutor(resolver),
     new CodeExecutor(options.codeRunner, resolver),
     new LlmExecutor(options.llmClient, resolver),
+    new KnowledgeRetrieverExecutor(knowledgeRetriever, resolver),
     new EndExecutor(),
   ]);
 }

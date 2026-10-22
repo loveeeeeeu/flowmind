@@ -82,6 +82,15 @@ export type CodeNodeData = BaseNodeData & {
   timeoutMs?: number;
 };
 
+/** Only the knowledge base ID is persisted; its model/provider are runtime configuration. */
+export type KnowledgeRetrieverNodeData = BaseNodeData & {
+  knowledgeBaseId: string;
+  query: string;
+  outputVariable?: string;
+  topK?: number;
+  minScore?: number;
+};
+
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
@@ -92,6 +101,7 @@ export type HttpNodeType = Node<HttpNodeData, 'http'>;
 export type IfNodeType = Node<IfNodeData, 'if'>;
 export type LoopNodeType = Node<LoopNodeData, 'loop'>;
 export type CodeNodeType = Node<CodeNodeData, 'code'>;
+export type KnowledgeRetrieverNodeType = Node<KnowledgeRetrieverNodeData, 'knowledgeRetriever'>;
 
 export type WorkflowNode =
   | StartNodeType
@@ -102,7 +112,8 @@ export type WorkflowNode =
   | HttpNodeType
   | IfNodeType
   | LoopNodeType
-  | CodeNodeType;
+  | CodeNodeType
+  | KnowledgeRetrieverNodeType;
 
 export type WorkflowNodeData = WorkflowNode['data'];
 export type WorkflowEdge = Edge;

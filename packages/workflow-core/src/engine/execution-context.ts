@@ -3,7 +3,10 @@ export class ExecutionContext {
     private readonly nodeOutputs = new Map<string, unknown>();
     private readonly nodeStates = new Map<string, unknown>();
   
-    constructor(input: Record<string, unknown>) {
+    readonly projectId: string | undefined;
+
+    constructor(input: Record<string, unknown>, projectId?: string) {
+      this.projectId = projectId;
       for (const [key, value] of Object.entries(input)) {
         this.variables.set(key, value);
       }

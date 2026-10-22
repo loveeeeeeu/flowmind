@@ -3,7 +3,7 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 import type { KnowledgeDocumentQueueService } from './knowledge-document-queue.service.js';
 import { KnowledgeDocumentService } from './knowledge-document.service.js';
 
-function setup({ knowledgeBase = { id: 'kb-1', embeddingModelId: 'embed-1' } as { id: string; embeddingModelId: string | null } | null, status = 'FAILED' } = {}) {
+function setup({ knowledgeBase = { id: 'kb-1', embeddingModelId: 'embed-1', enabled: true } as { id: string; embeddingModelId: string | null; enabled?: boolean } | null, status = 'FAILED' } = {}) {
   const enqueue = vi.fn(async () => undefined);
   const findFirst = vi.fn(async () => knowledgeBase);
   const create = vi.fn(async () => ({ id: 'doc-1' }));

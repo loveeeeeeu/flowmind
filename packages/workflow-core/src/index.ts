@@ -14,7 +14,9 @@ export * from './engine/workflow-validation.error.js';
 export * from './engine/workflow-validator.js';
 
 export * from './executors/node-executor.js';
+export * from './executors/knowledge-retriever.executor.js';
 
 export * from './ports/code-runner.js';
 export * from './ports/execution-observer.js';
 export * from './ports/llm-client.js';
+export * from './ports/knowledge-retriever.js';

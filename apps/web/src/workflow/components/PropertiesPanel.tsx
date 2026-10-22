@@ -10,9 +10,11 @@ import {
 } from '../types/workflowCanvas';
 import { JsonObjectEditor } from './JsonObjectEditor';
 import { LlmProperties } from './LlmProperties';
+import { KnowledgeRetrieverProperties } from './KnowledgeRetrieverProperties';
 import { Field } from './PanelField';
 
 interface PropertiesPanelProps {
+  projectId: string;
   node: WorkflowNode | null;
   onNodeDataChange: (nodeId: string, patch: Partial<WorkflowNodeData>) => void;
   /** Replaces data wholesale, for edits that must remove keys (e.g. legacy LLM fields). */
@@ -33,6 +35,7 @@ function toOptionalNumber(value: string) {
 }
 
 export function PropertiesPanel({
+  projectId,
   node,
   onNodeDataChange,
   onNodeDataReplace,
@@ -68,6 +71,17 @@ export function PropertiesPanel({
           onNodeDataReplace={onNodeDataReplace}
         />
 
+        <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
+      </aside>
+    );
+  }
+
+  if (node.type === 'knowledgeRetriever') {
+    return (
+      <aside className="properties-panel">
+        <h3>Knowledge Retriever</h3>
+        {labelField}
+        <KnowledgeRetrieverProperties projectId={projectId} node={node} onNodeDataChange={onNodeDataChange} />
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );

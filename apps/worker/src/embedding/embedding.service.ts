@@ -27,6 +27,20 @@ export class EmbeddingService {
     }
 
     const model = await this.resolver.resolveEmbeddingModel(modelId);
+    return this.embedWithModel(model, texts);
+  }
+
+  /** Retrieval is historical runtime, so a disabled (but not revoked) embedding model is valid. */
+  async embedExisting(modelId: string, texts: string[]): Promise<EmbedTextsResult> {
+    if (texts.length === 0) return { embeddings: [], dimensions: 0 };
+    const model = await this.resolver.resolveExistingEmbeddingModel(modelId);
+    return this.embedWithModel(model, texts);
+  }
+
+  private async embedWithModel(
+    model: Awaited<ReturnType<RuntimeModelResolver['resolveEmbeddingModel']>>,
+    texts: string[],
+  ): Promise<EmbedTextsResult> {
     const result = await this.registry.getEmbeddingProvider(model.provider).embed({
       baseUrl: resolveProviderBaseUrl(model),
       apiKey: model.apiKey,

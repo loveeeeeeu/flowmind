@@ -11,8 +11,11 @@ interface ModelRow {
 
 const usable = (id: string): ModelRow => ({ id, enabled: true, credential: { revokedAt: null } });
 
-function setup(models: ModelRow[]) {
-  const prisma = { model: { findMany: vi.fn(async () => models) } };
+function setup(models: ModelRow[], knowledgeBases: Array<{ id: string; enabled: boolean; embeddingModelId: string | null; embeddingDimensions: number | null }> = []) {
+  const prisma = {
+    model: { findMany: vi.fn(async () => models) },
+    knowledgeBase: { findMany: vi.fn(async () => knowledgeBases) },
+  };
   const validator = new WorkflowResourceValidator(prisma as unknown as PrismaService);
 
   return { validator, prisma };
@@ -80,5 +83,31 @@ describe('WorkflowResourceValidator.validateForDraft', () => {
         'LLM node llm-1 uses a model whose credential is revoked; select another model',
       ),
     );
+  });
+
+  it('bulk validates Retriever knowledge bases inside the current project', async () => {
+    const { validator, prisma } = setup([], [{ id: 'kb-1', enabled: true, embeddingModelId: 'embed-1', embeddingDimensions: 1536 }]);
+    const retrieverCanvas: WorkflowCanvas = {
+      nodes: [{ id: 'retriever', type: 'knowledgeRetriever', data: { knowledgeBaseId: 'kb-1', query: '{{input.question}}' } }],
+      edges: [],
+    };
+
+    await expect(validator.validateForDraft('project-1', retrieverCanvas)).resolves.toBeUndefined();
+    expect(prisma.knowledgeBase.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['kb-1'] }, projectId: 'project-1' },
+      select: { id: true, enabled: true, embeddingModelId: true, embeddingDimensions: true },
+    });
+  });
+
+  it('rejects a disabled or cross-project Retriever knowledge base before execution', async () => {
+    const retrieverCanvas: WorkflowCanvas = {
+      nodes: [{ id: 'retriever', type: 'knowledgeRetriever', data: { knowledgeBaseId: 'kb-1', query: 'question' } }],
+      edges: [],
+    };
+    await expect(setup([], [{ id: 'kb-1', enabled: false, embeddingModelId: 'embed-1', embeddingDimensions: 2 }]).validator
+      .validateForDraft('project-1', retrieverCanvas))
+      .rejects.toThrow(apiError.badRequest('KNOWLEDGE_BASE_DISABLED', 'Retriever node retriever uses a disabled knowledge base'));
+    await expect(setup([], []).validator.validateForDraft('project-1', retrieverCanvas))
+      .rejects.toThrow(apiError.badRequest('KNOWLEDGE_BASE_NOT_FOUND', 'Retriever node retriever references knowledge base kb-1, which does not exist'));
   });
 });

@@ -1176,8 +1176,8 @@ GET NodeRun Detail，建立详情缓存
   ↓
 LLM 基于项目知识回答
 ```
-Ingestion       文档 → Chunk → Embedding → pgvector
-Retrieval       检索相关知识
+Retrieval       找最相关的几段资料
+Augmented       把这几段资料交给 LLM
 Generation      LLM 生成回答
 它不是重新训练模型。模型本来不知道“你公司的报销规则”；RAG 是在每次提问时，先从你的知识库中找相关内容，再把内容提供给 LLM。
 
@@ -1327,4 +1327,66 @@ Embedding Provider
 ↓
 第 6 步：把向量更新到对应 Chunk 行
 所以要保证返回向量的顺序要和查询chunk的顺序一致，才能把向量更新到对应 Chunk 行
-# 
+
+# 向量相似度检索与 Retriever Service
+一句话概括：用户输入一句问题后，系统把问题转成向量，再从 pgvector 中找出语义最相近的文档 Chunk。
+## RAG 的检索不能只靠关键词，需要语义相近
+文本 → 向量
+向量距离 → 语义相似度
+## 整体链路
+```检索业务编排：校验知识库、生成 query 向量、调用向量搜索
+前端 / API 调用 Search
+  ↓
+POST /projects/:projectId/knowledge-bases/:knowledgeBaseId/search
+  ↓
+KnowledgeRetrieverService 
+  ├─ 验证知识库属于该 Project
+  ├─ 验证知识库已配置 Embedding 模型与维度
+  ├─ 校验 query 非空
+  ↓
+KnowledgeQueryEmbeddingService
+  ↓
+ProviderRegistry → OpenAI-compatible Embedding API
+  ↓
+query vector
+  ↓
+KnowledgeVectorSearchService
+  ↓
+PostgreSQL + pgvector
+  ↓
+按余弦距离排序、取 Top K
+  ↓
+返回 Chunk + 文档信息 + score
+```
+## 为什么 Query 与文档必须使用同一个 Embedding 模型
+1.向量维度可能不同，数据库无法比较；
+2.即使维度碰巧相同，不同模型的向量空间语义也不一致；
+3.相似度分数没有意义。
+
+# Knowledge Retriever 节点，把检索结果交给 LLM
+解决“把这些 Chunk 作为上下文注入工作流，让 LLM 基于资料回答”。
+## 链路
+```
+Workflow Run 输入
+  ↓
+Knowledge Retriever 节点 Node Output: items(给debug pannel看score数据) + context
+  ├─ 读取 query，例如 {{question}}
+  ├─ 调用 Lesson 4 Retriever Service
+  ├─ 得到相关 Chunk[]
+  └─ 组装为 context，并写入工作流变量
+       ↓
+LLM 节点
+  └─ 在 Prompt 中引用 {{retrieved.context}}
+       ↓
+基于检索资料生成回答
+```
+## Knowledge Retriever 节点在工作流中的位置
+```
+Start
+  ↓
+Knowledge Retriever
+  ↓
+LLM
+  ↓
+End
+```

@@ -31,6 +31,12 @@ export const queryKeys = {
     available: (projectId: string) => ['models', projectId, 'available'] as const,
     detail: (projectId: string, id: string) => ['models', projectId, 'detail', id] as const,
   },
+  knowledgeBases: {
+    list: (projectId: string) => ['knowledge-bases', projectId, 'list'] as const,
+    detail: (projectId: string, knowledgeBaseId: string) => ['knowledge-bases', projectId, 'detail', knowledgeBaseId] as const,
+    documents: (projectId: string, knowledgeBaseId: string) => ['knowledge-bases', projectId, knowledgeBaseId, 'documents'] as const,
+    chunks: (projectId: string, knowledgeBaseId: string, documentId: string) => ['knowledge-bases', projectId, knowledgeBaseId, 'documents', documentId, 'chunks'] as const,
+  },
   runs: {
     all: ['runs'] as const,
     detail: (projectId: string, runId: string) => ['runs', projectId, 'detail', runId] as const,

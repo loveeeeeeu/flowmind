@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { trim } from '../../credential/dto/create-credential.dto.js';
 
 export class UpdateKnowledgeBaseDto {
@@ -25,4 +25,9 @@ export class UpdateKnowledgeBaseDto {
   @IsString()
   @IsNotEmpty()
   embeddingModelId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Disabled knowledge bases cannot be selected by new workflow drafts.' })
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
 }

@@ -18,6 +18,7 @@ const KNOWLEDGE_BASE_SUMMARY = {
   description: true,
   embeddingModelId: true,
   embeddingDimensions: true,
+  enabled: true,
   embeddingModel: { select: EMBEDDING_MODEL_SUMMARY },
   _count: { select: { documents: true } },
   createdAt: true,
@@ -88,12 +89,26 @@ export class KnowledgeService {
         description: dto.description,
         embeddingModelId: dto.embeddingModelId,
         embeddingDimensions: dto.embeddingModelId === undefined ? undefined : (model?.embeddingDimensions ?? null),
+        enabled: dto.enabled,
       },
       select: KNOWLEDGE_BASE_SUMMARY,
     });
   }
 
   async remove(projectId: string, id: string) {
+    const workflows = await this.prisma.workflow.findMany({
+      where: { projectId },
+      select: { draftCanvas: true, versions: { select: { canvas: true } } },
+    });
+    if (workflows.some((workflow) => {
+      const canvases = [workflow.draftCanvas, ...workflow.versions.map((version) => version.canvas)];
+      return canvases.some((canvas) => canvasReferencesKnowledgeBase(canvas, id));
+    })) {
+      throw apiError.conflict(
+        'KNOWLEDGE_BASE_IN_USE',
+        'This knowledge base is referenced by a workflow draft or published version; disable it instead',
+      );
+    }
     const result = await this.prisma.knowledgeBase.deleteMany({ where: { id, projectId } });
 
     if (result.count === 0) {
@@ -120,6 +135,15 @@ export class KnowledgeService {
 
     return model;
   }
+}
+
+function canvasReferencesKnowledgeBase(canvas: unknown, knowledgeBaseId: string) {
+  if (!canvas || typeof canvas !== 'object' || !Array.isArray((canvas as { nodes?: unknown }).nodes)) {
+    return false;
+  }
+  return (canvas as { nodes: Array<{ type?: unknown; data?: Record<string, unknown> }> }).nodes.some(
+    (node) => node.type === 'knowledgeRetriever' && node.data?.knowledgeBaseId === knowledgeBaseId,
+  );
 }
 
 function knowledgeBaseNotFound(id: string) {

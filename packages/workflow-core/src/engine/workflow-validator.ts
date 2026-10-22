@@ -148,6 +148,9 @@ export class WorkflowValidator {
       if (node.type === 'llm') {
         this.validateLlmNode(node);
       }
+      if (node.type === 'knowledgeRetriever') {
+        this.validateKnowledgeRetrieverNode(node);
+      }
     }
   }
 
@@ -166,6 +169,26 @@ export class WorkflowValidator {
 
     if (typeof prompt !== 'string' || !prompt.trim()) {
       throw new WorkflowValidationError(`LLM node ${node.id} requires prompt`);
+    }
+  }
+
+  private validateKnowledgeRetrieverNode(node: WorkflowNode) {
+    const { knowledgeBaseId, query, outputVariable, topK, minScore } = node.data;
+
+    if (typeof knowledgeBaseId !== 'string' || !knowledgeBaseId.trim()) {
+      throw new WorkflowValidationError(`KNOWLEDGE_BASE_REQUIRED: Retriever node ${node.id} requires knowledgeBaseId`);
+    }
+    if (typeof query !== 'string' || !query.trim()) {
+      throw new WorkflowValidationError(`KNOWLEDGE_QUERY_REQUIRED: Retriever node ${node.id} requires query`);
+    }
+    if (outputVariable !== undefined && (typeof outputVariable !== 'string' || !outputVariable.trim())) {
+      throw new WorkflowValidationError(`KNOWLEDGE_OUTPUT_VARIABLE_REQUIRED: Retriever node ${node.id} outputVariable must be a non-empty string`);
+    }
+    if (topK !== undefined && (typeof topK !== 'number' || !Number.isInteger(topK) || topK < 1 || topK > 20)) {
+      throw new WorkflowValidationError(`INVALID_KNOWLEDGE_TOP_K: Retriever node ${node.id} topK must be between 1 and 20`);
+    }
+    if (minScore !== undefined && (typeof minScore !== 'number' || !Number.isFinite(minScore) || minScore < -1 || minScore > 1)) {
+      throw new WorkflowValidationError(`INVALID_KNOWLEDGE_MIN_SCORE: Retriever node ${node.id} minScore must be between -1 and 1`);
     }
   }
 

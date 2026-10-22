@@ -14,6 +14,7 @@ interface FakeRun {
   heartbeatAt: null;
   input: Record<string, unknown>;
   source: string;
+  workflow: { projectId: string };
   workflowVersion: { id: string; version: number; canvas: unknown } | null;
   draftSnapshot: unknown;
 }
@@ -24,6 +25,7 @@ const run: FakeRun = {
   heartbeatAt: null,
   input: { name: 'FlowMind' },
   source: 'PUBLISHED',
+  workflow: { projectId: 'project-1' },
   workflowVersion: { id: 'version-1', version: 1, canvas },
   draftSnapshot: null,
 };
@@ -66,6 +68,7 @@ describe('WorkflowExecutionService', () => {
     expect(runState.prepareForExecution).toHaveBeenCalledWith(run);
     expect(runState.startHeartbeat).toHaveBeenCalledWith('run-1');
     expect(execute).toHaveBeenCalledWith(canvas, { name: 'FlowMind' }, {
+      projectId: 'project-1',
       observer: expect.any(PrismaExecutionObserver) as ExecutionObserver,
     });
     expect(runState.markSuccess).toHaveBeenCalledWith('run-1', { result: 'Hello FlowMind' });

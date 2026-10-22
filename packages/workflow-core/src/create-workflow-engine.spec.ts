@@ -8,6 +8,7 @@ import { SUPPORTED_NODE_TYPES } from './node-types.js';
 // Node types whose config the validator checks need a minimal valid shape.
 const MINIMAL_DATA: Record<string, Record<string, unknown>> = {
   llm: { modelId: 'model-1', prompt: 'Hi' },
+  knowledgeRetriever: { knowledgeBaseId: 'kb-1', query: 'question' },
 };
 
 function canvasWith(type: string): WorkflowCanvas {

@@ -29,6 +29,7 @@ import { DocumentTextExtractor } from './knowledge/document-text-extractor.servi
 import { KnowledgeIngestionProcessor } from './knowledge/knowledge-ingestion.processor.js';
 import { KnowledgeIngestionService } from './knowledge/knowledge-ingestion.service.js';
 import { TextChunker } from './knowledge/text-chunker.service.js';
+import { WorkflowKnowledgeRetrieverAdapter } from './knowledge/workflow-knowledge-retriever.adapter.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
@@ -75,15 +76,21 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     KnowledgeVectorService,
     KnowledgeEmbeddingService,
     DocumentTextExtractor,
-    TextChunker,
+    // These are value configuration parameters, not Nest dependencies. Registering the class
+    // directly makes Nest try to inject Number/Object for its default constructor arguments.
+    { provide: TextChunker, useFactory: () => new TextChunker() },
     KnowledgeIngestionService,
     KnowledgeIngestionProcessor,
+    WorkflowKnowledgeRetrieverAdapter,
     CodeRunnerService,
     {
       provide: WorkflowEngine,
-      inject: [WorkerLlmClient, CodeRunnerService],
-      useFactory: (llmClient: WorkerLlmClient, codeRunner: CodeRunnerService) =>
-        createWorkflowEngine({ llmClient, codeRunner }),
+      inject: [WorkerLlmClient, CodeRunnerService, WorkflowKnowledgeRetrieverAdapter],
+      useFactory: (
+        llmClient: WorkerLlmClient,
+        codeRunner: CodeRunnerService,
+        knowledgeRetriever: WorkflowKnowledgeRetrieverAdapter,
+      ) => createWorkflowEngine({ llmClient, codeRunner, knowledgeRetriever }),
     },
     ExecutionLogService,
     RunStateService,
