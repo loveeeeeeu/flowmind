@@ -9,6 +9,7 @@ import {
   KNOWLEDGE_INGESTION_QUEUE,
   WORKFLOW_EXECUTION_QUEUE,
 } from '@flowmind/shared';
+import { ToolExecutor, ToolRegistry } from '@flowmind/tool-runtime';
 import { createWorkflowEngine, WorkflowEngine } from '@flowmind/workflow-core';
 import { fileURLToPath } from 'node:url';
 import { CodeRunnerService } from './code/code-runner.service.js';
@@ -31,6 +32,8 @@ import { KnowledgeIngestionService } from './knowledge/knowledge-ingestion.servi
 import { TextChunker } from './knowledge/text-chunker.service.js';
 import { WorkflowKnowledgeRetrieverAdapter } from './knowledge/workflow-knowledge-retriever.adapter.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { EchoTool } from './tools/echo.tool.js';
+import { SearchKnowledgeTool } from './tools/search-knowledge.tool.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
 // share the same CREDENTIAL_ENCRYPTION_KEY locally.
@@ -82,6 +85,27 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     KnowledgeIngestionService,
     KnowledgeIngestionProcessor,
     WorkflowKnowledgeRetrieverAdapter,
+    EchoTool,
+    {
+      provide: SearchKnowledgeTool,
+      inject: [WorkflowKnowledgeRetrieverAdapter],
+      useFactory: (retriever: WorkflowKnowledgeRetrieverAdapter) => new SearchKnowledgeTool(retriever),
+    },
+    {
+      provide: ToolRegistry,
+      inject: [EchoTool, SearchKnowledgeTool],
+      useFactory: (echo: EchoTool, searchKnowledge: SearchKnowledgeTool) => {
+        const registry = new ToolRegistry();
+        registry.register(echo);
+        registry.register(searchKnowledge);
+        return registry;
+      },
+    },
+    {
+      provide: ToolExecutor,
+      inject: [ToolRegistry],
+      useFactory: (registry: ToolRegistry) => new ToolExecutor(registry),
+    },
     CodeRunnerService,
     {
       provide: WorkflowEngine,

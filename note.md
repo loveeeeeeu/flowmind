@@ -1390,3 +1390,86 @@ LLM
   ↓
 End
 ```
+
+# Tool Contract + Tool Registry
+这一课不是在做“智能 Agent”，而是在先修一条基础设施：让系统能够统一管理、描述和执行“可被 Agent 调用的能力”。
+<mark>工具能力抽象</mark>
+目前还没有 Agent 自动选工具、没有 MCP、没有工具循环。**只是先把“工具是什么、怎么找、怎么安全执行”定义好**
+## 先分清：Node 和 Tool
+Node（节点）= 工作流作者提前决定要执行什么
+Tool（工具）= 未来由 Agent 在运行时决定是否调用
+所以 Tool 不是画布上的固定步骤，而是 Agent 可选择使用的“能力”
+## Tool 的最小组成、
+## Tool 的最小组成、
+Tool
+## Tool 的最小组成、
+├─ name：机器使用的稳定名字
+├─ description：告诉 LLM 何时该用它
+├─ inputSchema：告诉 LLM 参数结构
+└─ execute()：真正执行能力
+LLM 只需要看前三项；真正执行 execute() 是系统内部做的
+## 为什么需要 Tool Contract （工具协议/统一约定）
+不同来源的工具，底层实现可能完全不同
+-Built-in Tool：FlowMind 自己写的工具
+-MCP Tool：外部 MCP Server 提供的工具
+-Workflow Tool：把另一个工作流当成工具
+-HTTP Tool：调用受限制的外部 HTTP 能力
+但未来 Agent 不应该分别学习每一种实现，所以先**统一成同一个接口**，这就是 Tool Contract（工具协议/统一约定）
+## 为什么 input 是 unknown
+Tool 的参数未来来自 LLM，LLM 生成的参数不可信，不能直接当成正确对象使用。然后每个 Tool 自己负责：
+```
+unknown 输入
+  ↓
+参数校验
+  ↓
+转换成可信的内部数据
+  ↓
+执行
+```
+## JSON Schema 的用途
+inputSchema 主要不是给后端校验用的，而是给 LLM 阅读的“工具说明书”。
+## Tool Registry 是什么
+ToolRegistry 可以理解为“工具名册”,它只做三件事：
+register(tool)       注册
+get(name)            按名称找到工具
+listDefinitions()    列出给 LLM 看的公开说明
+## ToolExecutor 是什么
+ToolExecutor 是 ToolRegistry 上面的一层统一执行器。
+```
+LLM 返回 ToolCall
+  ↓
+ToolExecutor
+  ↓
+检查是否在 Agent allowlist 中(Agent 不应默认拥有全部权限)
+  ↓
+ToolRegistry.get(name)
+  ↓
+Tool.execute(arguments, context)
+  ↓
+统一成 ToolCallResult
+```
+## 当前架构图
+```
+未来 Agent Node
+  │
+  ├─ 配置 allowedToolNames
+  │
+  ├─ ToolRegistry.listDefinitions()
+  │   └─ 只把公开 metadata 交给 LLM
+  │
+  └─ LLM 返回 ToolCall
+       │
+       ▼
+   ToolExecutor
+       │
+       ├─ allowlist 检查
+       ├─ Registry.get(toolName)
+       ├─ Tool 参数校验
+       └─ Tool.execute()
+            │
+            ├─ EchoTool 是一个最简单的测试工具，像回声一样，把输入原样返回，所以叫 Echo。它存在的价值是验证整个通用工具链
+            └─ SearchKnowledgeTool 复用 Sprint 12
+                 │
+                 └─ Sprint 12 RAG 检索能力
+```
+#

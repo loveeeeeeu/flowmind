@@ -391,6 +391,9 @@ importers:
       '@flowmind/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@flowmind/tool-runtime':
+        specifier: workspace:*
+        version: link:../../packages/tool-runtime
       '@flowmind/workflow-core':
         specifier: workspace:*
         version: link:../../packages/workflow-core
@@ -454,6 +457,22 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^4.1.11
+        version: 4.1.11(@types/node@24.19.0)(@vitest/coverage-v8@4.1.11)(vite@8.3.1(@types/node@24.19.0)(jiti@2.7.0))
+
+  packages/tool-runtime:
+    dependencies:
+      '@flowmind/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.2
         version: 4.1.11(@types/node@24.19.0)(@vitest/coverage-v8@4.1.11)(vite@8.3.1(@types/node@24.19.0)(jiti@2.7.0))
 
   packages/workflow-core:
