@@ -32,17 +32,29 @@ export function buildKnowledgeContextResult(
   let total = 0;
 
   for (const item of items) {
+    // This is a workflow/debug boundary. Copy only the public retrieval contract instead of
+    // spreading the provider/database row: a future search implementation must not accidentally
+    // leak an embedding vector (or other internal columns) into NodeRun/SSE payloads.
+    const publicItem: WorkflowRetrievedKnowledgeChunk = {
+      chunkId: item.chunkId,
+      documentId: item.documentId,
+      documentName: item.documentName,
+      chunkIndex: item.chunkIndex,
+      content: item.content,
+      metadata: item.metadata,
+      score: item.score,
+    };
     const section = [
       `[Source ${used.length + 1}]`,
-      `Document: ${item.documentName}`,
-      `Chunk: ${item.chunkIndex}`,
+      `Document: ${publicItem.documentName}`,
+      `Chunk: ${publicItem.chunkIndex}`,
       'Content:',
-      item.content,
+      publicItem.content,
     ].join('\n');
 
     if (total + section.length > maxChars) break;
 
-    used.push(item);
+    used.push(publicItem);
     sections.push(section);
     total += section.length;
   }

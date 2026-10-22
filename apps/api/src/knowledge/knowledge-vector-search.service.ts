@@ -35,8 +35,14 @@ export class KnowledgeVectorSearchService {
       ORDER BY c."embedding" <=> ${vectorLiteral}::vector
       LIMIT ${input.topK}
     `;
+    // Explicit projection is deliberate: responses must never accidentally include a vector if
+    // this SQL select grows in the future. Vectors stay inside pgvector/worker boundaries.
     return rows.map((row) => ({
-      ...row,
+      chunkId: row.chunkId,
+      documentId: row.documentId,
+      documentName: row.documentName,
+      chunkIndex: row.chunkIndex,
+      content: row.content,
       score: Number(row.score),
       metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
         ? row.metadata as Record<string, unknown>

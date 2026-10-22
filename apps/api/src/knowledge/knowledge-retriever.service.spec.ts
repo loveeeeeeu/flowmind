@@ -49,4 +49,21 @@ describe('KnowledgeRetrieverService', () => {
       .rejects.toThrow(apiError.internal('KNOWLEDGE_VECTOR_DIMENSION_MISMATCH', 'Knowledge vector dimensions do not match query embedding dimensions'));
     expect(searchKnowledgeBase).not.toHaveBeenCalled();
   });
+
+  it('hides a foreign or missing knowledge base with the same not-found error', async () => {
+    const { service, embed, searchKnowledgeBase } = setup({ knowledgeBase: null });
+
+    await expect(service.retrieve({ projectId: 'project-a', knowledgeBaseId: 'kb-from-project-b', query: 'question' }))
+      .rejects.toThrow(apiError.notFound('KNOWLEDGE_BASE_NOT_FOUND', 'Knowledge base kb-from-project-b not found'));
+    expect(embed).not.toHaveBeenCalled();
+    expect(searchKnowledgeBase).not.toHaveBeenCalled();
+  });
+
+  it('caps an internal caller at twenty results while the HTTP DTO rejects values above twenty', async () => {
+    const { service, searchKnowledgeBase } = setup();
+
+    await service.retrieve({ projectId: 'project-1', knowledgeBaseId: 'kb-1', query: 'question', topK: 99 });
+
+    expect(searchKnowledgeBase).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }));
+  });
 });

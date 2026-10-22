@@ -17,6 +17,13 @@ export class KnowledgeIngestionProcessor extends WorkerHost {
       await this.ingestion.ingest(job.data.documentId);
     } catch (error) {
       const normalized = normalizeKnowledgeError(error);
+      // BullMQ will invoke this same job again for a transient error. Move the document back to
+      // PENDING before that happens so the next worker claim is explicit and we never expose an
+      // unexplained FAILED -> PROCESSING transition.
+      const maxAttempts = job.opts.attempts ?? 1;
+      if (normalized.retryable && job.attemptsMade < maxAttempts - 1) {
+        await this.ingestion.requeueForRetry(job.data.documentId);
+      }
       if (!normalized.retryable) throw new UnrecoverableError(normalized.message);
       throw error;
     }

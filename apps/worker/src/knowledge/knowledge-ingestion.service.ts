@@ -62,7 +62,10 @@ export class KnowledgeIngestionService {
 
   private async claimDocument(documentId: string) {
     const claimed = await this.prisma.knowledgeDocument.updateMany({
-      where: { id: documentId, status: { in: ['PENDING', 'FAILED'] } },
+      // A worker may only claim queued work. Manual retries and BullMQ retries both put a
+      // failed document back into PENDING first, which preserves the visible state machine:
+      // PENDING -> PROCESSING -> READY | FAILED.
+      where: { id: documentId, status: 'PENDING' },
       data: { status: 'PROCESSING', errorCode: null, errorMessage: null },
     });
     if (claimed.count !== 1) return null;
@@ -81,6 +84,14 @@ export class KnowledgeIngestionService {
       throw new KnowledgeIngestionError('KNOWLEDGE_EMBEDDING_MODEL_REQUIRED', 'Knowledge base requires an embedding model');
     }
     return document;
+  }
+
+  /** Called before BullMQ re-attempts a transient failure; this is the retry boundary. */
+  requeueForRetry(documentId: string) {
+    return this.prisma.knowledgeDocument.updateMany({
+      where: { id: documentId, status: 'FAILED' },
+      data: { status: 'PENDING' },
+    });
   }
 
   private createChunks(documentId: string, chunks: TextChunk[]) {

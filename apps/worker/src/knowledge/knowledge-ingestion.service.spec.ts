@@ -51,6 +51,28 @@ describe('KnowledgeIngestionService', () => {
     expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED', errorCode: 'TIMEOUT' }) }));
   });
 
+  it('only claims a PENDING document, so duplicate jobs cannot reprocess a failed or running one', async () => {
+    const { service, updateMany } = setup();
+
+    await service.ingest('document-1');
+
+    expect(updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { id: 'document-1', status: 'PENDING' },
+      data: expect.objectContaining({ status: 'PROCESSING' }),
+    }));
+  });
+
+  it('moves FAILED back to PENDING before a retry is claimed', async () => {
+    const { service, updateMany } = setup();
+
+    await service.requeueForRetry('document-1');
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'document-1', status: 'FAILED' },
+      data: { status: 'PENDING' },
+    });
+  });
+
   it('splits a large document into embedding batches of at most twenty chunks', async () => {
     const text = Array.from({ length: 90 }, (_, index) => `token-${index}`).join(' ');
     const { service, embed } = setup({ text });

@@ -87,8 +87,14 @@ export class WorkflowKnowledgeRetrieverAdapter implements KnowledgeRetrieverPort
       ORDER BY c."embedding" <=> ${vectorLiteral}::vector
       LIMIT ${input.topK}
     `;
+    // Keep the workflow retrieval contract small. In particular, never carry a raw embedding
+    // into NodeRun output, logs, SSE, or the browser even if the query is changed later.
     return rows.map((row) => ({
-      ...row,
+      chunkId: row.chunkId,
+      documentId: row.documentId,
+      documentName: row.documentName,
+      chunkIndex: row.chunkIndex,
+      content: row.content,
       score: Number(row.score),
       metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
         ? row.metadata as Record<string, unknown>
