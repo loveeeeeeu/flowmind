@@ -225,6 +225,9 @@ export function NodeDebugPanel({
               <h4>Error</h4>
               <code>{debug.error.code}</code>
               <p>{debug.error.message}</p>
+              {node.type === 'agent' && debug.error.code === 'AGENT_POST_TOOL_FAILURE' && (
+                <p className="panel-text">Automatic replay was disabled because this Agent had already started a tool. Retrying the whole node could repeat an external action.</p>
+              )}
             </section>
           )}
 

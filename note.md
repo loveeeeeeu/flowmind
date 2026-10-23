@@ -1544,3 +1544,4 @@ toolExecutionStarted = 是否已经开始执行过工具，用于禁止自动重
 ## 面试总结
 我们将单轮 Tool Calling 升级为多步 ReAct Loop：每次模型决策要么返回最终答案，要么请求一个工具；系统执行工具后，将结果作为标准 tool message 追加回上下文，继续调用模型。为避免 Agent 无限循环和成本失控，我们限制 maxSteps、上下文大小、工具结果与 Trace 大小，并检测连续重复工具调用。
 
+#

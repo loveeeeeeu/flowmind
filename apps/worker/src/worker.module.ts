@@ -32,7 +32,6 @@ import { KnowledgeIngestionService } from './knowledge/knowledge-ingestion.servi
 import { TextChunker } from './knowledge/text-chunker.service.js';
 import { WorkflowKnowledgeRetrieverAdapter } from './knowledge/workflow-knowledge-retriever.adapter.js';
 import { PrismaModule } from './prisma/prisma.module.js';
-import { EchoTool } from './tools/echo.tool.js';
 import { HttpRequestTool } from './tools/http-request.tool.js';
 import { HttpUrlSafetyService } from './tools/http-url-safety.service.js';
 import { RunWorkflowTool } from './tools/run-workflow.tool.js';
@@ -97,7 +96,6 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     KnowledgeIngestionService,
     KnowledgeIngestionProcessor,
     WorkflowKnowledgeRetrieverAdapter,
-    EchoTool,
     {
       provide: SearchKnowledgeTool,
       inject: [WorkflowKnowledgeRetrieverAdapter],
@@ -117,15 +115,13 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     },
     {
       provide: ToolRegistry,
-      inject: [EchoTool, SearchKnowledgeTool, HttpRequestTool, RunWorkflowTool],
+      inject: [SearchKnowledgeTool, HttpRequestTool, RunWorkflowTool],
       useFactory: (
-        echo: EchoTool,
         searchKnowledge: SearchKnowledgeTool,
         httpRequest: HttpRequestTool,
         runWorkflow: RunWorkflowTool,
       ) => {
         const registry = new ToolRegistry();
-        registry.register(echo);
         registry.register(searchKnowledge);
         registry.register(httpRequest);
         registry.register(runWorkflow);

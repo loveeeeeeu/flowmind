@@ -117,4 +117,31 @@ describe('AgentExecutor ReAct loop', () => {
       code: 'AGENT_POST_TOOL_FAILURE', retryable: false,
     });
   });
+
+  it('redacts secrets from persisted trace arguments and bounds a large tool result', async () => {
+    const { executor } = setup([
+      { text: null, toolCalls: [call('call-1', { headers: { Authorization: 'Bearer must-not-persist', 'x-api-key': 'also-secret' } })] },
+      { text: 'Done.', toolCalls: [] },
+    ], [{ toolCallId: 'call-1', toolName: 'search_knowledge', ok: true, output: { body: 'x'.repeat(25_000) } }]);
+    const result = await executor.execute(node(), context()) as { output: { steps: Array<Record<string, unknown>> } };
+    const first = result.output.steps[0];
+    expect(first.arguments).toMatchObject({ headers: { Authorization: '[REDACTED]', 'x-api-key': '[REDACTED]' } });
+    expect(first.result).toMatchObject({ truncated: true });
+    expect(JSON.stringify(first)).not.toContain('must-not-persist');
+    expect(JSON.stringify(first)).not.toContain('also-secret');
+  });
+
+  it('fails before another model call when accumulated observations exceed the context budget', async () => {
+    const largeResult = () => ({ toolCallId: 'call', toolName: 'search_knowledge', ok: true, output: { text: 'x'.repeat(39_000) } });
+    const { executor, chat, tools } = setup([
+      { text: null, toolCalls: [call('call-1', { page: 1 })] },
+      { text: null, toolCalls: [call('call-2', { page: 2 })] },
+      { text: null, toolCalls: [call('call-3', { page: 3 })] },
+    ], [largeResult(), largeResult(), largeResult()]);
+    await expect(executor.execute(node(['search_knowledge'], 5), context())).rejects.toMatchObject({
+      code: 'AGENT_CONTEXT_TOO_LARGE', retryable: false,
+    });
+    expect(chat.generate).toHaveBeenCalledTimes(3);
+    expect(tools.execute).toHaveBeenCalledTimes(3);
+  });
 });

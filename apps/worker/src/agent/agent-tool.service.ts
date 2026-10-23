@@ -20,7 +20,10 @@ export class AgentToolService implements AgentToolPort {
     const catalog = await this.catalog.listForProject(input.projectId);
     const tool = this.resolveAllowed(input.allowedToolNames, catalog.tools).find((item) => item.definition.name === input.call.name);
     if (!tool) {
-      return { toolCallId: input.call.id, toolName: input.call.name, ok: false, error: { code: 'TOOL_NOT_ALLOWED', message: 'Tool is not allowed for this agent' } };
+      throw new WorkflowExecutionError('Tool is not allowed for this agent', {
+        code: 'TOOL_NOT_ALLOWED',
+        retryable: false,
+      });
     }
     // Built-ins retain ToolExecutor's normalised error policy; dynamic MCP adapters execute with
     // the same trusted context but must not be added to the singleton process-wide registry.
