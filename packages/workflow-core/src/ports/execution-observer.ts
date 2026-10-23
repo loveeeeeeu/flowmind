@@ -20,7 +20,8 @@ export interface NodeFailureEvent extends NodeExecutionEvent {
 }
 
 export interface ExecutionObserver {
-  onNodeStart?(event: NodeExecutionEvent): Promise<void> | void;
+  /** May return the durable NodeRun id so executors can attach trusted tool calls to it. */
+  onNodeStart?(event: NodeExecutionEvent): Promise<string | void> | string | void;
   onNodeSuccess?(event: NodeSuccessEvent): Promise<void> | void;
   onNodeFailure?(event: NodeFailureEvent): Promise<void> | void;
 }

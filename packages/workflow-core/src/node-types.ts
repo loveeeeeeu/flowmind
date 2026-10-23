@@ -11,6 +11,7 @@ export const SUPPORTED_NODE_TYPES = [
   'loop',
   'code',
   'llm',
+  'agent',
   'knowledgeRetriever',
   'end',
 ] as const;

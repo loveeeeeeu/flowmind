@@ -69,6 +69,8 @@ describe('WorkflowExecutionService', () => {
     expect(runState.startHeartbeat).toHaveBeenCalledWith('run-1');
     expect(execute).toHaveBeenCalledWith(canvas, { name: 'FlowMind' }, {
       projectId: 'project-1',
+      workflowId: undefined,
+      workflowRunId: 'run-1',
       observer: expect.any(PrismaExecutionObserver) as ExecutionObserver,
     });
     expect(runState.markSuccess).toHaveBeenCalledWith('run-1', { result: 'Hello FlowMind' });

@@ -2,6 +2,7 @@ interface NodeLibraryProps {
   /** Read-only version preview: nothing may be added. */
   disabled?: boolean;
   onAddLlm: () => void;
+  onAddAgent: () => void;
   onAddTemplate: () => void;
   onAddVariable: () => void;
   onAddHttp: () => void;
@@ -14,6 +15,7 @@ interface NodeLibraryProps {
 export function NodeLibrary({
   disabled = false,
   onAddLlm,
+  onAddAgent,
   onAddTemplate,
   onAddVariable,
   onAddHttp,
@@ -42,6 +44,7 @@ export function NodeLibrary({
       <p className="node-group">工具</p>
       <button type="button" disabled={disabled} onClick={onAddHttp}><span className="node-icon http">↗</span>HTTP 请求</button>
       <button type="button" disabled={disabled} onClick={onAddCode}><span className="node-icon code">›_</span>代码执行</button>
+      <button type="button" disabled={disabled} onClick={onAddAgent}><span className="node-icon ai">✦</span>Agent</button>
     </aside>
   );
 }

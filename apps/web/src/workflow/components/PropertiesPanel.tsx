@@ -11,6 +11,7 @@ import {
 import { JsonObjectEditor } from './JsonObjectEditor';
 import { LlmProperties } from './LlmProperties';
 import { KnowledgeRetrieverProperties } from './KnowledgeRetrieverProperties';
+import { AgentProperties } from './AgentProperties';
 import { Field } from './PanelField';
 
 interface PropertiesPanelProps {
@@ -85,6 +86,10 @@ export function PropertiesPanel({
         <DeleteNodeButton onClick={() => onDeleteNode(node.id)} />
       </aside>
     );
+  }
+
+  if (node.type === 'agent') {
+    return <aside className="properties-panel"><h3>Agent</h3>{labelField}<AgentProperties node={node} onNodeDataChange={onNodeDataChange} /><DeleteNodeButton onClick={() => onDeleteNode(node.id)} /></aside>;
   }
 
   if (node.type === 'code') {

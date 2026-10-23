@@ -18,6 +18,7 @@ export interface ResolvedModelConfig {
   embeddingDimensions: number | null;
   enabled: boolean;
   supportsTemperature: boolean;
+  supportsToolCalling?: boolean;
 }
 
 function resolutionError(code: string, message: string, cause?: unknown) {
@@ -49,6 +50,7 @@ export class RuntimeModelResolver {
         embeddingDimensions: true,
         enabled: true,
         supportsTemperature: true,
+        supportsToolCalling: true,
         credential: {
           select: {
             provider: true,
@@ -94,6 +96,7 @@ export class RuntimeModelResolver {
       embeddingDimensions: model.embeddingDimensions,
       enabled: model.enabled,
       supportsTemperature: model.supportsTemperature,
+      supportsToolCalling: model.supportsToolCalling,
     };
   }
 
@@ -101,6 +104,14 @@ export class RuntimeModelResolver {
     const model = await this.resolve(modelId);
     if (model.type !== 'CHAT') {
       throw resolutionError('MODEL_TYPE_MISMATCH', `Model ${modelId} is not a chat model`);
+    }
+    return model;
+  }
+
+  async resolveToolCallingChatModel(modelId: string): Promise<ResolvedModelConfig> {
+    const model = await this.resolveChatModel(modelId);
+    if (model.supportsToolCalling !== true) {
+      throw resolutionError('MODEL_TOOL_CALLING_NOT_SUPPORTED', `Model ${modelId} does not support tool calling`);
     }
     return model;
   }

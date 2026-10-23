@@ -40,6 +40,7 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
   const [embeddingDimensions, setEmbeddingDimensions] = useState(model?.embeddingDimensions?.toString() ?? '');
   const [contextWindow, setContextWindow] = useState(model?.contextWindow?.toString() ?? '');
   const [supportsTemperature, setSupportsTemperature] = useState(model?.supportsTemperature ?? true);
+  const [supportsToolCalling, setSupportsToolCalling] = useState(model?.supportsToolCalling ?? false);
 
   // undefined: not a positive integer; null: left empty.
   const parsedContextWindow = parseContextWindow(contextWindow);
@@ -52,6 +53,7 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
           name: name.trim(),
           contextWindow: parsedContextWindow ?? null,
           supportsTemperature,
+          supportsToolCalling,
         });
       }
 
@@ -62,7 +64,7 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
         ...(parsedContextWindow ? { contextWindow: parsedContextWindow } : {}),
         ...(type === 'EMBEDDING'
           ? { embeddingDimensions: parsedEmbeddingDimensions, supportsTemperature: false }
-          : { supportsTemperature }),
+          : { supportsTemperature, supportsToolCalling }),
       });
     },
     onSuccess: async () => {
@@ -173,6 +175,10 @@ export function ModelFormDialog({ projectId, credential, model, onClose }: Model
               onChange={(event) => setSupportsTemperature(event.target.checked)}
             />
             支持 temperature 参数
+          </label>
+          <label className="settings-dialog-check">
+            <input type="checkbox" checked={supportsToolCalling} onChange={(event) => setSupportsToolCalling(event.target.checked)} />
+            支持 Tool Calling（Agent 节点）
           </label>
           </>}
 

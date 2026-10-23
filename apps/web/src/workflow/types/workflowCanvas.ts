@@ -82,6 +82,8 @@ export type CodeNodeData = BaseNodeData & {
   timeoutMs?: number;
 };
 
+export type AgentNodeData = BaseNodeData & { modelId: string; systemPrompt?: string; prompt: string; toolNames: string[]; temperature?: number; outputVariable: string; };
+
 /** Only the knowledge base ID is persisted; its model/provider are runtime configuration. */
 export type KnowledgeRetrieverNodeData = BaseNodeData & {
   knowledgeBaseId: string;
@@ -94,6 +96,7 @@ export type KnowledgeRetrieverNodeData = BaseNodeData & {
 export type StartNodeType = Node<StartNodeData, 'start'>;
 export type EndNodeType = Node<EndNodeData, 'end'>;
 export type LlmNodeType = Node<LlmNodeData, 'llm'>;
+export type AgentNodeType = Node<AgentNodeData, 'agent'>;
 export type TemplateNodeType = Node<TemplateNodeData, 'template'>;
 export type VariableNodeType = Node<VariableNodeData, 'variable'>;
 
@@ -107,6 +110,7 @@ export type WorkflowNode =
   | StartNodeType
   | EndNodeType
   | LlmNodeType
+  | AgentNodeType
   | TemplateNodeType
   | VariableNodeType
   | HttpNodeType

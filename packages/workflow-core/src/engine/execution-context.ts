@@ -4,9 +4,17 @@ export class ExecutionContext {
     private readonly nodeStates = new Map<string, unknown>();
   
     readonly projectId: string | undefined;
+    readonly workflowId: string | undefined;
+    readonly workflowRunId: string | undefined;
+    readonly workflowCallDepth: number;
+    private currentNodeRunIdValue: string | undefined;
 
-    constructor(input: Record<string, unknown>, projectId?: string) {
-      this.projectId = projectId;
+    constructor(input: Record<string, unknown>, options: { projectId?: string; workflowId?: string; workflowRunId?: string; workflowCallDepth?: number } | string = {}) {
+      const metadata = typeof options === 'string' ? { projectId: options } : options;
+      this.projectId = metadata.projectId;
+      this.workflowId = metadata.workflowId;
+      this.workflowRunId = metadata.workflowRunId;
+      this.workflowCallDepth = metadata.workflowCallDepth ?? 0;
       for (const [key, value] of Object.entries(input)) {
         this.variables.set(key, value);
       }
@@ -47,4 +55,7 @@ export class ExecutionContext {
     deleteNodeState(nodeId: string) {
       this.nodeStates.delete(nodeId);
     }
+
+    get currentNodeRunId() { return this.currentNodeRunIdValue; }
+    setCurrentNodeRunId(nodeRunId: string | undefined) { this.currentNodeRunIdValue = nodeRunId; }
   }

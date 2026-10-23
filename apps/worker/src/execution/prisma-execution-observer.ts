@@ -97,6 +97,7 @@ export class PrismaExecutionObserver implements ExecutionObserver {
         ...(node.type === 'llm' ? await this.describeModel(node.data.modelId) : {}),
       },
     });
+    return nodeRun.id;
   }
 
   async onNodeSuccess({ node, sequence, attempt, output }: NodeSuccessEvent) {

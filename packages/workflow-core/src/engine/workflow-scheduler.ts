@@ -86,7 +86,8 @@ export class WorkflowScheduler {
     const { maxAttempts } = this.retryPolicy;
 
     for (let attempt = 1; ; attempt += 1) {
-      await observer?.onNodeStart?.({ node, sequence, attempt });
+      const nodeRunId = await observer?.onNodeStart?.({ node, sequence, attempt });
+      context.setCurrentNodeRunId(typeof nodeRunId === 'string' ? nodeRunId : undefined);
 
       try {
         const result = await executor.execute(node, context);

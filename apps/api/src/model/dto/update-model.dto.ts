@@ -39,6 +39,11 @@ export class UpdateModelDto {
   @IsBoolean()
   supportsTemperature?: boolean;
 
+  @ApiPropertyOptional()
+  @ValidateIf((dto: UpdateModelDto) => dto.supportsToolCalling !== undefined)
+  @IsBoolean()
+  supportsToolCalling?: boolean;
+
   @ApiPropertyOptional({ description: 'false 等同于 DELETE；传 true 重新启用' })
   @ValidateIf((dto: UpdateModelDto) => dto.enabled !== undefined)
   @IsBoolean()

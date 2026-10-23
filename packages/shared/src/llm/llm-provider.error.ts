@@ -11,6 +11,7 @@ export type LlmProviderErrorCode =
   | 'PROVIDER_UNAVAILABLE'
   | 'INVALID_PROVIDER_RESPONSE'
   | 'EMPTY_RESPONSE'
+  | 'INVALID_TOOL_CALL_ARGUMENTS'
   | 'UNKNOWN'
   // Transport.
   | 'TIMEOUT'

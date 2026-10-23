@@ -267,6 +267,8 @@ model Model {
   // Capability hints for the UI, not used to execute.
   contextWindow       Int?
   supportsTemperature Boolean @default(true)
+  // Explicit capability, never inferred from the model name. Required by Agent nodes.
+  supportsToolCalling Boolean @default(false)
   // Required for EMBEDDING models and null for CHAT models (validated in ModelService).
   embeddingDimensions Int?
 

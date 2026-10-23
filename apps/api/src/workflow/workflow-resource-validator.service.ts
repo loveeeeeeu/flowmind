@@ -19,7 +19,7 @@ export class WorkflowResourceValidator {
 
   async validateForDraft(projectId: string, canvas: WorkflowCanvas) {
     const llmNodes = canvas.nodes
-      .filter((node) => node.type === 'llm')
+      .filter((node) => node.type === 'llm' || node.type === 'agent')
       .map((node) => ({ nodeId: node.id, modelId: node.data.modelId as string }));
 
     const retrieverNodes = canvas.nodes
@@ -29,12 +29,15 @@ export class WorkflowResourceValidator {
     // One query however many nodes share a model.
     // The credential.projectId join enforces project isolation: a modelId from another
     // project simply returns no row → MODEL_NOT_FOUND (not 403).
+    const hasAgentNodes = canvas.nodes.some((node) => node.type === 'agent');
     const models = llmNodes.length === 0 ? [] : await this.prisma.model.findMany({
       where: {
         id: { in: [...new Set(llmNodes.map((node) => node.modelId))] },
         credential: { projectId },
       },
-      select: { id: true, enabled: true, credential: { select: { revokedAt: true } } },
+      select: hasAgentNodes
+        ? { id: true, type: true, enabled: true, supportsToolCalling: true, credential: { select: { revokedAt: true } } }
+        : { id: true, enabled: true, credential: { select: { revokedAt: true } } },
     });
     const modelsById = new Map(models.map((model) => [model.id, model]));
 
@@ -53,6 +56,14 @@ export class WorkflowResourceValidator {
           'MODEL_DISABLED',
           `LLM node ${nodeId} uses a disabled model; select another model`,
         );
+      }
+
+      const type = canvas.nodes.find((node) => node.id === nodeId)?.type;
+      if (type === 'agent' && model.type !== 'CHAT') {
+        throw apiError.badRequest('MODEL_TYPE_MISMATCH', `${type === 'agent' ? 'Agent' : 'LLM'} node ${nodeId} requires a CHAT model`);
+      }
+      if (type === 'agent' && model.supportsToolCalling !== true) {
+        throw apiError.badRequest('MODEL_TOOL_CALLING_NOT_SUPPORTED', `Agent node ${nodeId} uses a model that does not support tool calling`);
       }
 
       if (model.credential.revokedAt) {

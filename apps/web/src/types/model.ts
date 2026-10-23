@@ -13,6 +13,7 @@ export interface Model {
   type: ModelType;
   contextWindow: number | null;
   supportsTemperature: boolean;
+  supportsToolCalling: boolean;
   embeddingDimensions: number | null;
   /** false: hidden from new node configuration; published versions using it still run. */
   enabled: boolean;
@@ -28,6 +29,7 @@ export interface AvailableModel {
   type: ModelType;
   contextWindow: number | null;
   supportsTemperature: boolean;
+  supportsToolCalling: boolean;
   embeddingDimensions: number | null;
   credential: {
     id: string;
@@ -41,6 +43,7 @@ export interface CreateModelInput {
   modelName: string;
   contextWindow?: number;
   supportsTemperature?: boolean;
+  supportsToolCalling?: boolean;
   type?: ModelType;
   embeddingDimensions?: number;
 }
@@ -50,5 +53,6 @@ export interface UpdateModelInput {
   name?: string;
   contextWindow?: number | null;
   supportsTemperature?: boolean;
+  supportsToolCalling?: boolean;
   enabled?: boolean;
 }

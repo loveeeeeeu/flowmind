@@ -47,6 +47,11 @@ export class CreateModelDto {
   @IsBoolean()
   supportsTemperature?: boolean;
 
+  @ApiPropertyOptional({ description: 'Whether this CHAT model supports function/tool calling', default: false })
+  @IsOptional()
+  @IsBoolean()
+  supportsToolCalling?: boolean;
+
   @ApiPropertyOptional({ enum: ['CHAT', 'EMBEDDING'], default: 'CHAT' })
   @IsOptional()
   @IsIn(['CHAT', 'EMBEDDING'])

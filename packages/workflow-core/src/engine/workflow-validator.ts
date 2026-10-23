@@ -148,10 +148,25 @@ export class WorkflowValidator {
       if (node.type === 'llm') {
         this.validateLlmNode(node);
       }
+      if (node.type === 'agent') {
+        this.validateAgentNode(node);
+      }
       if (node.type === 'knowledgeRetriever') {
         this.validateKnowledgeRetrieverNode(node);
       }
     }
+  }
+
+  private validateAgentNode(node: WorkflowNode) {
+    const { modelId, prompt, systemPrompt, toolNames, temperature, outputVariable } = node.data;
+    if (typeof modelId !== 'string' || !modelId.trim()) throw new WorkflowValidationError(`Agent node ${node.id} requires modelId`);
+    if (typeof prompt !== 'string' || !prompt.trim()) throw new WorkflowValidationError(`Agent node ${node.id} requires prompt`);
+    if (typeof outputVariable !== 'string' || !outputVariable.trim()) throw new WorkflowValidationError(`Agent node ${node.id} requires outputVariable`);
+    if (systemPrompt !== undefined && typeof systemPrompt !== 'string') throw new WorkflowValidationError(`Agent node ${node.id} has invalid systemPrompt`);
+    if (!Array.isArray(toolNames) || !toolNames.every((name) => typeof name === 'string' && name.trim())) throw new WorkflowValidationError(`Agent node ${node.id} requires toolNames array`);
+    if (toolNames.length > 20) throw new WorkflowValidationError(`Agent node ${node.id} may use at most 20 tools`);
+    if (new Set(toolNames).size !== toolNames.length) throw new WorkflowValidationError(`Agent node ${node.id} contains duplicate tools`);
+    if (temperature !== undefined && (typeof temperature !== 'number' || temperature < 0 || temperature > 2)) throw new WorkflowValidationError(`Agent node ${node.id} temperature must be between 0 and 2`);
   }
 
   private validateLlmNode(node: WorkflowNode) {

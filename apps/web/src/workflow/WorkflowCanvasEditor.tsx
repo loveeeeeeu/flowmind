@@ -24,6 +24,7 @@ import type { WorkflowDetail } from '../types/workflow';
 import { StartNode } from './nodes/StartNode';
 import { EndNode } from './nodes/EndNode';
 import { LlmNode } from './nodes/LlmNode';
+import { AgentNode } from './nodes/AgentNode';
 import { TemplateNode } from './nodes/TemplateNode';
 import { NodeLibrary } from './components/NodeLibrary';
 import { PropertiesPanel } from './components/PropertiesPanel';
@@ -34,6 +35,7 @@ import type {
   HttpNodeType,
   IfNodeType,
   LlmNodeType,
+  AgentNodeType,
   LoopNodeType,
   TemplateNodeType,
   VariableNodeType,
@@ -62,6 +64,7 @@ const nodeTypes = {
   start: StartNode,
   end: EndNode,
   llm: LlmNode,
+  agent: AgentNode,
   template: TemplateNode,
   variable: VariableNode,
   http: HttpNode,
@@ -332,6 +335,18 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
       position: { x: 300, y: 380 },
       data: { label: 'Knowledge Retriever', knowledgeBaseId: '', query: '{{question}}', outputVariable: 'retrieved', topK: 5 },
     }]);
+    setIsDirty(true);
+  }
+
+  function addAgentNode() {
+    if (!canEdit) return;
+    const newNode: AgentNodeType = {
+      id: crypto.randomUUID(),
+      type: 'agent',
+      position: { x: 350, y: 300 },
+      data: { label: 'Agent', modelId: '', systemPrompt: '', prompt: '{{question}}', toolNames: [], temperature: 0.2, outputVariable: 'answer' },
+    };
+    setNodes((currentNodes) => [...currentNodes, newNode]);
     setIsDirty(true);
   }
 
@@ -651,6 +666,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
       <NodeLibrary
         disabled={!canEdit || isPreviewing}
         onAddLlm={addLlmNode}
+        onAddAgent={addAgentNode}
         onAddTemplate={addTemplateNode}
         onAddVariable={addVariableNode}
         onAddHttp={addHttpNode}

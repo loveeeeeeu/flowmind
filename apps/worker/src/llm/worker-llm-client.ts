@@ -29,6 +29,9 @@ export class WorkerLlmClient implements LlmClient {
       temperature: model.supportsTemperature ? request.temperature : undefined,
     });
 
+    if (!result.text) {
+      throw new Error('LLM node requires a text response');
+    }
     return { text: result.text, usage: result.usage };
   }
 }

@@ -15,6 +15,7 @@ export const MODEL_SUMMARY = {
   type: true,
   contextWindow: true,
   supportsTemperature: true,
+  supportsToolCalling: true,
   embeddingDimensions: true,
   enabled: true,
   createdAt: true,
@@ -38,6 +39,7 @@ export const AVAILABLE_MODEL = {
   type: true,
   contextWindow: true,
   supportsTemperature: true,
+  supportsToolCalling: true,
   embeddingDimensions: true,
   credential: { select: { id: true, name: true, provider: true } },
 } as const;
@@ -173,6 +175,7 @@ export class ModelService {
           name: dto.name,
           contextWindow: dto.contextWindow,
           supportsTemperature: dto.supportsTemperature,
+          supportsToolCalling: dto.supportsToolCalling,
           enabled: dto.enabled,
         },
         select: MODEL_SUMMARY,
@@ -226,6 +229,7 @@ function modelData(credentialId: string, dto: CreateModelDto) {
     contextWindow: dto.contextWindow,
     // Temperature changes generation randomness; it has no meaning for a vector model.
     supportsTemperature: type === 'EMBEDDING' ? false : dto.supportsTemperature,
+    supportsToolCalling: type === 'EMBEDDING' ? false : dto.supportsToolCalling,
     ...(type === 'EMBEDDING' ? { embeddingDimensions: dto.embeddingDimensions } : {}),
   };
 }

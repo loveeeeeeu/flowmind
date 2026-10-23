@@ -10,6 +10,7 @@ import { EndExecutor } from './executors/end.executor.js';
 import { HttpExecutor } from './executors/http.executor.js';
 import { IfExecutor } from './executors/if.executor.js';
 import { LlmExecutor } from './executors/llm.executor.js';
+import { AgentExecutor } from './executors/agent.executor.js';
 import { KnowledgeRetrieverExecutor } from './executors/knowledge-retriever.executor.js';
 import { LoopExecutor } from './executors/loop.executor.js';
 import { StartExecutor } from './executors/start.executor.js';
@@ -19,12 +20,15 @@ import { SUPPORTED_NODE_TYPES } from './node-types.js';
 import type { CodeRunner } from './ports/code-runner.js';
 import type { LlmClient } from './ports/llm-client.js';
 import type { KnowledgeRetrieverPort } from './ports/knowledge-retriever.js';
+import type { AgentChatPort, AgentToolPort } from './ports/agent.js';
 
 export interface CreateWorkflowEngineOptions {
   llmClient: LlmClient;
   codeRunner: CodeRunner;
   /** Required by production workers; a default keeps non-retriever engine tests lightweight. */
   knowledgeRetriever?: KnowledgeRetrieverPort;
+  agentChat?: AgentChatPort;
+  agentTools?: AgentToolPort;
   /** Defaults to DEFAULT_NODE_RETRY_POLICY; tests pass a zero backoff. */
   retryPolicy?: NodeRetryPolicy;
 }
@@ -38,6 +42,13 @@ function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retr
       });
     },
   } satisfies KnowledgeRetrieverPort;
+  const unavailableAgent = {
+    generate: async () => { throw new WorkflowExecutionError('Agent runtime is not configured', { code: 'AGENT_RUNTIME_NOT_CONFIGURED' }); },
+  } satisfies AgentChatPort;
+  const unavailableTools = {
+    listAllowed: async () => { throw new WorkflowExecutionError('Agent tool runtime is not configured', { code: 'AGENT_RUNTIME_NOT_CONFIGURED' }); },
+    execute: async () => { throw new WorkflowExecutionError('Agent tool runtime is not configured', { code: 'AGENT_RUNTIME_NOT_CONFIGURED' }); },
+  } satisfies AgentToolPort;
 
   return new ExecutorRegistry([
     new StartExecutor(),
@@ -48,6 +59,7 @@ function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retr
     new LoopExecutor(resolver),
     new CodeExecutor(options.codeRunner, resolver),
     new LlmExecutor(options.llmClient, resolver),
+    new AgentExecutor(options.agentChat ?? unavailableAgent, options.agentTools ?? unavailableTools, resolver),
     new KnowledgeRetrieverExecutor(knowledgeRetriever, resolver),
     new EndExecutor(),
   ]);

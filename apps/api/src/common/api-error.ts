@@ -60,6 +60,8 @@ export const API_ERROR_CODES = [
   'MODEL_NAME_CONFLICT',
   'MODEL_ALREADY_EXISTS',
   'MODEL_DISABLED',
+  'MODEL_TYPE_MISMATCH',
+  'MODEL_TOOL_CALLING_NOT_SUPPORTED',
   'REMOTE_MODEL_NOT_FOUND',
   // Calling a provider (connection test, model discovery). Same codes as failed LLM nodes.
   'PROVIDER_NOT_SUPPORTED',

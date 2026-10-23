@@ -3,6 +3,8 @@ import type {
   EmbeddingProvider,
   EmbeddingProviderRequest,
   EmbeddingResult,
+  ChatMessage,
+  ChatToolDefinition,
   LlmGenerateResult,
   LlmProvider,
   LlmProviderRequest,
@@ -16,6 +18,11 @@ interface ChatCompletionResponse {
   choices?: Array<{
     message?: {
       content?: string | null;
+      tool_calls?: Array<{
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
     };
   }>;
   usage?: {
@@ -59,13 +66,7 @@ export class OpenAICompatibleProvider implements LlmProvider, EmbeddingProvider 
   }
 
   async generate(request: LlmProviderRequest): Promise<LlmGenerateResult> {
-    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
-
-    if (request.systemPrompt?.trim()) {
-      messages.push({ role: 'system', content: request.systemPrompt });
-    }
-
-    messages.push({ role: 'user', content: request.prompt });
+    const messages = request.messages ? request.messages.map(toProviderMessage) : legacyMessages(request);
 
     const body: Record<string, unknown> = {
       model: request.model,
@@ -75,24 +76,32 @@ export class OpenAICompatibleProvider implements LlmProvider, EmbeddingProvider 
     if (request.temperature !== undefined) {
       body.temperature = request.temperature;
     }
+    if (request.tools?.length) {
+      body.tools = request.tools.map(toProviderTool);
+    }
 
     const data = (await this.send(request, '/chat/completions', this.generateTimeoutMs, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })) as ChatCompletionResponse;
-    const text = data.choices?.[0]?.message?.content;
-
-    if (!text) {
+    const message = data.choices?.[0]?.message;
+    if (!message) {
       throw new LlmProviderError({
         code: 'EMPTY_RESPONSE',
         retryable: false,
-        message: 'LLM provider returned no text',
+        message: 'LLM provider returned no assistant message',
       });
+    }
+    const toolCalls = parseToolCalls(message.tool_calls);
+    const text = typeof message.content === 'string' && message.content.trim() ? message.content : null;
+    if (!text && toolCalls.length === 0) {
+      throw new LlmProviderError({ code: 'EMPTY_RESPONSE', retryable: false, message: 'LLM provider returned no text or tool call' });
     }
 
     return {
       text,
+      toolCalls,
       usage: {
         promptTokens: data.usage?.prompt_tokens,
         completionTokens: data.usage?.completion_tokens,
@@ -223,4 +232,43 @@ export class OpenAICompatibleProvider implements LlmProvider, EmbeddingProvider 
       });
     }
   }
+}
+
+function legacyMessages(request: LlmProviderRequest) {
+  if (typeof request.prompt !== 'string') {
+    throw new LlmProviderError({ code: 'INVALID_REQUEST', retryable: false, message: 'LLM request requires prompt or messages' });
+  }
+  const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+  if (request.systemPrompt?.trim()) messages.push({ role: 'system', content: request.systemPrompt });
+  messages.push({ role: 'user', content: request.prompt });
+  return messages;
+}
+
+function toProviderTool(tool: ChatToolDefinition) {
+  return { type: 'function', function: { name: tool.name, description: tool.description, parameters: tool.inputSchema } };
+}
+
+function toProviderMessage(message: ChatMessage) {
+  if (message.role === 'tool') {
+    return { role: 'tool', tool_call_id: message.toolCallId, content: message.content ?? '' };
+  }
+  return {
+    role: message.role,
+    content: message.content ?? '',
+    ...(message.toolCalls?.length ? { tool_calls: message.toolCalls.map((call) => ({ id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments) } })) } : {}),
+  };
+}
+
+function parseToolCalls(raw: Array<{ id?: string; type?: string; function?: { name?: string; arguments?: string } }> | undefined): import('./llm-provider.js').ChatToolCall[] {
+  if (!raw) return [];
+  return raw.map((call) => {
+    if (!call.id || call.type !== 'function' || !call.function?.name || typeof call.function.arguments !== 'string') {
+      throw new LlmProviderError({ code: 'INVALID_PROVIDER_RESPONSE', retryable: false, message: 'LLM provider returned an invalid tool call' });
+    }
+    try {
+      return { id: call.id, name: call.function.name, arguments: JSON.parse(call.function.arguments) };
+    } catch (cause) {
+      throw new LlmProviderError({ code: 'INVALID_TOOL_CALL_ARGUMENTS', retryable: false, message: 'Model returned invalid tool arguments', cause });
+    }
+  });
 }

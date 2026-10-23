@@ -43,7 +43,37 @@ export class McpConnectionService {
     catch { throw apiError.badGateway('MCP_CONNECTION_FAILED', 'Could not connect to MCP server'); }
     finally { await client.close().catch(() => undefined); }
   }
+  /** Discovery is best-effort for an editor picker: a down MCP server must not hide built-ins. */
+  async listProjectTools(projectId: string) {
+    const tools: Array<{ name: string; displayName: string; description: string; source: 'BUILT_IN' | 'MCP'; inputSchema: Record<string, unknown> }> = builtInTools();
+    const warnings: Array<{ connectionId: string; code: string; message: string }> = [];
+    const connections = await this.prisma.mcpConnection.findMany({ where: { projectId, status: 'ACTIVE' } });
+    for (const row of connections) {
+      try {
+        await assertPublicHttpsUrl(row.url);
+        const token = row.authType === 'BEARER'
+          ? (row.encryptedSecret && row.secretIv && row.secretAuthTag ? this.crypto.decrypt({ encryptedSecret: row.encryptedSecret, secretIv: row.secretIv, secretAuthTag: row.secretAuthTag }) : (() => { throw new Error('missing secret'); })())
+          : null;
+        const client = new Client({ name: 'flowmind', version: '1.0.0' });
+        const transport = new StreamableHTTPClientTransport(new URL(row.url), { requestInit: { headers: token ? { Authorization: `Bearer ${token}` } : undefined, redirect: 'error' } });
+        try {
+          await client.connect(transport);
+          const result = await client.listTools();
+          for (const tool of result.tools.slice(0, 200)) {
+            if (JSON.stringify(tool.inputSchema ?? {}).length > 20_000) continue;
+            tools.push({ name: `mcp__${row.id}__${tool.name}`, displayName: `${row.name} · ${tool.name}`, description: tool.description ?? `MCP tool ${tool.name}`, source: 'MCP', inputSchema: tool.inputSchema ?? { type: 'object', properties: {} } });
+          }
+        } finally { await client.close().catch(() => undefined); }
+      } catch { warnings.push({ connectionId: row.id, code: 'MCP_CONNECTION_FAILED', message: 'MCP connection is temporarily unavailable' }); }
+    }
+    return { tools, warnings };
+  }
 }
+function builtInTools(): Array<{ name: string; displayName: string; description: string; source: 'BUILT_IN'; inputSchema: Record<string, unknown> }> { return [
+  { name: 'search_knowledge', displayName: 'Search Knowledge', description: 'Search project knowledge bases', source: 'BUILT_IN', inputSchema: { type: 'object', properties: { knowledgeBaseId: { type: 'string' }, query: { type: 'string' } }, required: ['knowledgeBaseId', 'query'] } },
+  { name: 'http_request', displayName: 'HTTP Request', description: 'Make a safe outbound HTTP request', source: 'BUILT_IN', inputSchema: { type: 'object', properties: { url: { type: 'string' }, method: { type: 'string' } }, required: ['url'] } },
+  { name: 'run_workflow', displayName: 'Run Workflow', description: 'Run a published workflow in this project', source: 'BUILT_IN', inputSchema: { type: 'object', properties: { workflowId: { type: 'string' }, input: { type: 'object' } }, required: ['workflowId'] } },
+]; }
 function missing() { return apiError.notFound('MCP_CONNECTION_NOT_FOUND', 'MCP connection not found'); }
 
 /** Management API validates the same public-endpoint boundary again before storing or testing it. */
