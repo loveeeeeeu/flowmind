@@ -158,7 +158,7 @@ export class WorkflowValidator {
   }
 
   private validateAgentNode(node: WorkflowNode) {
-    const { modelId, prompt, systemPrompt, toolNames, temperature, outputVariable } = node.data;
+    const { modelId, prompt, systemPrompt, toolNames, temperature, outputVariable, maxSteps } = node.data;
     if (typeof modelId !== 'string' || !modelId.trim()) throw new WorkflowValidationError(`Agent node ${node.id} requires modelId`);
     if (typeof prompt !== 'string' || !prompt.trim()) throw new WorkflowValidationError(`Agent node ${node.id} requires prompt`);
     if (typeof outputVariable !== 'string' || !outputVariable.trim()) throw new WorkflowValidationError(`Agent node ${node.id} requires outputVariable`);
@@ -167,6 +167,7 @@ export class WorkflowValidator {
     if (toolNames.length > 20) throw new WorkflowValidationError(`Agent node ${node.id} may use at most 20 tools`);
     if (new Set(toolNames).size !== toolNames.length) throw new WorkflowValidationError(`Agent node ${node.id} contains duplicate tools`);
     if (temperature !== undefined && (typeof temperature !== 'number' || temperature < 0 || temperature > 2)) throw new WorkflowValidationError(`Agent node ${node.id} temperature must be between 0 and 2`);
+    if (maxSteps !== undefined && (typeof maxSteps !== 'number' || !Number.isInteger(maxSteps) || maxSteps < 1 || maxSteps > 10)) throw new WorkflowValidationError(`Agent node ${node.id} maxSteps must be an integer between 1 and 10`);
   }
 
   private validateLlmNode(node: WorkflowNode) {

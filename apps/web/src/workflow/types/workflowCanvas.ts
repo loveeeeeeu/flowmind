@@ -82,7 +82,7 @@ export type CodeNodeData = BaseNodeData & {
   timeoutMs?: number;
 };
 
-export type AgentNodeData = BaseNodeData & { modelId: string; systemPrompt?: string; prompt: string; toolNames: string[]; temperature?: number; outputVariable: string; };
+export type AgentNodeData = BaseNodeData & { modelId: string; systemPrompt?: string; prompt: string; toolNames: string[]; temperature?: number; maxSteps?: number; outputVariable: string; };
 
 /** Only the knowledge base ID is persisted; its model/provider are runtime configuration. */
 export type KnowledgeRetrieverNodeData = BaseNodeData & {

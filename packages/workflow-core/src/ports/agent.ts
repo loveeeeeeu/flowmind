@@ -22,6 +22,42 @@ export interface AgentModelResponse {
   toolCalls: AgentModelToolCall[];
 }
 
+/**
+ * Product-facing, safe trace of an Agent decision. This deliberately records actions and
+ * observations, never provider private reasoning / chain-of-thought.
+ */
+export type AgentTraceStep = AgentToolTraceStep | AgentFinalTraceStep;
+
+export interface AgentToolTraceStep {
+  step: number;
+  type: 'TOOL_CALL';
+  toolCallId: string;
+  toolName: string;
+  arguments: unknown;
+  result: unknown;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+}
+
+export interface AgentFinalTraceStep {
+  step: number;
+  type: 'FINAL_ANSWER';
+  answer: string;
+  createdAt: string;
+}
+
+/** Best-effort action summaries. Concrete runtimes may persist / publish them as execution logs. */
+export interface AgentTracePort {
+  log(input: {
+    workflowRunId?: string;
+    nodeRunId?: string;
+    level?: 'INFO' | 'WARN';
+    message: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void>;
+}
+
 /** Safe, bounded observation returned by a concrete Tool runtime. */
 export interface AgentToolCallResult {
   toolCallId: string;

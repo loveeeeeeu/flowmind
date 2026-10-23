@@ -79,6 +79,39 @@ function RetrieverOutput({ value }: { value: unknown | null }) {
   );
 }
 
+type AgentTraceStep =
+  | { step: number; type: 'TOOL_CALL'; toolCallId: string; toolName: string; arguments: unknown; result: unknown; durationMs: number }
+  | { step: number; type: 'FINAL_ANSWER'; answer: string };
+
+function isAgentOutput(value: unknown): value is { answer: string; toolCallCount: number; steps: AgentTraceStep[] } {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.answer === 'string' && typeof candidate.toolCallCount === 'number' && Array.isArray(candidate.steps);
+}
+
+/** Action/result trace only. It intentionally does not render model reasoning or private messages. */
+function AgentOutput({ value }: { value: unknown | null }) {
+  if (!isAgentOutput(value)) return <JsonBlock value={value} />;
+
+  return <div className="agent-debug-output">
+    <p><strong>{value.steps.length} steps · {value.toolCallCount} tool calls</strong></p>
+    <ol className="node-debug-logs">
+      {value.steps.map((step) => step.type === 'TOOL_CALL' ? (
+        <li key={`${step.step}-${step.toolCallId}`} className="log-item info">
+          <div className="log-row"><strong>Step {step.step}: {step.toolName}</strong><span>{formatDuration(step.durationMs)}</span></div>
+          <details className="run-json-details"><summary>Arguments</summary><JsonBlock value={step.arguments} /></details>
+          <details className="run-json-details"><summary>Result</summary><JsonBlock value={step.result} /></details>
+        </li>
+      ) : (
+        <li key={`${step.step}-final`} className="log-item info">
+          <div className="log-row"><strong>Step {step.step}: Final answer</strong></div>
+          <p className="panel-text">{step.answer}</p>
+        </li>
+      ))}
+    </ol>
+  </div>;
+}
+
 /** Full debug data is fetched on demand; SSE only appends safe logs to an already-open detail. */
 export function NodeDebugPanel({
   projectId,
@@ -196,7 +229,7 @@ export function NodeDebugPanel({
           )}
 
           <section className="node-debug-section"><h4>Input</h4><JsonBlock value={debug.input} /></section>
-          <section className="node-debug-section"><h4>Output</h4>{node.type === 'knowledgeRetriever' ? <RetrieverOutput value={debug.output} /> : <JsonBlock value={debug.output} />}</section>
+          <section className="node-debug-section"><h4>Output</h4>{node.type === 'knowledgeRetriever' ? <RetrieverOutput value={debug.output} /> : node.type === 'agent' ? <AgentOutput value={debug.output} /> : <JsonBlock value={debug.output} />}</section>
 
           <section className="node-debug-section">
             <h4>Logs</h4>

@@ -45,6 +45,7 @@ import { McpToolDiscoveryService } from './mcp/mcp-tool-discovery.service.js';
 import { ToolCatalogService } from './mcp/tool-catalog.service.js';
 import { WorkerAgentChatService } from './agent/worker-agent-chat.service.js';
 import { AgentToolService } from './agent/agent-tool.service.js';
+import { AgentTraceLoggerService } from './agent/agent-trace-logger.service.js';
 
 // apps/worker/.env wins; otherwise fall back to the API's .env, which also guarantees both apps
 // share the same CREDENTIAL_ENCRYPTION_KEY locally.
@@ -143,17 +144,19 @@ const envFilePath = ['../.env', '../../api/.env'].map((path) =>
     ToolCatalogService,
     WorkerAgentChatService,
     AgentToolService,
+    AgentTraceLoggerService,
     CodeRunnerService,
     {
       provide: WorkflowEngine,
-      inject: [WorkerLlmClient, CodeRunnerService, WorkflowKnowledgeRetrieverAdapter, WorkerAgentChatService, AgentToolService],
+      inject: [WorkerLlmClient, CodeRunnerService, WorkflowKnowledgeRetrieverAdapter, WorkerAgentChatService, AgentToolService, AgentTraceLoggerService],
       useFactory: (
         llmClient: WorkerLlmClient,
         codeRunner: CodeRunnerService,
         knowledgeRetriever: WorkflowKnowledgeRetrieverAdapter,
         agentChat: WorkerAgentChatService,
         agentTools: AgentToolService,
-      ) => createWorkflowEngine({ llmClient, codeRunner, knowledgeRetriever, agentChat, agentTools }),
+        agentTrace: AgentTraceLoggerService,
+      ) => createWorkflowEngine({ llmClient, codeRunner, knowledgeRetriever, agentChat, agentTools, agentTrace }),
     },
     ExecutionLogService,
     RunStateService,

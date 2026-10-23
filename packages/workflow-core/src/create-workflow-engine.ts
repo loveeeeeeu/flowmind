@@ -20,7 +20,7 @@ import { SUPPORTED_NODE_TYPES } from './node-types.js';
 import type { CodeRunner } from './ports/code-runner.js';
 import type { LlmClient } from './ports/llm-client.js';
 import type { KnowledgeRetrieverPort } from './ports/knowledge-retriever.js';
-import type { AgentChatPort, AgentToolPort } from './ports/agent.js';
+import type { AgentChatPort, AgentToolPort, AgentTracePort } from './ports/agent.js';
 
 export interface CreateWorkflowEngineOptions {
   llmClient: LlmClient;
@@ -29,6 +29,8 @@ export interface CreateWorkflowEngineOptions {
   knowledgeRetriever?: KnowledgeRetrieverPort;
   agentChat?: AgentChatPort;
   agentTools?: AgentToolPort;
+  /** Best-effort Agent action summaries for product logs / SSE. */
+  agentTrace?: AgentTracePort;
   /** Defaults to DEFAULT_NODE_RETRY_POLICY; tests pass a zero backoff. */
   retryPolicy?: NodeRetryPolicy;
 }
@@ -59,7 +61,7 @@ function createExecutorRegistry(options: Omit<CreateWorkflowEngineOptions, 'retr
     new LoopExecutor(resolver),
     new CodeExecutor(options.codeRunner, resolver),
     new LlmExecutor(options.llmClient, resolver),
-    new AgentExecutor(options.agentChat ?? unavailableAgent, options.agentTools ?? unavailableTools, resolver),
+    new AgentExecutor(options.agentChat ?? unavailableAgent, options.agentTools ?? unavailableTools, resolver, options.agentTrace),
     new KnowledgeRetrieverExecutor(knowledgeRetriever, resolver),
     new EndExecutor(),
   ]);

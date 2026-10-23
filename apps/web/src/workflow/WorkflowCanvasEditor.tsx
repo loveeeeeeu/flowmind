@@ -344,7 +344,7 @@ export function WorkflowCanvasEditor({ projectId, workflow }: WorkflowCanvasEdit
       id: crypto.randomUUID(),
       type: 'agent',
       position: { x: 350, y: 300 },
-      data: { label: 'Agent', modelId: '', systemPrompt: '', prompt: '{{question}}', toolNames: [], temperature: 0.2, outputVariable: 'answer' },
+      data: { label: 'Agent', modelId: '', systemPrompt: '', prompt: '{{question}}', toolNames: [], temperature: 0.2, maxSteps: 5, outputVariable: 'answer' },
     };
     setNodes((currentNodes) => [...currentNodes, newNode]);
     setIsDirty(true);

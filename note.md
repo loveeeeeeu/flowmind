@@ -1519,3 +1519,28 @@ LLM 第二次：根据工具结果给最终回答
 ## Tool Calling 到底是什么
 支持 Tool Calling 的 LLM 可以返回一个结构化json，里面包含希望使用工具的信息
 
+# ReAct / Tool Loop + Safety + Agent Trace
+升级成多轮agent循环
+```
+LLM 决策
+  ├─ 没有 Tool Call → Final Answer，结束
+  └─ 有 Tool Call
+       ↓
+     执行 Tool
+       ↓
+     Tool Result / Observation
+       ↓
+     回到 LLM 决策
+```
+什么是ReAct：Reason + Act，一种让 LLM “边思考下一步、边使用工具、再根据结果继续行动”的模式。
+## Step 的定义
+一次 LLM 决策 = 一个 Agent Step。不是把“工具调用次数”当作步骤数
+## maxSteps：Agent 的总刹车
+前面step是工具调用，但是最后一个 Step 必须留给最终回答。
+## Agent Loop执行时主要维护三类状态：
+messages = 给模型继续推理的对话上下文
+steps = 给产品 Debug、NodeRun Output 查看的可观察 Trace
+toolExecutionStarted = 是否已经开始执行过工具，用于禁止自动重放
+## 面试总结
+我们将单轮 Tool Calling 升级为多步 ReAct Loop：每次模型决策要么返回最终答案，要么请求一个工具；系统执行工具后，将结果作为标准 tool message 追加回上下文，继续调用模型。为避免 Agent 无限循环和成本失控，我们限制 maxSteps、上下文大小、工具结果与 Trace 大小，并检测连续重复工具调用。
+
