@@ -121,9 +121,13 @@ cd apps/web; pnpm dev
 
 | 改了什么 | 需要做什么 |
 |---|---|
-| `packages/workflow-core` 或 `packages/shared` | `pnpm build:packages`，或另开终端运行 `pnpm dev:packages` 持续编译；api / worker 的 watch 会自动重启 |
+| `apps/api/src` | API 的 `pnpm start:dev` 会自动重新编译并重启。 |
+| `apps/worker/src` | Worker 的 `pnpm start:dev` 会自动重新编译并重启。 |
+| `apps/web/src` | Vite 自动热更新。 |
+| `packages/workflow-core` | 先运行 `pnpm --filter workflow-core build`，再**手动重启 Worker**。 |
+| `packages/shared` | 先运行 `pnpm --filter shared build`，再**手动重启 API 和 Worker**。 |
+| 多个 `packages/*` | 运行 `pnpm build:packages`。也可另开终端运行 `pnpm dev:packages` 持续编译；但包编译完成后，仍要手动重启依赖它的 API / Worker。 |
 | `apps/api/prisma/schema.prisma` | 在 `apps/api` 执行 `prisma migrate dev` 和 `prisma generate`（见第 5 步） |
-| `apps/api`、`apps/worker`、`apps/web` 源码 | 对应的 watch 进程自动重新加载 |
 
 ## 测试
 
@@ -299,7 +303,7 @@ Base URL 优先用凭证里填的，留空时 `OPENAI` 用 `https://api.openai.c
 | worker 报 `Cannot find module '../generated/prisma/client.js'` | 没生成 Prisma Client：见第 5 步 |
 | run 一直是 `PENDING` | worker 没启动或 Redis 没运行；worker 启动后会消费积压的任务 |
 | `GET /runs/{id}` 返回 404 | 填成了工作流 ID，应填 run 接口返回的运行 ID |
-| 改了引擎代码但行为没变 | 共享包没重新构建 |
+| 改了引擎代码但行为没变 | 共享包没重新构建，或构建后没有手动重启依赖它的 Worker / API |
 | 启动时报 `Invalid environment variables` | `.env` 缺少必填项（如 `DATABASE_URL`、`CREDENTIAL_ENCRYPTION_KEY`），对照 `apps/api/.env.example` |
 | LLM 节点 `CREDENTIAL_DECRYPTION_ERROR` | worker 和 API 的 `CREDENTIAL_ENCRYPTION_KEY` 不一致，或主密钥被更换过 |
 | LLM 节点 `AUTH_ERROR` | 凭证里的 API Key 不对；在模型凭证页更新密钥即可，下次运行生效 |

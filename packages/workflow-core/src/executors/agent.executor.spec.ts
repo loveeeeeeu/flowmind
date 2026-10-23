@@ -63,6 +63,38 @@ describe('AgentExecutor ReAct loop', () => {
     expect(chat.generate).toHaveBeenCalledTimes(3);
   });
 
+  it('executes multiple calls from one model decision sequentially before asking for the final answer', async () => {
+    const { executor, chat, tools } = setup([
+      { text: null, toolCalls: [call('call-1', { query: 'first' }), call('call-2', { query: 'second' })] },
+      { text: 'Both results are ready.', toolCalls: [] },
+    ]);
+    const result = await executor.execute(node(), context());
+    expect(result.output).toMatchObject({
+      answer: 'Both results are ready.',
+      toolCallCount: 2,
+      steps: [
+        { step: 1, type: 'TOOL_CALL', toolCallId: 'call-1' },
+        { step: 1, type: 'TOOL_CALL', toolCallId: 'call-2' },
+        { step: 2, type: 'FINAL_ANSWER' },
+      ],
+    });
+    expect(tools.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({ call: expect.objectContaining({ id: 'call-1' }) }));
+    expect(tools.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({ call: expect.objectContaining({ id: 'call-2' }) }));
+    expect(chat.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('bounds aggregate tool observations so a multi-tool batch cannot exhaust the next model context', async () => {
+    const largeOutput = (id: string) => ({ toolCallId: id, toolName: 'search_knowledge', ok: true, output: { text: 'x'.repeat(40_000) } });
+    const { executor, chat } = setup([
+      { text: null, toolCalls: [call('call-1', { query: 'first' }), call('call-2', { query: 'second' }), call('call-3', { query: 'third' })] },
+      { text: 'A bounded summary.', toolCalls: [] },
+    ], [largeOutput('call-1'), largeOutput('call-2'), largeOutput('call-3')]);
+    await expect(executor.execute(node(), context())).resolves.toMatchObject({ output: { answer: 'A bounded summary.', toolCallCount: 3 } });
+    const messages = (chat.generate as ReturnType<typeof vi.fn>).mock.calls[1]?.[0]?.messages;
+    expect(JSON.stringify(messages).length).toBeLessThan(100_000);
+    expect(JSON.stringify(messages)).toContain('observation budget was exhausted');
+  });
+
   it('does not execute a tool requested in the final available step', async () => {
     const { executor, tools } = setup([
       { text: null, toolCalls: [call('call-1', { page: 1 })] },
@@ -131,17 +163,18 @@ describe('AgentExecutor ReAct loop', () => {
     expect(JSON.stringify(first)).not.toContain('also-secret');
   });
 
-  it('fails before another model call when accumulated observations exceed the context budget', async () => {
+  it('keeps sequential large observations within the shared budget', async () => {
     const largeResult = () => ({ toolCallId: 'call', toolName: 'search_knowledge', ok: true, output: { text: 'x'.repeat(39_000) } });
     const { executor, chat, tools } = setup([
       { text: null, toolCalls: [call('call-1', { page: 1 })] },
       { text: null, toolCalls: [call('call-2', { page: 2 })] },
       { text: null, toolCalls: [call('call-3', { page: 3 })] },
+      { text: 'The result is bounded.', toolCalls: [] },
     ], [largeResult(), largeResult(), largeResult()]);
-    await expect(executor.execute(node(['search_knowledge'], 5), context())).rejects.toMatchObject({
-      code: 'AGENT_CONTEXT_TOO_LARGE', retryable: false,
+    await expect(executor.execute(node(['search_knowledge'], 5), context())).resolves.toMatchObject({
+      output: { answer: 'The result is bounded.', toolCallCount: 3 },
     });
-    expect(chat.generate).toHaveBeenCalledTimes(3);
+    expect(chat.generate).toHaveBeenCalledTimes(4);
     expect(tools.execute).toHaveBeenCalledTimes(3);
   });
 });

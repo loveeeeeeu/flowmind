@@ -16,4 +16,14 @@ describe('HttpUrlSafetyService', () => {
     const safety = new HttpUrlSafetyService(async () => [{ address: '93.184.216.34', family: 4 }]);
     await expect(safety.assertAllowed('https://example.com/')).resolves.toMatchObject({ hostname: 'example.com' });
   });
+
+  it('permits only an explicitly trusted host when a transparent proxy maps it to 198.18/15', async () => {
+    const safety = new HttpUrlSafetyService(async () => [{ address: '198.18.0.21', family: 4 }]);
+    await expect(safety.assertAllowed('https://www.microsoft.com/mcp', {
+      trustedProxyHosts: new Set(['www.microsoft.com']),
+    })).resolves.toMatchObject({ hostname: 'www.microsoft.com' });
+    await expect(safety.assertAllowed('https://evil.example/mcp', {
+      trustedProxyHosts: new Set(['www.microsoft.com']),
+    })).rejects.toMatchObject({ code: 'TOOL_INPUT_INVALID' });
+  });
 });

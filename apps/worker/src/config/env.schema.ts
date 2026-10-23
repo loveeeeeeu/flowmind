@@ -11,6 +11,10 @@ export const envSchema = z.object({
 
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
+  // Optional admin allow-list for development environments where a transparent proxy maps a
+  // public MCP hostname into 198.18/15. It does not relax normal SSRF checks.
+  MCP_TRUSTED_PROXY_HOSTS: z.string().default(''),
+
   // Must be the api's key: the worker decrypts what the api encrypted.
   CREDENTIAL_ENCRYPTION_KEY: z
     .string({ error: 'is required (32 random bytes, base64)' })

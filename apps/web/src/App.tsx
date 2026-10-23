@@ -11,6 +11,7 @@ import { CredentialsPage } from './pages/settings/CredentialsPage';
 import { ModelCenterPage } from './pages/settings/ModelCenterPage';
 import { ProjectMembersPage } from './pages/settings/ProjectMembersPage';
 import { KnowledgeBasePage } from './pages/knowledge/KnowledgeBasePage';
+import { ToolsPage } from './pages/tools/ToolsPage';
 
 function App() {
   return (
@@ -54,7 +55,7 @@ function AppShell({ userName }: { userName: string }) {
         <nav className="global-nav-links" aria-label="主导航">
           <ProjectNav />
           <KnowledgeNav />
-          <a href="#tools" onClick={(event) => event.preventDefault()}>⌘ 工具</a>
+          <ToolsNav />
           <SettingsNav />
         </nav>
         <div className="global-nav-actions"><span className="avatar" title={userName}>{userName.slice(0, 2).toUpperCase()}</span><button className="nav-search" type="button" onClick={logout}>退出</button></div>
@@ -65,6 +66,7 @@ function AppShell({ userName }: { userName: string }) {
         <Route path="/projects/:projectId/workflows/:id" element={<WorkflowDetailPage />} />
         <Route path="/projects/:projectId/workflows/:id/editor" element={<WorkflowEditorPage />} />
         <Route path="/projects/:projectId/knowledge" element={<KnowledgeBasePage />} />
+        <Route path="/projects/:projectId/tools" element={<ToolsPage />} />
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsEntry />} />
         <Route path="/projects/:projectId/settings/models" element={<ModelCenterPage />} />
         <Route path="/projects/:projectId/settings/credentials" element={<CredentialsPage />} />
@@ -109,6 +111,11 @@ function ProjectNav() {
 function KnowledgeNav() {
   const projectId = useCurrentProjectId();
   return <NavLink to={projectId ? `/projects/${projectId}/knowledge` : '/'}>▤ 知识库</NavLink>;
+}
+
+function ToolsNav() {
+  const projectId = useCurrentProjectId();
+  return <NavLink to={projectId ? `/projects/${projectId}/tools` : '/'}>⌘ 工具</NavLink>;
 }
 
 function SettingsNav() {

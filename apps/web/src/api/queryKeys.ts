@@ -1,4 +1,10 @@
 export const queryKeys = {
+  tools: {
+    catalog: (projectId: string) => ['tools', projectId] as const,
+  },
+  mcpConnections: {
+    list: (projectId: string) => ['mcp-connections', projectId, 'list'] as const,
+  },
   projectMembers: {
     list: (projectId: string) => ['project-members', projectId, 'list'] as const,
   },

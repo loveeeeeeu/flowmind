@@ -15,6 +15,9 @@ import type { NodeExecutor, NodeRetryMode } from './node-executor.js';
 const MAX_AGENT_TOOLS = 20;
 const MAX_AGENT_TOOL_SCHEMA_CHARS = 100_000;
 const MAX_AGENT_TOOL_RESULT_CHARS = 40_000;
+// Individual tool responses may be large. The aggregate is deliberately smaller than the
+// complete message budget so a multi-tool batch cannot make the next model decision impossible.
+const MAX_AGENT_TOTAL_TOOL_OBSERVATION_CHARS = 60_000;
 const MAX_AGENT_MESSAGE_CHARS = 100_000;
 const MAX_AGENT_TRACE_VALUE_CHARS = 20_000;
 const MAX_AGENT_TRACE_STEPS = 10;
@@ -23,8 +26,9 @@ const MAX_IDENTICAL_CONSECUTIVE_TOOL_CALLS = 2;
 
 /**
  * A deliberately small sequential ReAct runtime. One step is one model decision:
- * it either produces the final answer or requests one tool. We only retain observable
- * actions/results, never model reasoning text.
+ * it either produces the final answer or requests one or more tools. Even when a model emits
+ * multiple tool calls in one decision, FlowMind executes them in order, never in parallel. We
+ * only retain observable actions/results, never model reasoning text.
  */
 export class AgentExecutor implements NodeExecutor {
   readonly type = 'agent';
@@ -57,6 +61,7 @@ export class AgentExecutor implements NodeExecutor {
     let previousFingerprint: string | undefined;
     let identicalConsecutiveCalls = 0;
     let toolExecutionStarted = false;
+    let toolObservationChars = 0;
 
     for (let step = 1; step <= data.maxSteps; step += 1) {
       this.assertContextBudget(messages);
@@ -95,81 +100,85 @@ export class AgentExecutor implements NodeExecutor {
         };
       }
 
-      if (response.toolCalls.length !== 1) {
-        throw failure('AGENT_MULTIPLE_TOOL_CALLS_NOT_SUPPORTED', 'Parallel tool calls are not supported');
-      }
-
-      const call = response.toolCalls[0];
-      if (!data.toolNames.includes(call.name)) {
-        throw failure('TOOL_NOT_ALLOWED', 'Tool is not allowed for this agent');
-      }
-      if (seenToolCallIds.has(call.id)) {
-        throw failure('AGENT_DUPLICATE_TOOL_CALL_ID', `Agent returned duplicate tool call id: ${call.id}`);
-      }
-      seenToolCallIds.add(call.id);
-
-      const fingerprint = stableFingerprint({ name: call.name, arguments: call.arguments });
-      identicalConsecutiveCalls = fingerprint === previousFingerprint ? identicalConsecutiveCalls + 1 : 1;
-      previousFingerprint = fingerprint;
-      if (identicalConsecutiveCalls > MAX_IDENTICAL_CONSECUTIVE_TOOL_CALLS) {
-        throw failure('AGENT_REPEATED_TOOL_CALL', 'Agent repeated the same tool call too many times');
-      }
-
       // The final allowed model decision must be a final answer. Do not spend or side-effect a
-      // tool call that can never be consumed by another model decision.
+      // tool call that can never be consumed by another model decision. This applies to the
+      // whole batch emitted by the model, before any side effect is performed.
       if (step === data.maxSteps) {
         throw failure('AGENT_MAX_STEPS_EXCEEDED', `Agent did not produce a final answer within ${data.maxSteps} steps`);
       }
 
-      messages.push({ role: 'assistant', content: response.text ?? '', toolCalls: [call] });
-      const startedAt = Date.now();
-      await this.log(context, 'INFO', 'Agent requested tool', {
-        step,
-        toolName: call.name,
-        toolCallId: call.id,
-      });
+      const calls = response.toolCalls;
+      for (const call of calls) {
+        if (!data.toolNames.includes(call.name)) {
+          throw failure('TOOL_NOT_ALLOWED', 'Tool is not allowed for this agent');
+        }
+        if (seenToolCallIds.has(call.id)) {
+          throw failure('AGENT_DUPLICATE_TOOL_CALL_ID', `Agent returned duplicate tool call id: ${call.id}`);
+        }
+        seenToolCallIds.add(call.id);
 
-      let toolResult;
-      try {
-        // A tool may create a side effect before it throws. From this exact point on, retrying
-        // the entire workflow node would replay prior actions and is therefore forbidden.
-        toolExecutionStarted = true;
-        toolResult = await this.tools.execute({
-          projectId: context.projectId,
-          workflowId: context.workflowId,
-          workflowRunId: context.workflowRunId,
-          nodeRunId: context.currentNodeRunId,
-          workflowCallDepth: context.workflowCallDepth,
-          allowedToolNames: data.toolNames,
-          call,
-        });
-      } catch (error) {
-        throw nonReplayFailure(error);
+        const fingerprint = stableFingerprint({ name: call.name, arguments: call.arguments });
+        identicalConsecutiveCalls = fingerprint === previousFingerprint ? identicalConsecutiveCalls + 1 : 1;
+        previousFingerprint = fingerprint;
+        if (identicalConsecutiveCalls > MAX_IDENTICAL_CONSECUTIVE_TOOL_CALLS) {
+          throw failure('AGENT_REPEATED_TOOL_CALL', 'Agent repeated the same tool call too many times');
+        }
       }
 
-      const finishedAt = Date.now();
-      const durationMs = finishedAt - startedAt;
-      trace.push({
-        step,
-        type: 'TOOL_CALL',
-        toolCallId: call.id,
-        toolName: call.name,
-        arguments: safeTraceValue(call.arguments),
-        result: safeTraceValue(toolResult),
-        startedAt: new Date(startedAt).toISOString(),
-        finishedAt: new Date(finishedAt).toISOString(),
-        durationMs,
-      });
-      await this.log(context, toolResult.ok ? 'INFO' : 'WARN', 'Agent tool completed', {
-        step,
-        toolName: call.name,
-        toolCallId: call.id,
-        ok: toolResult.ok,
-        durationMs,
-        ...(toolResult.error ? { errorCode: toolResult.error.code } : {}),
-      });
+      messages.push({ role: 'assistant', content: response.text ?? '', toolCalls: calls });
+      for (const call of calls) {
+        const startedAt = Date.now();
+        await this.log(context, 'INFO', 'Agent requested tool', {
+          step,
+          toolName: call.name,
+          toolCallId: call.id,
+        });
 
-      messages.push({ role: 'tool', toolCallId: call.id, content: serializeToolResult(toolResult) });
+        let toolResult;
+        try {
+          // A tool may create a side effect before it throws. From this exact point on, retrying
+          // the entire workflow node would replay prior actions and is therefore forbidden.
+          toolExecutionStarted = true;
+          toolResult = await this.tools.execute({
+            projectId: context.projectId,
+            workflowId: context.workflowId,
+            workflowRunId: context.workflowRunId,
+            nodeRunId: context.currentNodeRunId,
+            workflowCallDepth: context.workflowCallDepth,
+            allowedToolNames: data.toolNames,
+            call,
+          });
+        } catch (error) {
+          throw nonReplayFailure(error);
+        }
+
+        const finishedAt = Date.now();
+        const durationMs = finishedAt - startedAt;
+        trace.push({
+          step,
+          type: 'TOOL_CALL',
+          toolCallId: call.id,
+          toolName: call.name,
+          arguments: safeTraceValue(call.arguments),
+          result: safeTraceValue(toolResult),
+          startedAt: new Date(startedAt).toISOString(),
+          finishedAt: new Date(finishedAt).toISOString(),
+          durationMs,
+        });
+        await this.log(context, toolResult.ok ? 'INFO' : 'WARN', 'Agent tool completed', {
+          step,
+          toolName: call.name,
+          toolCallId: call.id,
+          ok: toolResult.ok,
+          durationMs,
+          ...(toolResult.error ? { errorCode: toolResult.error.code } : {}),
+        });
+
+        const remainingObservationChars = Math.max(0, MAX_AGENT_TOTAL_TOOL_OBSERVATION_CHARS - toolObservationChars);
+        const observation = serializeToolResult(toolResult, Math.min(MAX_AGENT_TOOL_RESULT_CHARS, remainingObservationChars));
+        toolObservationChars += observation.length;
+        messages.push({ role: 'tool', toolCallId: call.id, content: observation });
+      }
     }
 
     // The loop always returns or throws within it. This keeps TypeScript's control flow explicit.
@@ -241,8 +250,12 @@ function requireFinalText(result: AgentModelResponse) {
   return result.text;
 }
 
-function serializeToolResult(result: unknown) {
-  return boundText(safeSerialize(result), MAX_AGENT_TOOL_RESULT_CHARS);
+function serializeToolResult(result: unknown, maxChars = MAX_AGENT_TOOL_RESULT_CHARS) {
+  const serialized = safeSerialize(result);
+  if (serialized.length <= maxChars) return serialized;
+  // Keep a valid, compact observation when the shared Agent observation budget is exhausted.
+  if (maxChars < 128) return JSON.stringify({ truncated: true, message: 'Tool result omitted because the Agent observation budget was exhausted' });
+  return boundText(serialized, maxChars);
 }
 
 function nonReplayFailure(error: unknown) {

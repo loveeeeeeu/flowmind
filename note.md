@@ -1483,7 +1483,7 @@ Agent
   ↓
 ToolExecutor
   ↓
-Tool 统一 Tool 接口
+Tool 统一 Tool 接口 Tool Catalog
   ├── Built-in Tool
   └── MCP Tool Adapter
          ↓
@@ -1497,8 +1497,25 @@ MCP 可以先理解为一套统一协议.它让外部服务可以向 AI 应用�
 “每个工具需要什么参数”
 “怎样调用这些工具”
 “工具执行后返回什么”
+## 后端
+```
+后端已经完成：
 
-## Agent Node + LLM Tool Calling
+创建 Project MCP Connection
+  ↓
+保存 MCP Server 的 URL / Bearer Secret（加密）
+  ↓
+测试连接
+  ↓
+调用 MCP listTools() 发现工具
+  ↓
+把工具放入当前 Project 的 Tool Catalog
+  ↓
+Agent 选择工具
+  ↓
+Worker 运行时再次连接 MCP Server 并 callTool()
+```
+# Agent Node + LLM Tool Calling
 这一课的目标是：让工作流里的 Agent 节点不只会“回答”，还能够由 LLM 决定是否调用已授权的工具，再根据工具结果生成最终回答。
 ## Agent Node 是什么
 Agent Node 是一种工作流节点。它调用具备 Tool Calling 能力的模型，并协调模型和工具执行
@@ -1512,9 +1529,9 @@ Agent Node
  └─ 保存最终回答
  本课实现的是“单轮 Agent”：最多两次 LLM 调用 + 一次工具调用
 
-LLM 第一次：决定是否调工具
-Tool：执行一次
-LLM 第二次：根据工具结果给最终回答
+LLM 第一次：决定是否调工具（调用1个/多个工具）
+Tool：执行一次（逐个执行工具）
+LLM 第二次：根据工具结果（工具返回结果做字数限制）给最终回答
 
 ## Tool Calling 到底是什么
 支持 Tool Calling 的 LLM 可以返回一个结构化json，里面包含希望使用工具的信息
@@ -1522,9 +1539,9 @@ LLM 第二次：根据工具结果给最终回答
 # ReAct / Tool Loop + Safety + Agent Trace
 升级成多轮agent循环
 ```
-LLM 决策
+LLM 决策（当前决策可能返回多个tool，如果tool存在依赖顺序，llm会做决策，按依赖顺序执行tool-1，下一次决策再根据tool-1结果，决定执行tool-2）
   ├─ 没有 Tool Call → Final Answer，结束
-  └─ 有 Tool Call
+  └─ 有 Tool Call 
        ↓
      执行 Tool
        ↓
@@ -1544,4 +1561,4 @@ toolExecutionStarted = 是否已经开始执行过工具，用于禁止自动重
 ## 面试总结
 我们将单轮 Tool Calling 升级为多步 ReAct Loop：每次模型决策要么返回最终答案，要么请求一个工具；系统执行工具后，将结果作为标准 tool message 追加回上下文，继续调用模型。为避免 Agent 无限循环和成本失控，我们限制 maxSteps、上下文大小、工具结果与 Trace 大小，并检测连续重复工具调用。
 
-#
+# 

@@ -9,6 +9,15 @@ export interface ResolvedAddress {
 
 export type DnsLookup = (hostname: string, options: { all: true }) => Promise<ResolvedAddress[]>;
 
+export interface UrlSafetyOptions {
+  /**
+   * Some corporate/TUN proxy clients resolve an explicitly trusted public host to 198.18/15.
+   * This narrowly permits that proxy-only range for an administrator configured host; it never
+   * permits loopback, RFC1918 or link-local addresses.
+   */
+  trustedProxyHosts?: ReadonlySet<string>;
+}
+
 /**
  * The HTTP tool is deliberately restricted to public network destinations. Checking both the
  * hostname and every DNS answer is important: a public-looking hostname may resolve to 127.0.0.1.
@@ -16,7 +25,7 @@ export type DnsLookup = (hostname: string, options: { all: true }) => Promise<Re
 export class HttpUrlSafetyService {
   constructor(private readonly lookup: DnsLookup = nodeLookup as DnsLookup) {}
 
-  async assertAllowed(rawUrl: string): Promise<URL> {
+  async assertAllowed(rawUrl: string, options: UrlSafetyOptions = {}): Promise<URL> {
     let url: URL;
     try {
       url = new URL(rawUrl);
@@ -48,12 +57,23 @@ export class HttpUrlSafetyService {
     } catch {
       throw new ToolInputError('URL hostname could not be resolved');
     }
-    if (addresses.length === 0 || addresses.some(({ address }) => isPrivateOrReservedIp(address))) {
+    if (addresses.length === 0) {
       throw blockedAddress();
     }
 
+    const hasBlockedAddress = addresses.some(({ address }) => isPrivateOrReservedIp(address));
+    const isTrustedProxyHost = options.trustedProxyHosts?.has(hostname)
+      && addresses.every(({ address }) => isTransparentProxyAddress(address));
+    if (hasBlockedAddress && !isTrustedProxyHost) throw blockedAddress();
+
     return url;
   }
+}
+
+function isTransparentProxyAddress(address: string) {
+  if (isIP(address) !== 4) return false;
+  const [first, second] = address.split('.').map(Number);
+  return first === 198 && (second === 18 || second === 19);
 }
 
 function blockedAddress() {

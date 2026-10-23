@@ -20,7 +20,7 @@ export function AgentProperties({
     enabled: Boolean(projectId),
   });
   const tools = useQuery({
-    queryKey: ['tools', projectId],
+    queryKey: queryKeys.tools.catalog(projectId),
     queryFn: () => getProjectTools(projectId),
     enabled: Boolean(projectId),
   });
@@ -48,7 +48,7 @@ export function AgentProperties({
               if (next.length <= 20) onNodeDataChange(node.id, { toolNames: next });
             }}
           />
-          <strong>{tool.displayName}</strong><small>{tool.source === 'MCP' ? 'MCP' : 'Built-in'} · {tool.description}</small>
+          <strong>{tool.source === 'MCP' ? (tool.name.split('__').at(-1) ?? tool.displayName).replaceAll('_', ' ') : tool.displayName}</strong><small>{tool.source === 'MCP' ? 'MCP' : 'Built-in'} · {tool.description.replace(/\s+/g, ' ').trim()}</small>
         </label>)}
       </div>
     </Field>
